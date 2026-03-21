@@ -50,3 +50,24 @@ export const ZATCA_REQUIREMENTS = {
   taxIdRequired: true,
   billingAddressRequired: true,
 } as const;
+
+export const ACCOUNTS = [
+  { code: "1100", name: "Cash on Hand", type: "asset" },
+  { code: "1110", name: "Bank Account", type: "asset" },
+  { code: "1200", name: "Accounts Receivable", type: "asset" },
+  { code: "1300", name: "Inventory", type: "asset" },
+  { code: "1400", name: "Prepaid Expenses", type: "asset" },
+  { code: "1500", name: "Fixed Assets", type: "asset" },
+  { code: "2100", name: "Accounts Payable", type: "liability" },
+  { code: "2200", name: "VAT Payable", type: "liability" },
+  { code: "2300", name: "Accrued Salaries", type: "liability" },
+  { code: "2400", name: "Short-term Loans", type: "liability" },
+  { code: "3100", name: "Owner's Equity", type: "equity" },
+  { code: "3200", name: "Retained Earnings", type: "equity" },
+  { code: "4100", name: "Sales Revenue", type: "revenue" },
+  { code: "4200", name: "Service Revenue", type: "revenue" },
+  { code: "5100", name: "Cost of Goods Sold", type: "expense" },
+  { code: "5200", name: "Salaries Expense", type: "expense" },
+  { code: "5300", name: "Rent Expense", type: "expense" },
+  { code: "5400", name: "Utilities Expense", type: "expense" },
+] as const;

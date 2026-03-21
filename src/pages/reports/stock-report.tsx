@@ -36,9 +36,9 @@ export default function StockReport() {
     const productsList: Product[] = productsData ? JSON.parse(productsData) : [];
     setProducts(productsList);
 
-    const totalValue = productsList.reduce((sum, p) => sum + (p.quantity * p.price), 0);
-    const lowStock = productsList.filter(p => p.quantity > 0 && p.quantity <= p.minimumStock).length;
-    const outOfStock = productsList.filter(p => p.quantity === 0).length;
+    const totalValue = productsList.reduce((sum, p) => sum + (p.stock * p.costPrice), 0);
+    const lowStock = productsList.filter(p => p.stock > 0 && p.stock <= p.minStock).length;
+    const outOfStock = productsList.filter(p => p.stock === 0).length;
 
     setSummary({
       totalProducts: productsList.length,
@@ -57,8 +57,8 @@ export default function StockReport() {
     p.sku.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const lowStockProducts = filteredProducts.filter(p => p.quantity > 0 && p.quantity <= p.minimumStock);
-  const outOfStockProducts = filteredProducts.filter(p => p.quantity === 0);
+  const lowStockProducts = filteredProducts.filter(p => p.stock > 0 && p.stock <= p.minStock);
+  const outOfStockProducts = filteredProducts.filter(p => p.stock === 0);
 
   return (
     <>
@@ -188,9 +188,9 @@ export default function StockReport() {
                         ) : (
                           <>
                             {filteredProducts.map((product) => {
-                              const stockValue = product.quantity * product.price;
-                              const isLowStock = product.quantity > 0 && product.quantity <= product.minimumStock;
-                              const isOutOfStock = product.quantity === 0;
+                              const stockValue = product.stock * product.costPrice;
+                              const isLowStock = product.stock > 0 && product.stock <= product.minStock;
+                              const isOutOfStock = product.stock === 0;
 
                               return (
                                 <TableRow key={product.id}>
@@ -201,9 +201,9 @@ export default function StockReport() {
                                       {product.category}
                                     </span>
                                   </TableCell>
-                                  <TableCell className="text-right">{product.price.toFixed(2)}</TableCell>
-                                  <TableCell className="text-right font-medium">{product.quantity}</TableCell>
-                                  <TableCell className="text-right">{product.minimumStock}</TableCell>
+                                  <TableCell className="text-right">{product.costPrice.toFixed(2)}</TableCell>
+                                  <TableCell className="text-right font-medium">{product.stock}</TableCell>
+                                  <TableCell className="text-right">{product.minStock}</TableCell>
                                   <TableCell className="text-right font-semibold">{stockValue.toFixed(2)}</TableCell>
                                   <TableCell>
                                     {isOutOfStock ? (
@@ -261,10 +261,10 @@ export default function StockReport() {
                             <TableRow key={product.id}>
                               <TableCell className="font-medium">{product.sku}</TableCell>
                               <TableCell>{product.name}</TableCell>
-                              <TableCell className="text-right text-yellow-600 font-bold">{product.quantity}</TableCell>
-                              <TableCell className="text-right">{product.minimumStock}</TableCell>
+                              <TableCell className="text-right text-yellow-600 font-bold">{product.stock}</TableCell>
+                              <TableCell className="text-right">{product.minStock}</TableCell>
                               <TableCell className="text-right font-semibold">
-                                {product.minimumStock - product.quantity + 20}
+                                {product.minStock - product.stock + 20}
                               </TableCell>
                             </TableRow>
                           ))
@@ -299,9 +299,9 @@ export default function StockReport() {
                               <TableCell className="font-medium">{product.sku}</TableCell>
                               <TableCell>{product.name}</TableCell>
                               <TableCell>{product.category}</TableCell>
-                              <TableCell className="text-right">{product.price.toFixed(2)}</TableCell>
+                              <TableCell className="text-right">{product.costPrice.toFixed(2)}</TableCell>
                               <TableCell className="text-right font-semibold">
-                                {product.minimumStock + 20}
+                                {product.minStock + 20}
                               </TableCell>
                             </TableRow>
                           ))
