@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FileText, Download, Calendar, BookOpen, Scale, Receipt } from "lucide-react";
+import { FileText, Download, Calendar, BookOpen, Scale, Receipt, TrendingUp } from "lucide-react";
 import Link from "next/link";
 
 export default function ReportsPage() {
@@ -151,6 +151,30 @@ export default function ReportsPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    <Link href="/reports/profit-loss">
+                      <div className="p-4 border rounded-lg hover:border-primary hover:bg-accent transition-colors cursor-pointer group">
+                        <div className="flex items-start justify-between mb-2">
+                          <TrendingUp className="h-8 w-8 text-primary" />
+                          <Button size="sm" variant="ghost" className="opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Download className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <h3 className="font-semibold mb-1">Profit & Loss Statement</h3>
+                        <p className="text-sm text-muted-foreground">Income statement with revenue, expenses, and net profit</p>
+                      </div>
+                    </Link>
+                    <Link href="/reports/balance-sheet">
+                      <div className="p-4 border rounded-lg hover:border-primary hover:bg-accent transition-colors cursor-pointer group">
+                        <div className="flex items-start justify-between mb-2">
+                          <Scale className="h-8 w-8 text-primary" />
+                          <Button size="sm" variant="ghost" className="opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Download className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <h3 className="font-semibold mb-1">Balance Sheet</h3>
+                        <p className="text-sm text-muted-foreground">Financial position with assets, liabilities, and equity</p>
+                      </div>
+                    </Link>
                     {reportCategories[3].reports.map((report, idx) => (
                       <Link key={idx} href={report.href}>
                         <div className="p-4 border rounded-lg hover:border-primary hover:bg-accent transition-colors cursor-pointer group">

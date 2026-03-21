@@ -135,6 +135,54 @@ export type Database = {
         }
         Relationships: []
       }
+      invoice_design_settings: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          footer_text: string | null
+          id: string
+          logo_position: string | null
+          organization_id: string | null
+          primary_color: string | null
+          secondary_color: string | null
+          show_company_details: boolean | null
+          show_logo: boolean | null
+          show_payment_terms: boolean | null
+          template_style: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          footer_text?: string | null
+          id?: string
+          logo_position?: string | null
+          organization_id?: string | null
+          primary_color?: string | null
+          secondary_color?: string | null
+          show_company_details?: boolean | null
+          show_logo?: boolean | null
+          show_payment_terms?: boolean | null
+          template_style?: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          footer_text?: string | null
+          id?: string
+          logo_position?: string | null
+          organization_id?: string | null
+          primary_color?: string | null
+          secondary_color?: string | null
+          show_company_details?: boolean | null
+          show_logo?: boolean | null
+          show_payment_terms?: boolean | null
+          template_style?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       products: {
         Row: {
           barcode: string | null
@@ -711,6 +759,42 @@ export type Database = {
           supplier_number?: string
           updated_at?: string | null
           vat_number?: string | null
+        }
+        Relationships: []
+      }
+      tax_settings: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          id: string
+          is_tax_inclusive: boolean | null
+          organization_id: string | null
+          tax_name: string
+          tax_rate: number
+          tax_registration_number: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_tax_inclusive?: boolean | null
+          organization_id?: string | null
+          tax_name?: string
+          tax_rate?: number
+          tax_registration_number?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_tax_inclusive?: boolean | null
+          organization_id?: string | null
+          tax_name?: string
+          tax_rate?: number
+          tax_registration_number?: string | null
+          updated_at?: string | null
         }
         Relationships: []
       }
