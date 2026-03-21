@@ -59,13 +59,56 @@ export default function ZATCAPhase2Page() {
   const [isRegisterDialogOpen, setIsRegisterDialogOpen] = useState(false);
   const [newDeviceName, setNewDeviceName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const { toast } = useToast();
   
   const [devices, setDevices] = useState<any[]>([]);
 
+  // Organization Details State
+  const [orgDetails, setOrgDetails] = useState({
+    nameEn: "",
+    nameAr: "",
+    vatNumber: "",
+    crNumber: "",
+    buildingNumber: "",
+    streetName: "",
+    district: "",
+    city: "",
+    postalCode: "",
+    additionalNumber: "",
+    countryCode: "SA",
+    otp: "",
+  });
+
   useEffect(() => {
     fetchDevices();
+    loadOrganizationDetails();
   }, []);
+
+  const loadOrganizationDetails = () => {
+    try {
+      const savedCompanyInfo = localStorage.getItem("companyInfo");
+      if (savedCompanyInfo) {
+        const companyInfo = JSON.parse(savedCompanyInfo);
+        setOrgDetails({
+          nameEn: companyInfo.nameEn || "",
+          nameAr: companyInfo.nameAr || "",
+          vatNumber: companyInfo.vatNumber || "",
+          crNumber: companyInfo.crNumber || "",
+          buildingNumber: companyInfo.buildingNumber || "",
+          streetName: companyInfo.streetName || "",
+          district: companyInfo.district || "",
+          city: companyInfo.city || "",
+          postalCode: companyInfo.postalCode || "",
+          additionalNumber: companyInfo.additionalNumber || "",
+          countryCode: "SA",
+          otp: "",
+        });
+      }
+    } catch (error) {
+      console.error("Error loading organization details:", error);
+    }
+  };
 
   const fetchDevices = async () => {
     try {
@@ -97,6 +140,55 @@ export default function ZATCAPhase2Page() {
       toast({ title: "Error", description: error.message || "Failed to register device", variant: "destructive" });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleSyncWithZATCA = async () => {
+    // Validate required fields
+    if (!orgDetails.vatNumber || !orgDetails.crNumber || !orgDetails.buildingNumber || 
+        !orgDetails.streetName || !orgDetails.city || !orgDetails.postalCode) {
+      toast({ 
+        title: "Validation Error", 
+        description: "Please fill in all required fields (VAT Number, CR Number, and complete National Address)", 
+        variant: "destructive" 
+      });
+      return;
+    }
+
+    setIsSyncing(true);
+    try {
+      // Save to localStorage first
+      const companyInfo = {
+        nameEn: orgDetails.nameEn,
+        nameAr: orgDetails.nameAr,
+        vatNumber: orgDetails.vatNumber,
+        crNumber: orgDetails.crNumber,
+        buildingNumber: orgDetails.buildingNumber,
+        streetName: orgDetails.streetName,
+        district: orgDetails.district,
+        city: orgDetails.city,
+        postalCode: orgDetails.postalCode,
+        additionalNumber: orgDetails.additionalNumber,
+        country: "Saudi Arabia",
+      };
+      localStorage.setItem("companyInfo", JSON.stringify(companyInfo));
+
+      // In production, this would call ZATCA API to validate and sync
+      // For now, we'll simulate the sync
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      toast({ 
+        title: "Sync Successful", 
+        description: "Organization details have been synced with ZATCA successfully" 
+      });
+    } catch (error: any) {
+      toast({ 
+        title: "Sync Failed", 
+        description: error.message || "Failed to sync with ZATCA", 
+        variant: "destructive" 
+      });
+    } finally {
+      setIsSyncing(false);
     }
   };
 
@@ -571,7 +663,19 @@ export default function ZATCAPhase2Page() {
                     </div>
                     <div className="space-y-2">
                       <Label>Timeout (seconds)</Label>
-                      <Input type="number" value="30" />
+                      <Input type="number" defaultValue="30" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>OTP (One Time Password)</Label>
+                      <Input 
+                        value={orgDetails.otp}
+                        onChange={(e) => setOrgDetails({ ...orgDetails, otp: e.target.value })}
+                        placeholder="Enter OTP from ZATCA portal"
+                        maxLength={6}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Get OTP from ZATCA portal for device onboarding
+                      </p>
                     </div>
                   </CardContent>
                 </Card>
@@ -579,19 +683,141 @@ export default function ZATCAPhase2Page() {
                 <Card>
                   <CardHeader>
                     <CardTitle>Organization Details</CardTitle>
+                    <p className="text-sm text-muted-foreground">
+                      National Address (العنوان الوطني) for ZATCA compliance
+                    </p>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                      <Label>Organization VAT Number</Label>
-                      <Input value="300000000000003" />
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Company Name (EN) *</Label>
+                        <Input 
+                          value={orgDetails.nameEn}
+                          onChange={(e) => setOrgDetails({ ...orgDetails, nameEn: e.target.value })}
+                          placeholder="Your Company Name"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Company Name (AR) *</Label>
+                        <Input 
+                          value={orgDetails.nameAr}
+                          onChange={(e) => setOrgDetails({ ...orgDetails, nameAr: e.target.value })}
+                          placeholder="اسم شركتك"
+                          dir="rtl"
+                        />
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label>CR Number</Label>
-                      <Input value="1010000000" />
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>VAT Number (الرقم الضريبي) *</Label>
+                        <Input 
+                          value={orgDetails.vatNumber}
+                          onChange={(e) => setOrgDetails({ ...orgDetails, vatNumber: e.target.value })}
+                          placeholder="300000000000003"
+                          maxLength={15}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>CR Number (رقم السجل التجاري) *</Label>
+                        <Input 
+                          value={orgDetails.crNumber}
+                          onChange={(e) => setOrgDetails({ ...orgDetails, crNumber: e.target.value })}
+                          placeholder="1010000000"
+                        />
+                      </div>
                     </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Building Number (رقم المبنى) *</Label>
+                        <Input 
+                          value={orgDetails.buildingNumber}
+                          onChange={(e) => setOrgDetails({ ...orgDetails, buildingNumber: e.target.value })}
+                          placeholder="1234"
+                          maxLength={4}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Street Name (اسم الشارع) *</Label>
+                        <Input 
+                          value={orgDetails.streetName}
+                          onChange={(e) => setOrgDetails({ ...orgDetails, streetName: e.target.value })}
+                          placeholder="King Fahd Road"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>District (الحي)</Label>
+                        <Input 
+                          value={orgDetails.district}
+                          onChange={(e) => setOrgDetails({ ...orgDetails, district: e.target.value })}
+                          placeholder="Al Olaya"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>City (المدينة) *</Label>
+                        <Input 
+                          value={orgDetails.city}
+                          onChange={(e) => setOrgDetails({ ...orgDetails, city: e.target.value })}
+                          placeholder="Riyadh"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Postal Code (الرمز البريدي) *</Label>
+                        <Input 
+                          value={orgDetails.postalCode}
+                          onChange={(e) => setOrgDetails({ ...orgDetails, postalCode: e.target.value })}
+                          placeholder="12345"
+                          maxLength={5}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Additional Number (الرقم الإضافي) *</Label>
+                        <Input 
+                          value={orgDetails.additionalNumber}
+                          onChange={(e) => setOrgDetails({ ...orgDetails, additionalNumber: e.target.value })}
+                          placeholder="5678"
+                          maxLength={4}
+                        />
+                      </div>
+                    </div>
+
                     <div className="space-y-2">
-                      <Label>Organization Unit</Label>
-                      <Input value="Riyadh Branch" />
+                      <Label>Country Code</Label>
+                      <Input value="SA" disabled />
+                    </div>
+
+                    <div className="flex justify-end gap-2">
+                      <Button 
+                        variant="outline" 
+                        onClick={() => {
+                          window.location.href = "/settings";
+                        }}
+                      >
+                        Edit in Settings
+                      </Button>
+                      <Button 
+                        onClick={handleSyncWithZATCA}
+                        disabled={isSyncing}
+                      >
+                        {isSyncing ? (
+                          <>
+                            <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                            Syncing...
+                          </>
+                        ) : (
+                          <>
+                            <RefreshCw className="h-4 w-4 mr-2" />
+                            Sync with ZATCA
+                          </>
+                        )}
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>

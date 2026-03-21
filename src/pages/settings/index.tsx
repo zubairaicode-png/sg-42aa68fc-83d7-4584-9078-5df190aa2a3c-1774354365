@@ -22,6 +22,7 @@ export default function SettingsPage() {
     crNumber: "1010000000",
     buildingNumber: "1234",
     streetName: "King Fahd Road",
+    district: "",
     additionalNumber: "5678",
     postalCode: "12345",
     city: "Riyadh",
@@ -183,6 +184,15 @@ export default function SettingsPage() {
                           value={companyInfo.streetName}
                           onChange={(e) => setCompanyInfo({ ...companyInfo, streetName: e.target.value })}
                           placeholder="King Fahd Road"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="district">District (الحي)</Label>
+                        <Input
+                          id="district"
+                          value={companyInfo.district}
+                          onChange={(e) => setCompanyInfo({ ...companyInfo, district: e.target.value })}
+                          placeholder="Al Olaya"
                         />
                       </div>
                       <div className="space-y-2">
