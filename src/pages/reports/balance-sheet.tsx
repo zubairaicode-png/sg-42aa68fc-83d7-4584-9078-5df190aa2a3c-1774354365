@@ -69,7 +69,7 @@ export default function BalanceSheetPage() {
       setLoading(true);
 
       // Fetch accounts receivable (unpaid invoices)
-      const { data: unpaidInvoices, error: invoicesError } = await supabase
+      const { data: unpaidInvoices, error: invoicesError } = await (supabase as any)
         .from("sales_invoices")
         .select("total_amount")
         .lte("invoice_date", asOfDate)
@@ -78,14 +78,14 @@ export default function BalanceSheetPage() {
       if (invoicesError) throw invoicesError;
 
       // Fetch inventory value
-      const { data: inventoryData, error: inventoryError } = await supabase
+      const { data: inventoryData, error: inventoryError } = await (supabase as any)
         .from("products")
         .select("stock_quantity, cost_price");
 
       if (inventoryError) throw inventoryError;
 
       // Fetch accounts payable (unpaid expenses)
-      const { data: unpaidExpenses, error: expensesError } = await supabase
+      const { data: unpaidExpenses, error: expensesError } = await (supabase as any)
         .from("expenses")
         .select("amount")
         .lte("expense_date", asOfDate)

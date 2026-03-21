@@ -52,7 +52,7 @@ export default function ProfitLossPage() {
       setLoading(true);
 
       // Fetch sales revenue
-      const { data: salesData, error: salesError } = await supabase
+      const { data: salesData, error: salesError } = await (supabase as any)
         .from("sales_invoices")
         .select("total_amount")
         .gte("invoice_date", dateFrom)
@@ -62,7 +62,7 @@ export default function ProfitLossPage() {
       if (salesError) throw salesError;
 
       // Fetch sales returns
-      const { data: returnsData, error: returnsError } = await supabase
+      const { data: returnsData, error: returnsError } = await (supabase as any)
         .from("sales_returns")
         .select("total_amount")
         .gte("return_date", dateFrom)
@@ -71,7 +71,7 @@ export default function ProfitLossPage() {
       if (returnsError) throw returnsError;
 
       // Fetch expenses (using as COGS and Operating Expenses)
-      const { data: expensesData, error: expensesError } = await supabase
+      const { data: expensesData, error: expensesError } = await (supabase as any)
         .from("expenses")
         .select("amount, category")
         .gte("expense_date", dateFrom)
@@ -80,13 +80,13 @@ export default function ProfitLossPage() {
       if (expensesError) throw expensesError;
 
       // Calculate totals
-      const totalSales = salesData?.reduce((sum, inv) => sum + inv.total_amount, 0) || 0;
-      const totalReturns = returnsData?.reduce((sum, ret) => sum + ret.total_amount, 0) || 0;
+      const totalSales = salesData?.reduce((sum: number, inv: any) => sum + inv.total_amount, 0) || 0;
+      const totalReturns = returnsData?.reduce((sum: number, ret: any) => sum + ret.total_amount, 0) || 0;
       const netRevenue = totalSales - totalReturns;
 
       // Split expenses into COGS (Inventory/Purchases) and Operating Expenses
-      const cogsExpenses = expensesData?.filter(e => e.category.toLowerCase().includes('inventory') || e.category.toLowerCase().includes('purchase')) || [];
-      const operatingExpenses = expensesData?.filter(e => !e.category.toLowerCase().includes('inventory') && !e.category.toLowerCase().includes('purchase')) || [];
+      const cogsExpenses = expensesData?.filter((e: any) => e.category?.toLowerCase().includes('inventory') || e.category?.toLowerCase().includes('purchase')) || [];
+      const operatingExpenses = expensesData?.filter((e: any) => !e.category?.toLowerCase().includes('inventory') && !e.category?.toLowerCase().includes('purchase')) || [];
 
       let totalPurchases = 0;
       if (cogsExpenses) {
