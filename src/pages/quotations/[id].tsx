@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
-import DashboardLayout from "@/components/layouts/DashboardLayout";
+import { DashboardLayout } from "@/components/layouts/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, FileCheck, Printer, Mail } from "lucide-react";
 import { quotationService, type QuotationWithItems } from "@/services/quotationService";
 import { useToast } from "@/hooks/use-toast";
-import AuthGuard from "@/components/AuthGuard";
+import { AuthGuard } from "@/components/AuthGuard";
 import { Separator } from "@/components/ui/separator";
 
 export default function QuotationDetailPage() {
@@ -215,12 +215,12 @@ export default function QuotationDetailPage() {
                     <TableBody>
                       {quotation.quotation_items.map((item) => (
                         <TableRow key={item.id}>
-                          <TableCell className="font-medium">{item.product_name}</TableCell>
+                          <TableCell className="font-medium">{item.products?.name || item.description}</TableCell>
                           <TableCell className="text-right">{item.quantity}</TableCell>
                           <TableCell className="text-right">{formatCurrency(item.unit_price)}</TableCell>
-                          <TableCell className="text-right">{item.tax_rate}%</TableCell>
+                          <TableCell className="text-right">{item.vat_rate}%</TableCell>
                           <TableCell className="text-right">{formatCurrency(item.discount_amount)}</TableCell>
-                          <TableCell className="text-right font-medium">{formatCurrency(item.total)}</TableCell>
+                          <TableCell className="text-right font-medium">{formatCurrency(item.total_amount)}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -239,12 +239,12 @@ export default function QuotationDetailPage() {
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Tax:</span>
-                      <span className="font-medium">{formatCurrency(quotation.tax_amount)}</span>
+                      <span className="font-medium">{formatCurrency(quotation.vat_amount)}</span>
                     </div>
                     <Separator />
                     <div className="flex justify-between text-lg font-bold">
                       <span>Total:</span>
-                      <span>{formatCurrency(quotation.total)}</span>
+                      <span>{formatCurrency(quotation.total_amount)}</span>
                     </div>
                   </div>
                 </div>

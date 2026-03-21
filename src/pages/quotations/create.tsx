@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
-import DashboardLayout from "@/components/layouts/DashboardLayout";
+import { DashboardLayout } from "@/components/layouts/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -13,25 +13,24 @@ import { useToast } from "@/hooks/use-toast";
 import { customerService } from "@/services/customerService";
 import { productService } from "@/services/productService";
 import { quotationService, type CreateQuotationData } from "@/services/quotationService";
-import type { Customer, Product } from "@/types";
-import AuthGuard from "@/components/AuthGuard";
+import { AuthGuard } from "@/components/AuthGuard";
 
 interface QuotationItem {
   product_id: string;
   product_name: string;
   quantity: number;
   unit_price: number;
-  tax_rate: number;
+  vat_rate: number;
   discount_amount: number;
-  total: number;
+  total_amount: number;
 }
 
 export default function CreateQuotationPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
+  const [customers, setCustomers] = useState<any[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
 
   const [formData, setFormData] = useState({
     customer_id: "",
@@ -96,23 +95,23 @@ export default function CreateQuotationPage() {
     if (!product) return;
 
     const quantity = currentItem.quantity;
-    const unitPrice = product.selling_price;
-    const taxRate = product.tax_rate || 0;
+    const unitPrice = product.sellingPrice || product.selling_price || 0;
+    const vatRate = product.vatRate || product.vat_rate || 15;
     const discountAmount = currentItem.discount_amount;
 
     const subtotal = quantity * unitPrice;
     const afterDiscount = subtotal - discountAmount;
-    const taxAmount = afterDiscount * (taxRate / 100);
-    const total = afterDiscount + taxAmount;
+    const vatAmount = afterDiscount * (vatRate / 100);
+    const total_amount = afterDiscount + vatAmount;
 
     const newItem: QuotationItem = {
       product_id: product.id,
       product_name: product.name,
       quantity,
       unit_price: unitPrice,
-      tax_rate: taxRate,
+      vat_rate: vatRate,
       discount_amount: discountAmount,
-      total,
+      total_amount,
     };
 
     setItems([...items, newItem]);
@@ -134,14 +133,14 @@ export default function CreateQuotationPage() {
 
     const totalDiscount = formData.discount_amount + items.reduce((sum, item) => sum + item.discount_amount, 0);
     
-    const taxAmount = items.reduce((sum, item) => {
+    const vatAmount = items.reduce((sum, item) => {
       const itemSubtotal = item.quantity * item.unit_price - item.discount_amount;
-      return sum + (itemSubtotal * item.tax_rate / 100);
+      return sum + (itemSubtotal * item.vat_rate / 100);
     }, 0);
 
-    const total = subtotal - totalDiscount + taxAmount;
+    const total_amount = subtotal - totalDiscount + vatAmount;
 
-    return { subtotal, totalDiscount, taxAmount, total };
+    return { subtotal, totalDiscount, vatAmount, total_amount };
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -176,13 +175,13 @@ export default function CreateQuotationPage() {
         status: formData.status,
         notes: formData.notes,
         discount_amount: formData.discount_amount,
-        tax_amount: totals.taxAmount,
+        vat_amount: totals.vatAmount,
         items: items.map((item) => ({
           product_id: item.product_id,
-          product_name: item.product_name,
+          description: item.product_name,
           quantity: item.quantity,
           unit_price: item.unit_price,
-          tax_rate: item.tax_rate,
+          vat_rate: item.vat_rate,
           discount_amount: item.discount_amount,
         })),
       };
@@ -387,9 +386,9 @@ export default function CreateQuotationPage() {
                             <TableCell className="font-medium">{item.product_name}</TableCell>
                             <TableCell className="text-right">{item.quantity}</TableCell>
                             <TableCell className="text-right">{formatCurrency(item.unit_price)}</TableCell>
-                            <TableCell className="text-right">{item.tax_rate}%</TableCell>
+                            <TableCell className="text-right">{item.vat_rate}%</TableCell>
                             <TableCell className="text-right">{formatCurrency(item.discount_amount)}</TableCell>
-                            <TableCell className="text-right font-medium">{formatCurrency(item.total)}</TableCell>
+                            <TableCell className="text-right font-medium">{formatCurrency(item.total_amount)}</TableCell>
                             <TableCell>
                               <Button
                                 type="button"
@@ -438,11 +437,11 @@ export default function CreateQuotationPage() {
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Tax:</span>
-                      <span className="font-medium">{formatCurrency(totals.taxAmount)}</span>
+                      <span className="font-medium">{formatCurrency(totals.vatAmount)}</span>
                     </div>
                     <div className="flex justify-between text-lg font-bold pt-2 border-t">
                       <span>Total:</span>
-                      <span>{formatCurrency(totals.total)}</span>
+                      <span>{formatCurrency(totals.total_amount)}</span>
                     </div>
                   </div>
                 </div>

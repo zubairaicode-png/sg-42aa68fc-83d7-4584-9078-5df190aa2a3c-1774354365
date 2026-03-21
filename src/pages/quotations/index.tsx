@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
-import DashboardLayout from "@/components/layouts/DashboardLayout";
+import { DashboardLayout } from "@/components/layouts/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -9,7 +9,7 @@ import { Plus, FileText, Trash2, Eye, FileCheck } from "lucide-react";
 import { quotationService, type QuotationWithItems } from "@/services/quotationService";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import AuthGuard from "@/components/AuthGuard";
+import { AuthGuard } from "@/components/AuthGuard";
 
 export default function QuotationsPage() {
   const router = useRouter();
@@ -180,7 +180,7 @@ export default function QuotationsPage() {
                           <TableCell>{formatDate(quotation.valid_until)}</TableCell>
                           <TableCell>{getStatusBadge(quotation.status)}</TableCell>
                           <TableCell className="text-right font-medium">
-                            {formatCurrency(quotation.total)}
+                            {formatCurrency(quotation.total_amount)}
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-2">

@@ -8,7 +8,7 @@ type QuotationItem = Database["public"]["Tables"]["quotation_items"]["Row"];
 type QuotationItemInsert = Database["public"]["Tables"]["quotation_items"]["Insert"];
 
 export interface QuotationWithItems extends Quotation {
-  quotation_items: QuotationItem[];
+  quotation_items: (QuotationItem & { products?: { name: string } })[];
   customers?: {
     name: string;
     email: string | null;
@@ -23,13 +23,13 @@ export interface CreateQuotationData {
   status?: string;
   notes?: string;
   discount_amount?: number;
-  tax_amount?: number;
+  vat_amount?: number;
   items: {
     product_id: string;
-    product_name: string;
+    description?: string;
     quantity: number;
     unit_price: number;
-    tax_rate: number;
+    vat_rate: number;
     discount_amount?: number;
   }[];
 }
@@ -40,7 +40,7 @@ export const quotationService = {
       .from("quotations")
       .select(`
         *,
-        quotation_items(*),
+        quotation_items(*, products(name)),
         customers(name, email, phone)
       `)
       .order("created_at", { ascending: false });
@@ -50,7 +50,7 @@ export const quotationService = {
       throw error;
     }
 
-    return (data || []) as QuotationWithItems[];
+    return (data || []) as unknown as QuotationWithItems[];
   },
 
   async getById(id: string): Promise<QuotationWithItems | null> {
@@ -58,7 +58,7 @@ export const quotationService = {
       .from("quotations")
       .select(`
         *,
-        quotation_items(*),
+        quotation_items(*, products(name)),
         customers(name, email, phone)
       `)
       .eq("id", id)
@@ -69,7 +69,7 @@ export const quotationService = {
       throw error;
     }
 
-    return data as QuotationWithItems;
+    return data as unknown as QuotationWithItems;
   },
 
   async create(quotationData: CreateQuotationData): Promise<Quotation> {
@@ -84,8 +84,8 @@ export const quotationService = {
     }, 0);
 
     const totalDiscount = quotationData.discount_amount || 0;
-    const totalTax = quotationData.tax_amount || 0;
-    const total = subtotal - totalDiscount + totalTax;
+    const totalTax = quotationData.vat_amount || 0;
+    const total_amount = subtotal - totalDiscount + totalTax;
 
     // Create quotation
     const { data: quotation, error: quotationError } = await supabase
@@ -97,8 +97,8 @@ export const quotationService = {
         status: quotationData.status || "draft",
         subtotal,
         discount_amount: totalDiscount,
-        tax_amount: totalTax,
-        total,
+        vat_amount: totalTax,
+        total_amount,
         notes: quotationData.notes,
         created_by: session.session.user.id,
       })
@@ -111,17 +111,22 @@ export const quotationService = {
     }
 
     // Create quotation items
-    const items: QuotationItemInsert[] = quotationData.items.map((item) => ({
-      quotation_id: quotation.id,
-      product_id: item.product_id,
-      product_name: item.product_name,
-      quantity: item.quantity,
-      unit_price: item.unit_price,
-      tax_rate: item.tax_rate,
-      discount_amount: item.discount_amount || 0,
-      total: (item.quantity * item.unit_price) - (item.discount_amount || 0) + 
-             (item.quantity * item.unit_price * item.tax_rate / 100),
-    }));
+    const items: QuotationItemInsert[] = quotationData.items.map((item) => {
+      const itemSubtotal = (item.quantity * item.unit_price) - (item.discount_amount || 0);
+      const itemVat = itemSubtotal * (item.vat_rate / 100);
+      
+      return {
+        quotation_id: quotation.id,
+        product_id: item.product_id,
+        description: item.description || "",
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        vat_rate: item.vat_rate,
+        vat_amount: itemVat,
+        discount_amount: item.discount_amount || 0,
+        total_amount: itemSubtotal + itemVat,
+      };
+    });
 
     const { error: itemsError } = await supabase
       .from("quotation_items")
@@ -158,18 +163,6 @@ export const quotationService = {
   },
 
   async delete(id: string): Promise<void> {
-    // Delete quotation items first (due to foreign key)
-    const { error: itemsError } = await supabase
-      .from("quotation_items")
-      .delete()
-      .eq("quotation_id", id);
-
-    if (itemsError) {
-      console.error("Error deleting quotation items:", itemsError);
-      throw itemsError;
-    }
-
-    // Delete quotation
     const { error } = await supabase
       .from("quotations")
       .delete()
@@ -199,15 +192,15 @@ export const quotationService = {
 
     // Create sales invoice
     const { data: invoice, error: invoiceError } = await supabase
-      .from("sales")
+      .from("sales_invoices")
       .insert({
         customer_id: quotation.customer_id,
-        invoice_date: new Date().toISOString().split("T")[0],
+        issue_date: new Date().toISOString().split("T")[0],
         due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
         subtotal: quotation.subtotal,
         discount_amount: quotation.discount_amount,
-        tax_amount: quotation.tax_amount,
-        total: quotation.total,
+        vat_amount: quotation.vat_amount,
+        total_amount: quotation.total_amount,
         paid_amount: 0,
         payment_status: "unpaid",
         notes: `Converted from Quotation ${quotation.quotation_number}\n${quotation.notes || ""}`,
@@ -223,29 +216,33 @@ export const quotationService = {
 
     // Create invoice items
     const invoiceItems = quotation.quotation_items.map((item) => ({
-      sale_id: invoice.id,
+      invoice_id: invoice.id,
       product_id: item.product_id,
-      product_name: item.product_name,
       quantity: item.quantity,
       unit_price: item.unit_price,
-      tax_rate: item.tax_rate,
+      vat_rate: item.vat_rate,
+      vat_amount: item.vat_amount,
       discount_amount: item.discount_amount,
-      total: item.total,
+      total_amount: item.total_amount,
     }));
 
     const { error: itemsError } = await supabase
-      .from("sale_items")
+      .from("sales_invoice_items")
       .insert(invoiceItems);
 
     if (itemsError) {
       console.error("Error creating invoice items:", itemsError);
       // Rollback invoice
-      await supabase.from("sales").delete().eq("id", invoice.id);
+      await supabase.from("sales_invoices").delete().eq("id", invoice.id);
       throw itemsError;
     }
 
     // Update quotation status to converted
-    await this.updateStatus(quotationId, "converted");
+    await this.update(quotationId, { 
+      status: "converted",
+      converted_to_invoice_id: invoice.id,
+      converted_at: new Date().toISOString()
+    });
 
     return invoice.id;
   },
