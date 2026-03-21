@@ -93,14 +93,16 @@ export default function BalanceSheetPage() {
 
       if (expensesError) throw expensesError;
 
-      // Calculate totals - simplified to avoid deep type inference
+      // Calculate totals - use simple loops to avoid type inference issues
       let accountsReceivable = 0;
-      if (unpaidInvoices && Array.isArray(unpaidInvoices)) {
-        accountsReceivable = unpaidInvoices.reduce((sum, inv) => sum + Number(inv.total_amount || 0), 0);
+      if (unpaidInvoices) {
+        for (const inv of unpaidInvoices) {
+          accountsReceivable += Number(inv.total_amount || 0);
+        }
       }
       
       let inventoryValue = 0;
-      if (inventoryData && Array.isArray(inventoryData)) {
+      if (inventoryData) {
         for (const prod of inventoryData) {
           const qty = Number(prod.stock_quantity || 0);
           const price = Number(prod.cost_price || 0);
@@ -109,8 +111,10 @@ export default function BalanceSheetPage() {
       }
       
       let accountsPayable = 0;
-      if (unpaidExpenses && Array.isArray(unpaidExpenses)) {
-        accountsPayable = unpaidExpenses.reduce((sum, exp) => sum + Number(exp.amount || 0), 0);
+      if (unpaidExpenses) {
+        for (const exp of unpaidExpenses) {
+          accountsPayable += Number(exp.amount || 0);
+        }
       }
 
       // Simulate cash (would come from accounting system)
