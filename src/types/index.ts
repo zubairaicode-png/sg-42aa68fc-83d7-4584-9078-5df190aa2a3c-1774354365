@@ -7,7 +7,12 @@ export interface Customer {
   email: string;
   phone: string;
   vatNumber?: string;
+  crNumber?: string; // Commercial Registration Number
   address: string;
+  buildingNumber?: string; // ZATCA Phase 2
+  streetName?: string; // ZATCA Phase 2
+  additionalNumber?: string; // ZATCA Phase 2
+  postalCode?: string; // ZATCA Phase 2
   city: string;
   country: string;
   creditLimit: number;
@@ -22,7 +27,12 @@ export interface Supplier {
   email: string;
   phone: string;
   vatNumber?: string;
+  crNumber?: string; // Commercial Registration Number
   address: string;
+  buildingNumber?: string; // ZATCA Phase 2
+  streetName?: string; // ZATCA Phase 2
+  additionalNumber?: string; // ZATCA Phase 2
+  postalCode?: string; // ZATCA Phase 2
   city: string;
   country: string;
   balance: number;

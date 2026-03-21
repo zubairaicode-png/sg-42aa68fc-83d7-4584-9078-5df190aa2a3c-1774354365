@@ -18,9 +18,15 @@ export default function CreateSupplier() {
 
   const [formData, setFormData] = useState({
     name: "",
+    nameAr: "",
     email: "",
     phone: "",
-    taxId: "",
+    vatNumber: "",
+    crNumber: "",
+    buildingNumber: "",
+    streetName: "",
+    additionalNumber: "",
+    postalCode: "",
     address: "",
     city: "",
     country: "Saudi Arabia",
@@ -45,6 +51,15 @@ export default function CreateSupplier() {
       return;
     }
 
+    // ZATCA Phase 2 validation
+    if (!formData.vatNumber || !formData.crNumber) {
+      toast({
+        title: "ZATCA Compliance Warning",
+        description: "VAT Number and CR Number are highly recommended for suppliers",
+        variant: "destructive",
+      });
+    }
+
     // Simulate API call
     setTimeout(() => {
       toast({
@@ -67,7 +82,7 @@ export default function CreateSupplier() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold">Create New Supplier</h1>
-              <p className="text-muted-foreground mt-1">Add a new supplier to your database</p>
+              <p className="text-muted-foreground mt-1">Add a new supplier with ZATCA Phase 2 compliance</p>
             </div>
             <Button variant="outline" onClick={() => router.push("/suppliers")}>
               <ArrowLeft className="w-4 h-4 mr-2" />
@@ -82,14 +97,25 @@ export default function CreateSupplier() {
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor="name">Supplier Name *</Label>
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Supplier Name (English) *</Label>
                     <Input
                       id="name"
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      placeholder="Enter supplier/vendor name"
+                      placeholder="Enter supplier/vendor name in English"
                       required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="nameAr">Supplier Name (Arabic)</Label>
+                    <Input
+                      id="nameAr"
+                      value={formData.nameAr}
+                      onChange={(e) => setFormData({ ...formData, nameAr: e.target.value })}
+                      placeholder="اسم المورد بالعربية"
+                      dir="rtl"
                     />
                   </div>
 
@@ -116,57 +142,132 @@ export default function CreateSupplier() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="taxId">VAT Number (Tax ID)</Label>
+                    <Label htmlFor="vatNumber">VAT Number</Label>
                     <Input
-                      id="taxId"
-                      value={formData.taxId}
-                      onChange={(e) => setFormData({ ...formData, taxId: e.target.value })}
+                      id="vatNumber"
+                      value={formData.vatNumber}
+                      onChange={(e) => setFormData({ ...formData, vatNumber: e.target.value })}
                       placeholder="3000XXXXXXXX3"
                     />
-                    <p className="text-xs text-muted-foreground">15-digit VAT registration number</p>
+                    <p className="text-xs text-muted-foreground">15-digit VAT registration number (ZATCA required)</p>
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="city">City</Label>
+                    <Label htmlFor="crNumber">CR Number</Label>
                     <Input
-                      id="city"
-                      value={formData.city}
-                      onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                      placeholder="Riyadh, Jeddah, etc."
+                      id="crNumber"
+                      value={formData.crNumber}
+                      onChange={(e) => setFormData({ ...formData, crNumber: e.target.value })}
+                      placeholder="1010XXXXXX"
                     />
+                    <p className="text-xs text-muted-foreground">Commercial Registration Number (ZATCA Phase 2)</p>
                   </div>
+                </div>
 
-                  <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor="address">Address</Label>
-                    <Textarea
-                      id="address"
-                      value={formData.address}
-                      onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                      placeholder="Enter complete address"
-                      rows={3}
-                    />
+                <div className="border-t pt-6">
+                  <h3 className="text-lg font-semibold mb-4">Address Details (ZATCA Phase 2 Required)</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label htmlFor="buildingNumber">Building Number</Label>
+                      <Input
+                        id="buildingNumber"
+                        value={formData.buildingNumber}
+                        onChange={(e) => setFormData({ ...formData, buildingNumber: e.target.value })}
+                        placeholder="e.g., 7630"
+                      />
+                      <p className="text-xs text-muted-foreground">رقم المبنى (4 digits)</p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="streetName">Street Name</Label>
+                      <Input
+                        id="streetName"
+                        value={formData.streetName}
+                        onChange={(e) => setFormData({ ...formData, streetName: e.target.value })}
+                        placeholder="e.g., King Fahd Road"
+                      />
+                      <p className="text-xs text-muted-foreground">اسم الشارع</p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="additionalNumber">Additional Number</Label>
+                      <Input
+                        id="additionalNumber"
+                        value={formData.additionalNumber}
+                        onChange={(e) => setFormData({ ...formData, additionalNumber: e.target.value })}
+                        placeholder="e.g., 2121"
+                      />
+                      <p className="text-xs text-muted-foreground">الرقم الإضافي (4 digits)</p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="postalCode">Postal Code</Label>
+                      <Input
+                        id="postalCode"
+                        value={formData.postalCode}
+                        onChange={(e) => setFormData({ ...formData, postalCode: e.target.value })}
+                        placeholder="e.g., 12345"
+                      />
+                      <p className="text-xs text-muted-foreground">الرمز البريدي (5 digits)</p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="city">City</Label>
+                      <Input
+                        id="city"
+                        value={formData.city}
+                        onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                        placeholder="Riyadh, Jeddah, etc."
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="country">Country</Label>
+                      <Input
+                        id="country"
+                        value={formData.country}
+                        onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+                        placeholder="Saudi Arabia"
+                      />
+                    </div>
+
+                    <div className="space-y-2 md:col-span-2">
+                      <Label htmlFor="address">Additional Address Details</Label>
+                      <Textarea
+                        id="address"
+                        value={formData.address}
+                        onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                        placeholder="District, neighborhood, landmarks, etc."
+                        rows={2}
+                      />
+                    </div>
                   </div>
+                </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="paymentTerms">Payment Terms (Days)</Label>
-                    <Select
-                      value={formData.paymentTerms}
-                      onValueChange={(value) =>
-                        setFormData({ ...formData, paymentTerms: value })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="0">Immediate Payment</SelectItem>
-                        <SelectItem value="7">7 Days</SelectItem>
-                        <SelectItem value="15">15 Days</SelectItem>
-                        <SelectItem value="30">30 Days</SelectItem>
-                        <SelectItem value="60">60 Days</SelectItem>
-                        <SelectItem value="90">90 Days</SelectItem>
-                      </SelectContent>
-                    </Select>
+                <div className="border-t pt-6">
+                  <h3 className="text-lg font-semibold mb-4">Payment Terms</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label htmlFor="paymentTerms">Payment Terms (Days)</Label>
+                      <Select
+                        value={formData.paymentTerms}
+                        onValueChange={(value) =>
+                          setFormData({ ...formData, paymentTerms: value })
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="0">Immediate Payment</SelectItem>
+                          <SelectItem value="7">7 Days</SelectItem>
+                          <SelectItem value="15">15 Days</SelectItem>
+                          <SelectItem value="30">30 Days</SelectItem>
+                          <SelectItem value="60">60 Days</SelectItem>
+                          <SelectItem value="90">90 Days</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                 </div>
 
@@ -179,7 +280,7 @@ export default function CreateSupplier() {
                         id="bankName"
                         value={formData.bankName}
                         onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
-                        placeholder="e.g., Al Rajhi Bank"
+                        placeholder="e.g., Al Rajhi Bank, SNB, NCB"
                       />
                     </div>
 
@@ -201,6 +302,7 @@ export default function CreateSupplier() {
                         onChange={(e) => setFormData({ ...formData, iban: e.target.value })}
                         placeholder="SA00 0000 0000 0000 0000 0000"
                       />
+                      <p className="text-xs text-muted-foreground">International Bank Account Number (24 characters for Saudi Arabia)</p>
                     </div>
                   </div>
                 </div>
