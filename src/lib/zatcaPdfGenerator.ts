@@ -149,8 +149,8 @@ function generateModernTemplate(
   qrCode: string
 ) {
   const pageWidth = doc.internal.pageSize.getWidth();
-  const primaryColor = [41, 128, 185]; // Blue
-  const lightBg = [236, 240, 241]; // Light gray
+  const primaryColor: [number, number, number] = [41, 128, 185]; // Blue
+  const lightBg: [number, number, number] = [236, 240, 241]; // Light gray
 
   // Header with blue accent
   doc.setFillColor(...primaryColor);
@@ -298,8 +298,8 @@ function generateClassicTemplate(
   qrCode: string
 ) {
   const pageWidth = doc.internal.pageSize.getWidth();
-  const primaryColor = [39, 174, 96]; // Green
-  const lightBg = [232, 245, 233];
+  const primaryColor: [number, number, number] = [39, 174, 96]; // Green
+  const lightBg: [number, number, number] = [232, 245, 233];
 
   // Simple header with border
   doc.setDrawColor(...primaryColor);
@@ -412,9 +412,9 @@ function generatePremiumTemplate(
   qrCode: string
 ) {
   const pageWidth = doc.internal.pageSize.getWidth();
-  const primaryColor = [212, 175, 55]; // Gold
-  const darkText = [44, 62, 80];
-  const lightBg = [254, 250, 224];
+  const primaryColor: [number, number, number] = [212, 175, 55]; // Gold
+  const darkText: [number, number, number] = [44, 62, 80];
+  const lightBg: [number, number, number] = [254, 250, 224];
 
   // Elegant header with gradient effect (simulated with rectangles)
   doc.setFillColor(44, 62, 80);

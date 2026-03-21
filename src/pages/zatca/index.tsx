@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
-import DashboardLayout from "@/components/layouts/DashboardLayout";
-import AuthGuard from "@/components/AuthGuard";
+import { DashboardLayout } from "@/components/layouts/DashboardLayout";
+import { AuthGuard } from "@/components/AuthGuard";
+import { SEO } from "@/components/SEO";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { useToast } from "@/hooks/use-toast";
+import { useToast, toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { 
   Shield, 
@@ -24,7 +25,15 @@ import {
   FileText,
   Calendar,
   Building2,
-  AlertTriangle
+  AlertTriangle,
+  Send,
+  QrCode,
+  FileJson,
+  Key,
+  Lock,
+  Unlock,
+  CheckCircle,
+  FileCode
 } from "lucide-react";
 import { zatcaService } from "@/services/zatcaService";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -36,6 +45,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog";
 
 interface ZATCAStatus {
@@ -48,6 +58,14 @@ interface ZATCAStatus {
   clearedInvoices: number;
   rejectedInvoices: number;
   pendingInvoices: number;
+}
+
+interface ZATCADevice {
+  id: string;
+  device_name: string;
+  status: string;
+  certificate_expiry?: string;
+  last_used?: string;
 }
 
 interface ComplianceDevice {
@@ -149,8 +167,8 @@ export default function ZATCAPhase2Page() {
         invoiceDate: new Date(invoice.invoice_date),
         
         // Supplier details from organization
-        supplierNameEn: orgDetails.companyNameEn || "Your Company",
-        supplierNameAr: orgDetails.companyNameAr || "شركتك",
+        supplierNameEn: orgDetails.nameEn || "Your Company",
+        supplierNameAr: orgDetails.nameAr || "شركتك",
         supplierVAT: orgDetails.vatNumber || "",
         supplierCR: orgDetails.crNumber || "",
         supplierBuildingNo: orgDetails.buildingNumber || "",
@@ -216,7 +234,7 @@ export default function ZATCAPhase2Page() {
     }
   };
 
-  const loadOrganizationDetails = () => {
+  const fetchOrgDetails = () => {
     try {
       const savedCompanyInfo = localStorage.getItem("companyInfo");
       if (savedCompanyInfo) {
