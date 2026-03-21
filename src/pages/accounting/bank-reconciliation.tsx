@@ -32,11 +32,43 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Upload, Download, CheckCircle, XCircle, FileSpreadsheet, Save } from "lucide-react";
+import { 
+  Upload, 
+  Download, 
+  CheckCircle, 
+  XCircle, 
+  Save, 
+  Link2, 
+  AlertCircle,
+  Search,
+  Filter,
+  RefreshCw,
+  ArrowRight,
+  Calendar,
+  DollarSign
+} from "lucide-react";
 import { bankReconciliationService, type BankAccountWithBalance, type BankTransactionWithMatching } from "@/services/bankReconciliationService";
 import { useToast } from "@/hooks/use-toast";
 import { AuthGuard } from "@/components/AuthGuard";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
+
+interface JournalEntry {
+  id: string;
+  entry_date: string;
+  reference_number: string;
+  description: string;
+  total_debit: number;
+  total_credit: number;
+  status: string;
+}
+
+interface MatchSuggestion {
+  bankTransactionId: string;
+  journalEntryId: string;
+  confidence: number;
+  reason: string;
+}
 
 export default function BankReconciliationPage() {
   const router = useRouter();
@@ -45,10 +77,16 @@ export default function BankReconciliationPage() {
   const [bankAccounts, setBankAccounts] = useState<BankAccountWithBalance[]>([]);
   const [selectedAccount, setSelectedAccount] = useState<string>("");
   const [transactions, setTransactions] = useState<BankTransactionWithMatching[]>([]);
+  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
   const [selectedTransactions, setSelectedTransactions] = useState<Set<string>>(new Set());
+  const [selectedJournalEntry, setSelectedJournalEntry] = useState<string>("");
+  const [matchSuggestions, setMatchSuggestions] = useState<MatchSuggestion[]>([]);
   const [loading, setLoading] = useState(false);
   const [reconciling, setReconciling] = useState(false);
   const [isAccountDialogOpen, setIsAccountDialogOpen] = useState(false);
+  const [isMatchDialogOpen, setIsMatchDialogOpen] = useState(false);
+  const [selectedBankTransaction, setSelectedBankTransaction] = useState<BankTransactionWithMatching | null>(null);
+  
   const [newAccount, setNewAccount] = useState({
     accountName: "",
     accountNumber: "",
@@ -64,7 +102,19 @@ export default function BankReconciliationPage() {
   const [filters, setFilters] = useState({
     startDate: "",
     endDate: "",
-    status: "all", // all, matched, unmatched
+    status: "all",
+    searchTerm: "",
+    minAmount: "",
+    maxAmount: "",
+  });
+
+  const [reconciliationSummary, setReconciliationSummary] = useState({
+    bankBalance: 0,
+    bookBalance: 0,
+    difference: 0,
+    matchedCount: 0,
+    unmatchedCount: 0,
+    reconciledCount: 0,
   });
 
   useEffect(() => {
@@ -74,8 +124,19 @@ export default function BankReconciliationPage() {
   useEffect(() => {
     if (selectedAccount) {
       loadTransactions();
+      loadJournalEntries();
     }
   }, [selectedAccount, filters]);
+
+  useEffect(() => {
+    if (transactions.length > 0 && journalEntries.length > 0) {
+      generateMatchSuggestions();
+    }
+  }, [transactions, journalEntries]);
+
+  useEffect(() => {
+    calculateReconciliationSummary();
+  }, [transactions, selectedAccount]);
 
   const loadBankAccounts = async () => {
     try {
@@ -100,12 +161,34 @@ export default function BankReconciliationPage() {
         filters.endDate || undefined
       );
       
-      // Filter by status if needed
       let filteredData = data;
+      
+      // Apply status filter
       if (filters.status === "matched") {
-        filteredData = data.filter(t => t.is_matched);
+        filteredData = filteredData.filter(t => t.is_matched);
       } else if (filters.status === "unmatched") {
-        filteredData = data.filter(t => !t.is_matched);
+        filteredData = filteredData.filter(t => !t.is_matched);
+      } else if (filters.status === "reconciled") {
+        filteredData = filteredData.filter(t => t.reconciled);
+      }
+      
+      // Apply search filter
+      if (filters.searchTerm) {
+        const searchLower = filters.searchTerm.toLowerCase();
+        filteredData = filteredData.filter(t => 
+          t.description?.toLowerCase().includes(searchLower) ||
+          t.reference_number?.toLowerCase().includes(searchLower)
+        );
+      }
+      
+      // Apply amount filter
+      if (filters.minAmount) {
+        const min = parseFloat(filters.minAmount);
+        filteredData = filteredData.filter(t => t.amount >= min);
+      }
+      if (filters.maxAmount) {
+        const max = parseFloat(filters.maxAmount);
+        filteredData = filteredData.filter(t => t.amount <= max);
       }
       
       setTransactions(filteredData);
@@ -119,6 +202,123 @@ export default function BankReconciliationPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadJournalEntries = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("journal_entries")
+        .select("*")
+        .eq("status", "posted")
+        .order("entry_date", { ascending: false })
+        .limit(100);
+
+      if (error) throw error;
+      setJournalEntries(data || []);
+    } catch (error) {
+      console.error("Error loading journal entries:", error);
+    }
+  };
+
+  const generateMatchSuggestions = () => {
+    const suggestions: MatchSuggestion[] = [];
+    
+    transactions.forEach(transaction => {
+      if (transaction.is_matched) return;
+      
+      journalEntries.forEach(entry => {
+        let confidence = 0;
+        const reasons: string[] = [];
+        
+        // Check amount match
+        const transactionAmount = transaction.amount;
+        const entryAmount = transaction.transaction_type === "debit" 
+          ? entry.total_debit 
+          : entry.total_credit;
+        
+        if (Math.abs(transactionAmount - entryAmount) < 0.01) {
+          confidence += 50;
+          reasons.push("Exact amount match");
+        } else if (Math.abs(transactionAmount - entryAmount) < transactionAmount * 0.05) {
+          confidence += 25;
+          reasons.push("Similar amount");
+        }
+        
+        // Check date proximity (within 7 days)
+        const transDate = new Date(transaction.transaction_date);
+        const entryDate = new Date(entry.entry_date);
+        const daysDiff = Math.abs((transDate.getTime() - entryDate.getTime()) / (1000 * 60 * 60 * 24));
+        
+        if (daysDiff === 0) {
+          confidence += 30;
+          reasons.push("Same date");
+        } else if (daysDiff <= 3) {
+          confidence += 15;
+          reasons.push("Within 3 days");
+        } else if (daysDiff <= 7) {
+          confidence += 5;
+          reasons.push("Within 7 days");
+        }
+        
+        // Check description similarity
+        if (transaction.description && entry.description) {
+          const transDesc = transaction.description.toLowerCase();
+          const entryDesc = entry.description.toLowerCase();
+          
+          if (transDesc.includes(entryDesc) || entryDesc.includes(transDesc)) {
+            confidence += 20;
+            reasons.push("Description match");
+          }
+        }
+        
+        // Check reference number match
+        if (transaction.reference_number && entry.reference_number) {
+          if (transaction.reference_number === entry.reference_number) {
+            confidence += 30;
+            reasons.push("Reference match");
+          }
+        }
+        
+        // Only suggest if confidence is reasonable
+        if (confidence >= 50) {
+          suggestions.push({
+            bankTransactionId: transaction.id,
+            journalEntryId: entry.id,
+            confidence,
+            reason: reasons.join(", "),
+          });
+        }
+      });
+    });
+    
+    // Sort by confidence
+    suggestions.sort((a, b) => b.confidence - a.confidence);
+    setMatchSuggestions(suggestions);
+  };
+
+  const calculateReconciliationSummary = () => {
+    const selectedAccountData = bankAccounts.find(acc => acc.id === selectedAccount);
+    const bankBalance = selectedAccountData?.current_balance || 0;
+    
+    const matchedCount = transactions.filter(t => t.is_matched).length;
+    const unmatchedCount = transactions.filter(t => !t.is_matched).length;
+    const reconciledCount = transactions.filter(t => t.reconciled).length;
+    
+    // Calculate book balance (sum of all transactions)
+    const bookBalance = transactions.reduce((sum, t) => {
+      return sum + (t.transaction_type === "credit" ? t.amount : -t.amount);
+    }, selectedAccountData?.opening_balance || 0);
+    
+    const difference = bankBalance - bookBalance;
+    
+    setReconciliationSummary({
+      bankBalance,
+      bookBalance,
+      difference,
+      matchedCount,
+      unmatchedCount,
+      reconciledCount,
+    });
   };
 
   const handleCreateAccount = async () => {
@@ -152,7 +352,6 @@ export default function BankReconciliationPage() {
         description: "Bank account created successfully",
       });
 
-      // Reset form
       setNewAccount({
         accountName: "",
         accountNumber: "",
@@ -182,19 +381,19 @@ export default function BankReconciliationPage() {
     try {
       setLoading(true);
       
-      // Parse CSV/Excel file
       const reader = new FileReader();
       reader.onload = async (e) => {
         const text = e.target?.result as string;
         const lines = text.split("\n");
         const transactions = lines.slice(1).map(line => {
-          const [date, description, debit, credit, balance] = line.split(",");
+          const [date, description, debit, credit, balance, reference] = line.split(",");
           const amount = parseFloat(debit || credit || "0");
           const type = debit ? "debit" : "credit";
           
           return {
             transaction_date: date?.trim(),
             description: description?.trim(),
+            reference_number: reference?.trim() || null,
             amount,
             transaction_type: type,
             balance_after: parseFloat(balance || "0"),
@@ -236,6 +435,8 @@ export default function BankReconciliationPage() {
         description: "Transaction matched successfully",
       });
       loadTransactions();
+      setIsMatchDialogOpen(false);
+      setSelectedBankTransaction(null);
     } catch (error) {
       console.error("Error matching transaction:", error);
       toast({
@@ -246,18 +447,47 @@ export default function BankReconciliationPage() {
     }
   };
 
+  const handleAutoMatch = async () => {
+    try {
+      setLoading(true);
+      let matchedCount = 0;
+      
+      for (const suggestion of matchSuggestions) {
+        if (suggestion.confidence >= 80) {
+          await handleMatchTransaction(suggestion.bankTransactionId, suggestion.journalEntryId);
+          matchedCount++;
+        }
+      }
+      
+      toast({
+        title: "Auto-Match Complete",
+        description: `Automatically matched ${matchedCount} transactions`,
+      });
+      
+      loadTransactions();
+    } catch (error) {
+      console.error("Error auto-matching:", error);
+      toast({
+        title: "Error",
+        description: "Failed to auto-match transactions",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleBulkReconcile = async () => {
     try {
       setReconciling(true);
       
-      // Create reconciliation record
       const reconData = {
         account_id: selectedAccount,
         statement_date: new Date().toISOString().split("T")[0],
         reconciliation_date: new Date().toISOString().split("T")[0],
-        statement_balance: 0, // Calculate from selected transactions
-        book_balance: 0, // Calculate from accounting records
-        difference: 0,
+        statement_balance: reconciliationSummary.bankBalance,
+        book_balance: reconciliationSummary.bookBalance,
+        difference: reconciliationSummary.difference,
         status: "completed" as const,
         notes: `Reconciled ${selectedTransactions.size} transactions`,
       } as any;
@@ -293,9 +523,19 @@ export default function BankReconciliationPage() {
     setSelectedTransactions(newSelection);
   };
 
+  const openMatchDialog = (transaction: BankTransactionWithMatching) => {
+    setSelectedBankTransaction(transaction);
+    setIsMatchDialogOpen(true);
+  };
+
+  const getMatchSuggestionForTransaction = (transactionId: string) => {
+    return matchSuggestions.find(s => s.bankTransactionId === transactionId);
+  };
+
   const selectedAccountData = bankAccounts.find(acc => acc.id === selectedAccount);
   const unmatchedCount = transactions.filter(t => !t.is_matched).length;
   const matchedCount = transactions.filter(t => t.is_matched).length;
+  const highConfidenceMatches = matchSuggestions.filter(s => s.confidence >= 80).length;
 
   return (
     <>
@@ -375,6 +615,12 @@ export default function BankReconciliationPage() {
                         if (file) handleImportTransactions(file);
                       }}
                     />
+                    {highConfidenceMatches > 0 && (
+                      <Button type="button" variant="default" onClick={handleAutoMatch}>
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                        Auto-Match {highConfidenceMatches} Transactions
+                      </Button>
+                    )}
                   </div>
                 )}
               </CardContent>
@@ -391,7 +637,6 @@ export default function BankReconciliationPage() {
                 </DialogHeader>
                 
                 <div className="grid gap-4 py-4">
-                  {/* Account Information */}
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="accountName">
@@ -518,14 +763,126 @@ export default function BankReconciliationPage() {
               </DialogContent>
             </Dialog>
 
+            {/* Reconciliation Summary */}
+            {selectedAccount && (
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                      <DollarSign className="h-4 w-4" />
+                      Bank Balance
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">
+                      SAR {reconciliationSummary.bankBalance.toLocaleString()}
+                    </div>
+                  </CardContent>
+                </Card>
+                
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                      <DollarSign className="h-4 w-4" />
+                      Book Balance
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">
+                      SAR {reconciliationSummary.bookBalance.toLocaleString()}
+                    </div>
+                  </CardContent>
+                </Card>
+                
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                      <AlertCircle className="h-4 w-4" />
+                      Difference
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className={cn(
+                      "text-2xl font-bold",
+                      Math.abs(reconciliationSummary.difference) < 0.01 ? "text-success" : "text-warning"
+                    )}>
+                      SAR {reconciliationSummary.difference.toLocaleString()}
+                    </div>
+                  </CardContent>
+                </Card>
+                
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4" />
+                      Matched
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-success">
+                      {reconciliationSummary.matchedCount}
+                    </div>
+                  </CardContent>
+                </Card>
+                
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                      <XCircle className="h-4 w-4" />
+                      Unmatched
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-warning">
+                      {reconciliationSummary.unmatchedCount}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
             {/* Filters */}
             {selectedAccount && (
               <Card>
                 <CardHeader>
-                  <CardTitle>Filters</CardTitle>
+                  <CardTitle className="flex items-center gap-2">
+                    <Filter className="h-4 w-4" />
+                    Filters
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid gap-4 md:grid-cols-4">
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                    <div className="space-y-2">
+                      <Label>Search</Label>
+                      <div className="relative">
+                        <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          placeholder="Search description, reference..."
+                          className="pl-8"
+                          value={filters.searchTerm}
+                          onChange={(e) => setFilters({ ...filters, searchTerm: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label>Status</Label>
+                      <Select 
+                        value={filters.status} 
+                        onValueChange={(value) => setFilters({ ...filters, status: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Transactions</SelectItem>
+                          <SelectItem value="matched">Matched Only</SelectItem>
+                          <SelectItem value="unmatched">Unmatched Only</SelectItem>
+                          <SelectItem value="reconciled">Reconciled Only</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
                     <div className="space-y-2">
                       <Label>Start Date</Label>
                       <Input
@@ -534,6 +891,7 @@ export default function BankReconciliationPage() {
                         onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
                       />
                     </div>
+                    
                     <div className="space-y-2">
                       <Label>End Date</Label>
                       <Input
@@ -542,57 +900,52 @@ export default function BankReconciliationPage() {
                         onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
                       />
                     </div>
+                  </div>
+                  
+                  <div className="grid gap-4 md:grid-cols-3 mt-4">
                     <div className="space-y-2">
-                      <Label>Status</Label>
-                      <Select value={filters.status} onValueChange={(value) => setFilters({ ...filters, status: value })}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All Transactions</SelectItem>
-                          <SelectItem value="matched">Matched Only</SelectItem>
-                          <SelectItem value="unmatched">Unmatched Only</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <Label>Min Amount</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        placeholder="0.00"
+                        value={filters.minAmount}
+                        onChange={(e) => setFilters({ ...filters, minAmount: e.target.value })}
+                      />
                     </div>
+                    
+                    <div className="space-y-2">
+                      <Label>Max Amount</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        placeholder="0.00"
+                        value={filters.maxAmount}
+                        onChange={(e) => setFilters({ ...filters, maxAmount: e.target.value })}
+                      />
+                    </div>
+                    
                     <div className="flex items-end gap-2">
                       <Button onClick={loadTransactions} className="w-full">
                         Apply Filters
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        onClick={() => setFilters({
+                          startDate: "",
+                          endDate: "",
+                          status: "all",
+                          searchTerm: "",
+                          minAmount: "",
+                          maxAmount: "",
+                        })}
+                      >
+                        Clear
                       </Button>
                     </div>
                   </div>
                 </CardContent>
               </Card>
-            )}
-
-            {/* Statistics */}
-            {selectedAccount && (
-              <div className="grid gap-4 md:grid-cols-3">
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">Total Transactions</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">{transactions.length}</div>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">Matched</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-success">{matchedCount}</div>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">Unmatched</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-warning">{unmatchedCount}</div>
-                  </CardContent>
-                </Card>
-              </div>
             )}
 
             {/* Transactions Table */}
@@ -602,7 +955,9 @@ export default function BankReconciliationPage() {
                   <div className="flex items-center justify-between">
                     <div>
                       <CardTitle>Bank Transactions</CardTitle>
-                      <CardDescription>Select transactions to reconcile</CardDescription>
+                      <CardDescription>
+                        {transactions.length} transaction(s) • {matchedCount} matched • {unmatchedCount} unmatched
+                      </CardDescription>
                     </div>
                     {selectedTransactions.size > 0 && (
                       <Button onClick={handleBulkReconcile} disabled={reconciling}>
@@ -643,53 +998,100 @@ export default function BankReconciliationPage() {
                             <TableHead className="text-right">Credit</TableHead>
                             <TableHead className="text-right">Balance</TableHead>
                             <TableHead>Status</TableHead>
+                            <TableHead>Match</TableHead>
+                            <TableHead className="text-right">Actions</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {transactions.map((transaction) => (
-                            <TableRow key={transaction.id}>
-                              <TableCell>
-                                <Checkbox
-                                  checked={selectedTransactions.has(transaction.id)}
-                                  disabled={transaction.is_matched}
-                                  onCheckedChange={() => toggleTransactionSelection(transaction.id)}
-                                />
-                              </TableCell>
-                              <TableCell>
-                                {new Date(transaction.transaction_date).toLocaleDateString()}
-                              </TableCell>
-                              <TableCell>{transaction.description}</TableCell>
-                              <TableCell className="font-mono text-sm">
-                                {transaction.reference_number || "-"}
-                              </TableCell>
-                              <TableCell className="text-right">
-                                {transaction.transaction_type === "debit" ? (
-                                  <span className="text-destructive">SAR {transaction.amount.toLocaleString()}</span>
-                                ) : "-"}
-                              </TableCell>
-                              <TableCell className="text-right">
-                                {transaction.transaction_type === "credit" ? (
-                                  <span className="text-success">SAR {transaction.amount.toLocaleString()}</span>
-                                ) : "-"}
-                              </TableCell>
-                              <TableCell className="text-right font-medium">
-                                SAR {transaction.balance_after?.toLocaleString() || "0.00"}
-                              </TableCell>
-                              <TableCell>
-                                {transaction.is_matched ? (
-                                  <Badge className="bg-success/10 text-success">
-                                    <CheckCircle className="h-3 w-3 mr-1" />
-                                    Matched
-                                  </Badge>
-                                ) : (
-                                  <Badge variant="outline" className="text-warning">
-                                    <XCircle className="h-3 w-3 mr-1" />
-                                    Unmatched
-                                  </Badge>
-                                )}
-                              </TableCell>
-                            </TableRow>
-                          ))}
+                          {transactions.map((transaction) => {
+                            const suggestion = getMatchSuggestionForTransaction(transaction.id);
+                            
+                            return (
+                              <TableRow key={transaction.id}>
+                                <TableCell>
+                                  <Checkbox
+                                    checked={selectedTransactions.has(transaction.id)}
+                                    disabled={transaction.is_matched}
+                                    onCheckedChange={() => toggleTransactionSelection(transaction.id)}
+                                  />
+                                </TableCell>
+                                <TableCell className="whitespace-nowrap">
+                                  <div className="flex items-center gap-2">
+                                    <Calendar className="h-3 w-3 text-muted-foreground" />
+                                    {new Date(transaction.transaction_date).toLocaleDateString()}
+                                  </div>
+                                </TableCell>
+                                <TableCell className="max-w-[200px] truncate">
+                                  {transaction.description}
+                                </TableCell>
+                                <TableCell className="font-mono text-sm">
+                                  {transaction.reference_number || "-"}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  {transaction.transaction_type === "debit" ? (
+                                    <span className="text-destructive font-medium">
+                                      SAR {transaction.amount.toLocaleString()}
+                                    </span>
+                                  ) : "-"}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  {transaction.transaction_type === "credit" ? (
+                                    <span className="text-success font-medium">
+                                      SAR {transaction.amount.toLocaleString()}
+                                    </span>
+                                  ) : "-"}
+                                </TableCell>
+                                <TableCell className="text-right font-medium">
+                                  SAR {transaction.balance_after?.toLocaleString() || "0.00"}
+                                </TableCell>
+                                <TableCell>
+                                  {transaction.is_matched ? (
+                                    <Badge className="bg-success/10 text-success">
+                                      <CheckCircle className="h-3 w-3 mr-1" />
+                                      Matched
+                                    </Badge>
+                                  ) : transaction.reconciled ? (
+                                    <Badge className="bg-blue-500/10 text-blue-500">
+                                      <CheckCircle className="h-3 w-3 mr-1" />
+                                      Reconciled
+                                    </Badge>
+                                  ) : (
+                                    <Badge variant="outline" className="text-warning">
+                                      <XCircle className="h-3 w-3 mr-1" />
+                                      Unmatched
+                                    </Badge>
+                                  )}
+                                </TableCell>
+                                <TableCell>
+                                  {suggestion && !transaction.is_matched && (
+                                    <Badge 
+                                      variant="outline" 
+                                      className={cn(
+                                        "text-xs",
+                                        suggestion.confidence >= 80 ? "border-success text-success" :
+                                        suggestion.confidence >= 60 ? "border-blue-500 text-blue-500" :
+                                        "border-warning text-warning"
+                                      )}
+                                    >
+                                      {suggestion.confidence}% match
+                                    </Badge>
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  {!transaction.is_matched && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => openMatchDialog(transaction)}
+                                    >
+                                      <Link2 className="h-3 w-3 mr-1" />
+                                      Match
+                                    </Button>
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
                         </TableBody>
                       </Table>
                     </div>
@@ -697,6 +1099,162 @@ export default function BankReconciliationPage() {
                 </CardContent>
               </Card>
             )}
+
+            {/* Match Transaction Dialog */}
+            <Dialog open={isMatchDialogOpen} onOpenChange={setIsMatchDialogOpen}>
+              <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Match Transaction</DialogTitle>
+                  <DialogDescription>
+                    Select a journal entry to match with this bank transaction
+                  </DialogDescription>
+                </DialogHeader>
+                
+                {selectedBankTransaction && (
+                  <div className="space-y-4">
+                    {/* Bank Transaction Details */}
+                    <Card className="bg-muted/50">
+                      <CardHeader>
+                        <CardTitle className="text-sm">Bank Transaction</CardTitle>
+                      </CardHeader>
+                      <CardContent className="grid gap-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Date:</span>
+                          <span className="font-medium">
+                            {new Date(selectedBankTransaction.transaction_date).toLocaleDateString()}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Description:</span>
+                          <span className="font-medium">{selectedBankTransaction.description}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Reference:</span>
+                          <span className="font-mono text-xs">
+                            {selectedBankTransaction.reference_number || "N/A"}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Amount:</span>
+                          <span className={cn(
+                            "font-bold",
+                            selectedBankTransaction.transaction_type === "debit" ? "text-destructive" : "text-success"
+                          )}>
+                            {selectedBankTransaction.transaction_type === "debit" ? "-" : "+"}
+                            SAR {selectedBankTransaction.amount.toLocaleString()}
+                          </span>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* Journal Entries List */}
+                    <div className="space-y-2">
+                      <Label>Select Journal Entry to Match</Label>
+                      <div className="rounded-md border max-h-[400px] overflow-y-auto">
+                        <Table>
+                          <TableHeader className="sticky top-0 bg-background">
+                            <TableRow>
+                              <TableHead>Select</TableHead>
+                              <TableHead>Date</TableHead>
+                              <TableHead>Reference</TableHead>
+                              <TableHead>Description</TableHead>
+                              <TableHead className="text-right">Debit</TableHead>
+                              <TableHead className="text-right">Credit</TableHead>
+                              <TableHead>Match</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {journalEntries.map((entry) => {
+                              const suggestion = matchSuggestions.find(
+                                s => s.bankTransactionId === selectedBankTransaction.id && 
+                                     s.journalEntryId === entry.id
+                              );
+                              
+                              return (
+                                <TableRow 
+                                  key={entry.id}
+                                  className={cn(
+                                    "cursor-pointer hover:bg-muted/50",
+                                    selectedJournalEntry === entry.id && "bg-primary/5"
+                                  )}
+                                  onClick={() => setSelectedJournalEntry(entry.id)}
+                                >
+                                  <TableCell>
+                                    <Checkbox
+                                      checked={selectedJournalEntry === entry.id}
+                                      onCheckedChange={() => setSelectedJournalEntry(entry.id)}
+                                    />
+                                  </TableCell>
+                                  <TableCell className="whitespace-nowrap">
+                                    {new Date(entry.entry_date).toLocaleDateString()}
+                                  </TableCell>
+                                  <TableCell className="font-mono text-xs">
+                                    {entry.reference_number}
+                                  </TableCell>
+                                  <TableCell className="max-w-[200px] truncate">
+                                    {entry.description}
+                                  </TableCell>
+                                  <TableCell className="text-right">
+                                    SAR {entry.total_debit.toLocaleString()}
+                                  </TableCell>
+                                  <TableCell className="text-right">
+                                    SAR {entry.total_credit.toLocaleString()}
+                                  </TableCell>
+                                  <TableCell>
+                                    {suggestion && (
+                                      <div className="flex items-center gap-2">
+                                        <Badge 
+                                          variant="outline"
+                                          className={cn(
+                                            "text-xs",
+                                            suggestion.confidence >= 80 ? "border-success text-success" :
+                                            suggestion.confidence >= 60 ? "border-blue-500 text-blue-500" :
+                                            "border-warning text-warning"
+                                          )}
+                                        >
+                                          {suggestion.confidence}%
+                                        </Badge>
+                                        <span className="text-xs text-muted-foreground">
+                                          {suggestion.reason}
+                                        </span>
+                                      </div>
+                                    )}
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <DialogFooter>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setIsMatchDialogOpen(false);
+                      setSelectedBankTransaction(null);
+                      setSelectedJournalEntry("");
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    disabled={!selectedJournalEntry}
+                    onClick={() => {
+                      if (selectedBankTransaction && selectedJournalEntry) {
+                        handleMatchTransaction(selectedBankTransaction.id, selectedJournalEntry);
+                      }
+                    }}
+                  >
+                    <Link2 className="h-4 w-4 mr-2" />
+                    Match Transaction
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
         </DashboardLayout>
       </AuthGuard>
