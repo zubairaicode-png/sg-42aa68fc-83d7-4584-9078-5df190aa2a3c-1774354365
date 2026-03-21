@@ -1,18 +1,21 @@
 import { useState, useEffect } from "react";
-import { useRouter } from "next/router";
+import { SEO } from "@/components/SEO";
 import { DashboardLayout } from "@/components/layouts/DashboardLayout";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Trash2, ArrowLeft } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Plus, Trash2, Save, ArrowLeft, UserPlus } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/router";
+import { SAUDI_VAT_RATE } from "@/lib/constants";
 import { customerService } from "@/services/customerService";
 import { productService } from "@/services/productService";
 import { quotationService, type CreateQuotationData } from "@/services/quotationService";
+import { useToast } from "@/hooks/use-toast";
 import { AuthGuard } from "@/components/AuthGuard";
 
 interface QuotationItem {
@@ -31,6 +34,13 @@ export default function CreateQuotationPage() {
   const [loading, setLoading] = useState(false);
   const [customers, setCustomers] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
+  const [isCustomerDialogOpen, setIsCustomerDialogOpen] = useState(false);
+  const [newCustomer, setNewCustomer] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    vatNumber: "",
+  });
 
   const [formData, setFormData] = useState({
     customer_id: "",
@@ -41,12 +51,17 @@ export default function CreateQuotationPage() {
     discount_amount: 0,
   });
 
-  const [items, setItems] = useState<QuotationItem[]>([]);
-  const [currentItem, setCurrentItem] = useState({
-    product_id: "",
-    quantity: 1,
-    discount_amount: 0,
-  });
+  const [items, setItems] = useState<QuotationItem[]>([
+    {
+      product_id: "",
+      product_name: "",
+      quantity: 1,
+      unit_price: 0,
+      vat_rate: SAUDI_VAT_RATE,
+      discount_amount: 0,
+      total_amount: 0,
+    },
+  ]);
 
   useEffect(() => {
     loadCustomers();
@@ -59,11 +74,6 @@ export default function CreateQuotationPage() {
       setCustomers(data);
     } catch (error) {
       console.error("Error loading customers:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load customers",
-        variant: "destructive",
-      });
     }
   };
 
@@ -73,75 +83,107 @@ export default function CreateQuotationPage() {
       setProducts(data);
     } catch (error) {
       console.error("Error loading products:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load products",
-        variant: "destructive",
-      });
     }
   };
 
-  const handleAddItem = () => {
-    if (!currentItem.product_id) {
+  const handleAddCustomer = async () => {
+    if (!newCustomer.name || !newCustomer.email || !newCustomer.phone) {
       toast({
         title: "Error",
-        description: "Please select a product",
+        description: "Please fill in all required customer fields",
         variant: "destructive",
       });
       return;
     }
 
-    const product = products.find((p) => p.id === currentItem.product_id);
-    if (!product) return;
+    try {
+      const customer = await customerService.create({
+        name: newCustomer.name,
+        email: newCustomer.email,
+        phone: newCustomer.phone,
+        vat_number: newCustomer.vatNumber,
+        type: "business",
+        address: "",
+        city: "",
+        country: "Saudi Arabia",
+      });
 
-    const quantity = currentItem.quantity;
-    const unitPrice = product.sellingPrice || product.selling_price || 0;
-    const vatRate = product.vatRate || product.vat_rate || 15;
-    const discountAmount = currentItem.discount_amount;
+      setFormData({ ...formData, customer_id: customer.id });
+      setCustomers([...customers, customer]);
+      setNewCustomer({ name: "", email: "", phone: "", vatNumber: "" });
+      setIsCustomerDialogOpen(false);
 
-    const subtotal = quantity * unitPrice;
-    const afterDiscount = subtotal - discountAmount;
-    const vatAmount = afterDiscount * (vatRate / 100);
-    const total_amount = afterDiscount + vatAmount;
-
-    const newItem: QuotationItem = {
-      product_id: product.id,
-      product_name: product.name,
-      quantity,
-      unit_price: unitPrice,
-      vat_rate: vatRate,
-      discount_amount: discountAmount,
-      total_amount,
-    };
-
-    setItems([...items, newItem]);
-    setCurrentItem({
-      product_id: "",
-      quantity: 1,
-      discount_amount: 0,
-    });
+      toast({
+        title: "Success",
+        description: "Customer added successfully",
+      });
+    } catch (error) {
+      console.error("Error adding customer:", error);
+      toast({
+        title: "Error",
+        description: "Failed to add customer",
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleRemoveItem = (index: number) => {
-    setItems(items.filter((_, i) => i !== index));
+  const addItem = () => {
+    setItems([
+      ...items,
+      {
+        product_id: "",
+        product_name: "",
+        quantity: 1,
+        unit_price: 0,
+        vat_rate: SAUDI_VAT_RATE,
+        discount_amount: 0,
+        total_amount: 0,
+      },
+    ]);
+  };
+
+  const removeItem = (index: number) => {
+    if (items.length > 1) {
+      setItems(items.filter((_, i) => i !== index));
+    }
+  };
+
+  const updateItem = (index: number, field: keyof QuotationItem, value: string | number) => {
+    const newItems = [...items];
+    newItems[index] = { ...newItems[index], [field]: value };
+    
+    if (field === "product_id") {
+      const product = products.find(p => p.id === value);
+      if (product) {
+        newItems[index].product_name = product.name;
+        newItems[index].unit_price = product.selling_price || 0;
+        newItems[index].vat_rate = product.vat_rate || SAUDI_VAT_RATE;
+      }
+    }
+    
+    // Calculate totals
+    const item = newItems[index];
+    const subtotal = item.quantity * item.unit_price;
+    const afterDiscount = subtotal - item.discount_amount;
+    const vatAmount = afterDiscount * (item.vat_rate / 100);
+    item.total_amount = afterDiscount + vatAmount;
+    
+    setItems(newItems);
   };
 
   const calculateTotals = () => {
-    const subtotal = items.reduce((sum, item) => {
-      return sum + (item.quantity * item.unit_price);
-    }, 0);
-
+    const subtotal = items.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
     const totalDiscount = formData.discount_amount + items.reduce((sum, item) => sum + item.discount_amount, 0);
-    
     const vatAmount = items.reduce((sum, item) => {
       const itemSubtotal = item.quantity * item.unit_price - item.discount_amount;
       return sum + (itemSubtotal * item.vat_rate / 100);
     }, 0);
+    const total = subtotal - totalDiscount + vatAmount;
 
-    const total_amount = subtotal - totalDiscount + vatAmount;
-
-    return { subtotal, totalDiscount, vatAmount, total_amount };
+    return { subtotal, totalDiscount, vatAmount, total };
   };
+
+  const totals = calculateTotals();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -155,7 +197,7 @@ export default function CreateQuotationPage() {
       return;
     }
 
-    if (items.length === 0) {
+    if (items.length === 0 || !items[0].product_id) {
       toast({
         title: "Error",
         description: "Please add at least one item",
@@ -166,7 +208,6 @@ export default function CreateQuotationPage() {
 
     try {
       setLoading(true);
-      const totals = calculateTotals();
 
       const quotationData: CreateQuotationData = {
         customer_id: formData.customer_id,
@@ -206,57 +247,127 @@ export default function CreateQuotationPage() {
     }
   };
 
-  const totals = calculateTotals();
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "SAR",
-    }).format(amount);
-  };
-
   return (
-    <AuthGuard>
-      <DashboardLayout>
-        <div className="space-y-6">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" onClick={() => router.push("/quotations")}>
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight">Create Quotation</h1>
-              <p className="text-muted-foreground">
-                Create a new sales quotation
-              </p>
-            </div>
-          </div>
-
+    <>
+      <SEO 
+        title="Create Quotation - Saudi ERP System"
+        description="Create a new sales quotation"
+      />
+      <AuthGuard>
+        <DashboardLayout>
           <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <Link href="/quotations">
+                  <Button type="button" variant="ghost" size="icon">
+                    <ArrowLeft className="h-5 w-5" />
+                  </Button>
+                </Link>
+                <div>
+                  <h1 className="text-3xl font-bold font-heading">Create Quotation</h1>
+                  <p className="text-muted-foreground mt-1">Fill in the details below</p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Link href="/quotations">
+                  <Button type="button" variant="outline">Cancel</Button>
+                </Link>
+                <Button type="submit" disabled={loading}>
+                  <Save className="h-4 w-4 mr-2" />
+                  {loading ? "Saving..." : "Save Quotation"}
+                </Button>
+              </div>
+            </div>
+
+            {/* Quotation Details */}
             <Card>
               <CardHeader>
-                <CardTitle>Quotation Details</CardTitle>
-                <CardDescription>Basic information about the quotation</CardDescription>
+                <CardTitle>Quotation Information</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="customer">Customer *</Label>
-                    <Select
-                      value={formData.customer_id}
-                      onValueChange={(value) => setFormData({ ...formData, customer_id: value })}
-                    >
-                      <SelectTrigger id="customer">
-                        <SelectValue placeholder="Select customer" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {customers.map((customer) => (
-                          <SelectItem key={customer.id} value={customer.id}>
-                            {customer.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <div className="flex gap-2">
+                      <Select
+                        value={formData.customer_id}
+                        onValueChange={(value) => setFormData({ ...formData, customer_id: value })}
+                      >
+                        <SelectTrigger id="customer" className="flex-1">
+                          <SelectValue placeholder="Select customer" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {customers.map((customer) => (
+                            <SelectItem key={customer.id} value={customer.id}>
+                              {customer.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      
+                      <Dialog open={isCustomerDialogOpen} onOpenChange={setIsCustomerDialogOpen}>
+                        <DialogTrigger asChild>
+                          <Button type="button" variant="outline" size="icon">
+                            <UserPlus className="h-4 w-4" />
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Add New Customer</DialogTitle>
+                          </DialogHeader>
+                          <div className="space-y-4 py-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="customerName">Customer Name *</Label>
+                              <Input
+                                id="customerName"
+                                value={newCustomer.name}
+                                onChange={(e) => setNewCustomer({ ...newCustomer, name: e.target.value })}
+                                placeholder="Enter customer name"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="customerEmail">Email *</Label>
+                              <Input
+                                id="customerEmail"
+                                type="email"
+                                value={newCustomer.email}
+                                onChange={(e) => setNewCustomer({ ...newCustomer, email: e.target.value })}
+                                placeholder="customer@example.com"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="customerPhone">Phone *</Label>
+                              <Input
+                                id="customerPhone"
+                                value={newCustomer.phone}
+                                onChange={(e) => setNewCustomer({ ...newCustomer, phone: e.target.value })}
+                                placeholder="+966 XX XXX XXXX"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="customerVat">VAT Number (Optional)</Label>
+                              <Input
+                                id="customerVat"
+                                value={newCustomer.vatNumber}
+                                onChange={(e) => setNewCustomer({ ...newCustomer, vatNumber: e.target.value })}
+                                placeholder="3XXXXXXXXXX003"
+                              />
+                            </div>
+                          </div>
+                          <DialogFooter>
+                            <Button type="button" variant="outline" onClick={() => setIsCustomerDialogOpen(false)}>
+                              Cancel
+                            </Button>
+                            <Button type="button" onClick={handleAddCustomer}>
+                              Add Customer
+                            </Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+                    </div>
                   </div>
-
+                  
                   <div className="space-y-2">
                     <Label htmlFor="status">Status</Label>
                     <Select
@@ -296,169 +407,182 @@ export default function CreateQuotationPage() {
                       required
                     />
                   </div>
-
-                  <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor="notes">Notes</Label>
-                    <Textarea
-                      id="notes"
-                      value={formData.notes}
-                      onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                      placeholder="Add any additional notes..."
-                      rows={3}
-                    />
-                  </div>
                 </div>
               </CardContent>
             </Card>
 
+            {/* Quotation Items */}
             <Card>
               <CardHeader>
-                <CardTitle>Add Items</CardTitle>
-                <CardDescription>Add products to this quotation</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor="product">Product</Label>
-                    <Select
-                      value={currentItem.product_id}
-                      onValueChange={(value) => setCurrentItem({ ...currentItem, product_id: value })}
-                    >
-                      <SelectTrigger id="product">
-                        <SelectValue placeholder="Select product" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {products.map((product) => (
-                          <SelectItem key={product.id} value={product.id}>
-                            {product.name} - {formatCurrency(product.selling_price)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="quantity">Quantity</Label>
-                    <Input
-                      id="quantity"
-                      type="number"
-                      min="1"
-                      value={currentItem.quantity}
-                      onChange={(e) => setCurrentItem({ ...currentItem, quantity: parseInt(e.target.value) || 1 })}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="item_discount">Discount</Label>
-                    <Input
-                      id="item_discount"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={currentItem.discount_amount}
-                      onChange={(e) => setCurrentItem({ ...currentItem, discount_amount: parseFloat(e.target.value) || 0 })}
-                    />
-                  </div>
+                <div className="flex items-center justify-between">
+                  <CardTitle>Quotation Items</CardTitle>
+                  <Button type="button" variant="outline" size="sm" onClick={addItem}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Item
+                  </Button>
                 </div>
-
-                <Button type="button" onClick={handleAddItem} className="w-full">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Item
-                </Button>
-
-                {items.length > 0 && (
-                  <div className="rounded-md border">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Product</TableHead>
-                          <TableHead className="text-right">Qty</TableHead>
-                          <TableHead className="text-right">Price</TableHead>
-                          <TableHead className="text-right">Tax</TableHead>
-                          <TableHead className="text-right">Discount</TableHead>
-                          <TableHead className="text-right">Total</TableHead>
-                          <TableHead></TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {items.map((item, index) => (
-                          <TableRow key={index}>
-                            <TableCell className="font-medium">{item.product_name}</TableCell>
-                            <TableCell className="text-right">{item.quantity}</TableCell>
-                            <TableCell className="text-right">{formatCurrency(item.unit_price)}</TableCell>
-                            <TableCell className="text-right">{item.vat_rate}%</TableCell>
-                            <TableCell className="text-right">{formatCurrency(item.discount_amount)}</TableCell>
-                            <TableCell className="text-right font-medium">{formatCurrency(item.total_amount)}</TableCell>
-                            <TableCell>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleRemoveItem(index)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Summary</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="overall_discount">Overall Discount</Label>
-                    <Input
-                      id="overall_discount"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={formData.discount_amount}
-                      onChange={(e) => setFormData({ ...formData, discount_amount: parseFloat(e.target.value) || 0 })}
-                    />
-                  </div>
+                  {items.map((item, index) => (
+                    <div key={index} className="p-4 border rounded-lg space-y-4">
+                      <div className="flex items-start justify-between">
+                        <span className="text-sm font-medium">Item {index + 1}</span>
+                        {items.length > 1 && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive"
+                            onClick={() => removeItem(index)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                      
+                      <div className="grid gap-4 md:grid-cols-7">
+                        <div className="md:col-span-2 space-y-2">
+                          <Label>Product/Service *</Label>
+                          <Select
+                            value={item.product_id}
+                            onValueChange={(value) => updateItem(index, "product_id", value)}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select product" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {products.map((product) => (
+                                <SelectItem key={product.id} value={product.id}>
+                                  {product.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label>Quantity *</Label>
+                          <Input
+                            type="number"
+                            min="1"
+                            value={item.quantity}
+                            onChange={(e) => updateItem(index, "quantity", parseFloat(e.target.value) || 0)}
+                          />
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label>Unit Price *</Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={item.unit_price}
+                            onChange={(e) => updateItem(index, "unit_price", parseFloat(e.target.value) || 0)}
+                          />
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label>Discount</Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={item.discount_amount}
+                            onChange={(e) => updateItem(index, "discount_amount", parseFloat(e.target.value) || 0)}
+                          />
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label>VAT ({item.vat_rate}%)</Label>
+                          <Input
+                            value={`SAR ${((item.quantity * item.unit_price - item.discount_amount) * item.vat_rate / 100).toFixed(2)}`}
+                            disabled
+                            className="bg-muted font-medium"
+                          />
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label>Total</Label>
+                          <Input
+                            value={`SAR ${item.total_amount.toFixed(2)}`}
+                            disabled
+                            className="bg-muted font-semibold"
+                          />
+                        </div>
+                      </div>
+                      
+                      <div className="grid gap-4 md:grid-cols-3 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Subtotal:</span>
+                          <span className="font-medium">SAR {(item.quantity * item.unit_price).toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Tax ({item.vat_rate}%):</span>
+                          <span className="font-medium">SAR {((item.quantity * item.unit_price - item.discount_amount) * item.vat_rate / 100).toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Discount:</span>
+                          <span className="font-medium">SAR {item.discount_amount.toFixed(2)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
 
-                  <div className="space-y-2 pt-4 border-t">
+                {/* Totals */}
+                <div className="mt-6 pt-6 border-t">
+                  <div className="max-w-md ml-auto space-y-3">
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Subtotal:</span>
-                      <span className="font-medium">{formatCurrency(totals.subtotal)}</span>
+                      <span className="font-medium">SAR {totals.subtotal.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <Label htmlFor="discount">Overall Discount:</Label>
+                      <Input
+                        id="discount"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={formData.discount_amount}
+                        onChange={(e) => setFormData({ ...formData, discount_amount: parseFloat(e.target.value) || 0 })}
+                        className="w-32 h-8 text-right"
+                      />
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Total Discount:</span>
-                      <span className="font-medium text-red-600">-{formatCurrency(totals.totalDiscount)}</span>
+                      <span className="font-medium text-destructive">-SAR {totals.totalDiscount.toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Tax:</span>
-                      <span className="font-medium">{formatCurrency(totals.vatAmount)}</span>
+                      <span className="text-muted-foreground">Tax (VAT):</span>
+                      <span className="font-medium">SAR {totals.vatAmount.toFixed(2)}</span>
                     </div>
-                    <div className="flex justify-between text-lg font-bold pt-2 border-t">
-                      <span>Total:</span>
-                      <span>{formatCurrency(totals.total_amount)}</span>
+                    <div className="flex justify-between text-lg font-bold pt-3 border-t">
+                      <span>Total Amount:</span>
+                      <span className="text-primary">SAR {totals.total.toFixed(2)}</span>
                     </div>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            <div className="flex gap-4">
-              <Button type="button" variant="outline" onClick={() => router.push("/quotations")} className="flex-1">
-                Cancel
-              </Button>
-              <Button type="submit" disabled={loading} className="flex-1">
-                {loading ? "Creating..." : "Create Quotation"}
-              </Button>
-            </div>
+            {/* Notes */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Additional Notes</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Textarea
+                  placeholder="Add any additional notes or terms..."
+                  value={formData.notes}
+                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  rows={4}
+                />
+              </CardContent>
+            </Card>
           </form>
-        </div>
-      </DashboardLayout>
-    </AuthGuard>
+        </DashboardLayout>
+      </AuthGuard>
+    </>
   );
 }

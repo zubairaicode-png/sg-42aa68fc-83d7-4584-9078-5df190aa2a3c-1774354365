@@ -1,15 +1,16 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
+import { SEO } from "@/components/SEO";
 import { DashboardLayout } from "@/components/layouts/DashboardLayout";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, FileCheck, Printer, Mail } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
+import { ArrowLeft, FileCheck, Printer, Mail, Download } from "lucide-react";
 import { quotationService, type QuotationWithItems } from "@/services/quotationService";
 import { useToast } from "@/hooks/use-toast";
 import { AuthGuard } from "@/components/AuthGuard";
-import { Separator } from "@/components/ui/separator";
+import { cn } from "@/lib/utils";
 
 export default function QuotationDetailPage() {
   const router = useRouter();
@@ -69,17 +70,15 @@ export default function QuotationDetailPage() {
     window.print();
   };
 
-  const getStatusBadge = (status: string) => {
-    const statusConfig: Record<string, { variant: "default" | "secondary" | "destructive" | "outline"; label: string }> = {
-      draft: { variant: "secondary", label: "Draft" },
-      sent: { variant: "outline", label: "Sent" },
-      accepted: { variant: "default", label: "Accepted" },
-      rejected: { variant: "destructive", label: "Rejected" },
-      converted: { variant: "default", label: "Converted" },
-    };
-
-    const config = statusConfig[status] || { variant: "secondary", label: status };
-    return <Badge variant={config.variant}>{config.label}</Badge>;
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "accepted": return "text-success bg-success/10";
+      case "sent": return "text-warning bg-warning/10";
+      case "rejected": return "text-destructive bg-destructive/10";
+      case "draft": return "text-muted-foreground bg-muted";
+      case "converted": return "text-primary bg-primary/10";
+      default: return "text-muted-foreground bg-muted";
+    }
   };
 
   const formatDate = (date: string) => {
@@ -88,13 +87,6 @@ export default function QuotationDetailPage() {
       month: "long",
       day: "numeric",
     });
-  };
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "SAR",
-    }).format(amount);
   };
 
   if (loading) {
@@ -126,68 +118,114 @@ export default function QuotationDetailPage() {
   }
 
   return (
-    <AuthGuard>
-      <DashboardLayout>
-        <div className="space-y-6">
-          <div className="flex items-center justify-between print:hidden">
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" size="icon" onClick={() => router.push("/quotations")}>
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-              <div>
-                <h1 className="text-3xl font-bold tracking-tight">Quotation Details</h1>
-                <p className="text-muted-foreground">{quotation.quotation_number}</p>
+    <>
+      <SEO 
+        title={`Quotation ${quotation.quotation_number} - Saudi ERP System`}
+        description="View quotation details"
+      />
+      <AuthGuard>
+        <DashboardLayout>
+          <div className="space-y-6">
+            {/* Header */}
+            <div className="flex items-center justify-between print:hidden">
+              <div className="flex items-center gap-4">
+                <Button variant="ghost" size="icon" onClick={() => router.push("/quotations")}>
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
+                <div>
+                  <h1 className="text-3xl font-bold font-heading">Quotation Details</h1>
+                  <p className="text-muted-foreground">{quotation.quotation_number}</p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={handlePrint}>
+                  <Printer className="h-4 w-4 mr-2" />
+                  Print
+                </Button>
+                <Button variant="outline">
+                  <Mail className="h-4 w-4 mr-2" />
+                  Email
+                </Button>
+                {quotation.status !== "converted" && (
+                  <Button onClick={handleConvertToInvoice} disabled={converting}>
+                    <FileCheck className="h-4 w-4 mr-2" />
+                    {converting ? "Converting..." : "Convert to Invoice"}
+                  </Button>
+                )}
               </div>
             </div>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={handlePrint}>
-                <Printer className="mr-2 h-4 w-4" />
-                Print
-              </Button>
-              {quotation.status !== "converted" && (
-                <Button onClick={handleConvertToInvoice} disabled={converting}>
-                  <FileCheck className="mr-2 h-4 w-4" />
-                  {converting ? "Converting..." : "Convert to Invoice"}
-                </Button>
-              )}
-            </div>
-          </div>
 
-          <div className="grid gap-6">
+            {/* Quotation Header Card */}
             <Card>
               <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-2xl">{quotation.quotation_number}</CardTitle>
-                    <CardDescription>Quotation Date: {formatDate(quotation.quotation_date)}</CardDescription>
+                <div className="flex items-start justify-between">
+                  <div className="space-y-1">
+                    <CardTitle className="text-2xl font-heading">{quotation.quotation_number}</CardTitle>
+                    <div className="flex gap-4 text-sm text-muted-foreground">
+                      <span>Date: {formatDate(quotation.quotation_date)}</span>
+                      <Separator orientation="vertical" className="h-4" />
+                      <span>Valid Until: {formatDate(quotation.valid_until)}</span>
+                    </div>
                   </div>
-                  {getStatusBadge(quotation.status)}
+                  <Badge className={cn("text-sm px-4 py-1", getStatusColor(quotation.status))}>
+                    {quotation.status.toUpperCase()}
+                  </Badge>
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid gap-6 md:grid-cols-2">
+                  {/* Customer Information */}
                   <div>
-                    <h3 className="font-semibold mb-2">Customer Information</h3>
-                    <div className="space-y-1 text-sm">
-                      <p className="font-medium">{quotation.customers?.name}</p>
+                    <h3 className="font-semibold mb-3 text-sm text-muted-foreground uppercase tracking-wide">Customer Information</h3>
+                    <div className="space-y-2">
+                      <div>
+                        <p className="font-semibold text-lg">{quotation.customers?.name}</p>
+                      </div>
                       {quotation.customers?.email && (
-                        <p className="text-muted-foreground">{quotation.customers.email}</p>
+                        <div className="flex gap-2 text-sm">
+                          <span className="text-muted-foreground">Email:</span>
+                          <span>{quotation.customers.email}</span>
+                        </div>
                       )}
                       {quotation.customers?.phone && (
-                        <p className="text-muted-foreground">{quotation.customers.phone}</p>
+                        <div className="flex gap-2 text-sm">
+                          <span className="text-muted-foreground">Phone:</span>
+                          <span>{quotation.customers.phone}</span>
+                        </div>
+                      )}
+                      {quotation.customers?.vat_number && (
+                        <div className="flex gap-2 text-sm">
+                          <span className="text-muted-foreground">VAT Number:</span>
+                          <span className="font-mono">{quotation.customers.vat_number}</span>
+                        </div>
                       )}
                     </div>
                   </div>
+
+                  {/* Quotation Summary */}
                   <div>
-                    <h3 className="font-semibold mb-2">Quotation Details</h3>
-                    <div className="space-y-1 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Valid Until:</span>
-                        <span className="font-medium">{formatDate(quotation.valid_until)}</span>
+                    <h3 className="font-semibold mb-3 text-sm text-muted-foreground uppercase tracking-wide">Quotation Summary</h3>
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Items:</span>
+                        <span className="font-medium">{quotation.quotation_items.length} item(s)</span>
                       </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Subtotal:</span>
+                        <span className="font-medium">SAR {quotation.subtotal.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Discount:</span>
+                        <span className="font-medium text-destructive">-SAR {quotation.discount_amount.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">VAT:</span>
+                        <span className="font-medium">SAR {quotation.vat_amount.toLocaleString()}</span>
+                      </div>
+                      <Separator />
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">Status:</span>
-                        <span className="font-medium">{quotation.status}</span>
+                        <span className="font-semibold">Total Amount:</span>
+                        <span className="font-bold text-lg text-primary">SAR {quotation.total_amount.toLocaleString()}</span>
                       </div>
                     </div>
                   </div>
@@ -195,71 +233,82 @@ export default function QuotationDetailPage() {
               </CardContent>
             </Card>
 
+            {/* Items Table */}
             <Card>
               <CardHeader>
                 <CardTitle>Items</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Product</TableHead>
-                        <TableHead className="text-right">Quantity</TableHead>
-                        <TableHead className="text-right">Unit Price</TableHead>
-                        <TableHead className="text-right">Tax Rate</TableHead>
-                        <TableHead className="text-right">Discount</TableHead>
-                        <TableHead className="text-right">Total</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {quotation.quotation_items.map((item) => (
-                        <TableRow key={item.id}>
-                          <TableCell className="font-medium">{item.products?.name || item.description}</TableCell>
-                          <TableCell className="text-right">{item.quantity}</TableCell>
-                          <TableCell className="text-right">{formatCurrency(item.unit_price)}</TableCell>
-                          <TableCell className="text-right">{item.vat_rate}%</TableCell>
-                          <TableCell className="text-right">{formatCurrency(item.discount_amount)}</TableCell>
-                          <TableCell className="text-right font-medium">{formatCurrency(item.total_amount)}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-table-header">
+                        <tr>
+                          <th className="text-left p-4 font-semibold text-sm">Product/Service</th>
+                          <th className="text-right p-4 font-semibold text-sm">Quantity</th>
+                          <th className="text-right p-4 font-semibold text-sm">Unit Price</th>
+                          <th className="text-right p-4 font-semibold text-sm">Discount</th>
+                          <th className="text-right p-4 font-semibold text-sm">VAT ({quotation.quotation_items[0]?.vat_rate}%)</th>
+                          <th className="text-right p-4 font-semibold text-sm">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {quotation.quotation_items.map((item, index) => (
+                          <tr key={item.id} className={cn("border-t", index % 2 === 1 && "bg-table-row-hover")}>
+                            <td className="p-4 font-medium">{item.products?.name || item.description}</td>
+                            <td className="p-4 text-right">{item.quantity}</td>
+                            <td className="p-4 text-right">SAR {item.unit_price.toLocaleString()}</td>
+                            <td className="p-4 text-right">SAR {item.discount_amount.toLocaleString()}</td>
+                            <td className="p-4 text-right">
+                              SAR {((item.quantity * item.unit_price - item.discount_amount) * item.vat_rate / 100).toFixed(2)}
+                            </td>
+                            <td className="p-4 text-right font-semibold">SAR {item.total_amount.toLocaleString()}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
 
+                {/* Summary Footer */}
                 <div className="mt-6 flex justify-end">
-                  <div className="w-full max-w-xs space-y-2">
+                  <div className="w-full max-w-sm space-y-3">
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Subtotal:</span>
-                      <span className="font-medium">{formatCurrency(quotation.subtotal)}</span>
+                      <span className="font-medium">SAR {quotation.subtotal.toLocaleString()}</span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Discount:</span>
-                      <span className="font-medium text-red-600">-{formatCurrency(quotation.discount_amount)}</span>
+                      <span className="font-medium text-destructive">-SAR {quotation.discount_amount.toLocaleString()}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Tax:</span>
-                      <span className="font-medium">{formatCurrency(quotation.vat_amount)}</span>
+                      <span className="text-muted-foreground">VAT:</span>
+                      <span className="font-medium">SAR {quotation.vat_amount.toLocaleString()}</span>
                     </div>
                     <Separator />
-                    <div className="flex justify-between text-lg font-bold">
-                      <span>Total:</span>
-                      <span>{formatCurrency(quotation.total_amount)}</span>
+                    <div className="flex justify-between text-lg font-bold pt-2">
+                      <span>Total Amount:</span>
+                      <span className="text-primary">SAR {quotation.total_amount.toLocaleString()}</span>
                     </div>
                   </div>
                 </div>
-
-                {quotation.notes && (
-                  <div className="mt-6 pt-6 border-t">
-                    <h3 className="font-semibold mb-2">Notes</h3>
-                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">{quotation.notes}</p>
-                  </div>
-                )}
               </CardContent>
             </Card>
+
+            {/* Notes */}
+            {quotation.notes && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Additional Notes</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground whitespace-pre-wrap">{quotation.notes}</p>
+                </CardContent>
+              </Card>
+            )}
           </div>
-        </div>
-      </DashboardLayout>
-    </AuthGuard>
+        </DashboardLayout>
+      </AuthGuard>
+    </>
   );
 }
