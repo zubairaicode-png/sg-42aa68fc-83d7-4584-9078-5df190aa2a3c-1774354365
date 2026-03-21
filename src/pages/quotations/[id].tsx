@@ -248,7 +248,7 @@ export default function QuotationDetailPage() {
                           <th className="text-right p-4 font-semibold text-sm">Quantity</th>
                           <th className="text-right p-4 font-semibold text-sm">Unit Price</th>
                           <th className="text-right p-4 font-semibold text-sm">Discount</th>
-                          <th className="text-right p-4 font-semibold text-sm">VAT ({quotation.quotation_items[0]?.vat_rate}%)</th>
+                          <th className="text-right p-4 font-semibold text-sm">Total Tax ({quotation.quotation_items[0]?.vat_rate}%)</th>
                           <th className="text-right p-4 font-semibold text-sm">Total</th>
                         </tr>
                       </thead>
@@ -259,7 +259,7 @@ export default function QuotationDetailPage() {
                             <td className="p-4 text-right">{item.quantity}</td>
                             <td className="p-4 text-right">SAR {item.unit_price.toLocaleString()}</td>
                             <td className="p-4 text-right">SAR {item.discount_amount.toLocaleString()}</td>
-                            <td className="p-4 text-right">
+                            <td className="p-4 text-right font-semibold">
                               SAR {((item.quantity * item.unit_price - item.discount_amount) * item.vat_rate / 100).toFixed(2)}
                             </td>
                             <td className="p-4 text-right font-semibold">SAR {item.total_amount.toLocaleString()}</td>

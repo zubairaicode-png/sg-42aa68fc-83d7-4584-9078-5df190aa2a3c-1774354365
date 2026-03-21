@@ -316,6 +316,7 @@ export default function InvoiceViewPage() {
                       <th className="text-center p-3">Qty<br/><span className="text-xs font-normal">الكمية</span></th>
                       <th className="text-right p-3">Unit Price<br/><span className="text-xs font-normal">سعر الوحدة</span></th>
                       <th className="text-center p-3">VAT %<br/><span className="text-xs font-normal">ض.ق.م</span></th>
+                      <th className="text-right p-3">Total Tax<br/><span className="text-xs font-normal">مجموع الضريبة</span></th>
                       <th className="text-right p-3">Amount<br/><span className="text-xs font-normal">المبلغ</span></th>
                     </tr>
                   </thead>
@@ -327,6 +328,7 @@ export default function InvoiceViewPage() {
                         <td className="text-center p-3">{item.quantity}</td>
                         <td className="text-right p-3">{item.unitPrice.toFixed(2)} SAR</td>
                         <td className="text-center p-3">{item.vatRate}%</td>
+                        <td className="text-right p-3 font-semibold">{((item.quantity * item.unitPrice) * (item.vatRate / 100)).toFixed(2)} SAR</td>
                         <td className="text-right p-3 font-semibold">{item.amount.toFixed(2)} SAR</td>
                       </tr>
                     ))}
