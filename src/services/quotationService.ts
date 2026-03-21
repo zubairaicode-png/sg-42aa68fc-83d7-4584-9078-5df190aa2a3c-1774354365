@@ -91,6 +91,7 @@ export const quotationService = {
     const { data: quotation, error: quotationError } = await supabase
       .from("quotations")
       .insert({
+        quotation_number: "TBD", // Will be overwritten by database trigger
         customer_id: quotationData.customer_id,
         quotation_date: quotationData.quotation_date,
         valid_until: quotationData.valid_until,
@@ -195,11 +196,13 @@ export const quotationService = {
       .from("sales_invoices")
       .insert({
         customer_id: quotation.customer_id,
-        issue_date: new Date().toISOString().split("T")[0],
+        customer_name: quotation.customers?.name || "Unknown Customer",
+        invoice_number: `INV-${Date.now()}`,
+        invoice_date: new Date().toISOString().split("T")[0],
         due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
         subtotal: quotation.subtotal,
         discount_amount: quotation.discount_amount,
-        vat_amount: quotation.vat_amount,
+        tax_amount: quotation.vat_amount,
         total_amount: quotation.total_amount,
         paid_amount: 0,
         payment_status: "unpaid",
@@ -220,10 +223,10 @@ export const quotationService = {
       product_id: item.product_id,
       quantity: item.quantity,
       unit_price: item.unit_price,
-      vat_rate: item.vat_rate,
-      vat_amount: item.vat_amount,
+      tax_rate: item.vat_rate,
+      tax_amount: item.vat_amount,
       discount_amount: item.discount_amount,
-      total_amount: item.total_amount,
+      total: item.total_amount,
     }));
 
     const { error: itemsError } = await supabase

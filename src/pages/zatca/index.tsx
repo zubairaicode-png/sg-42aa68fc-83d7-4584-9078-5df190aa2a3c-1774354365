@@ -7,6 +7,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
+import { useToast } from "@/hooks/use-toast";
+import { zatcaService } from "@/services/zatcaService";
+import { supabase } from "@/integrations/supabase/client";
 import { 
   Shield, 
   CheckCircle, 
@@ -51,6 +55,51 @@ interface ComplianceDevice {
 }
 
 export default function ZATCAPhase2Page() {
+  const [activeTab, setActiveTab] = useState("overview");
+  const [isRegisterDialogOpen, setIsRegisterDialogOpen] = useState(false);
+  const [newDeviceName, setNewDeviceName] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const { toast } = useToast();
+  
+  const [devices, setDevices] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetchDevices();
+  }, []);
+
+  const fetchDevices = async () => {
+    try {
+      const data = await zatcaService.devices.getAll();
+      setDevices(data);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const handleRegisterDevice = async () => {
+    if (!newDeviceName.trim()) {
+      toast({ title: "Error", description: "Device name is required", variant: "destructive" });
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const { data: session } = await supabase.auth.getSession();
+      await zatcaService.devices.create({
+        device_name: newDeviceName,
+        status: "pending",
+        created_by: session.session?.user?.id,
+      });
+      toast({ title: "Success", description: "Device registered successfully" });
+      setIsRegisterDialogOpen(false);
+      setNewDeviceName("");
+      fetchDevices();
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Failed to register device", variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const [status, setStatus] = useState<ZATCAStatus>({
     complianceStatus: "compliant",
     certificateStatus: "active",
@@ -62,18 +111,6 @@ export default function ZATCAPhase2Page() {
     rejectedInvoices: 2,
     pendingInvoices: 3,
   });
-
-  const [devices, setDevices] = useState<ComplianceDevice[]>([
-    {
-      id: "1",
-      deviceName: "Main POS Terminal",
-      otp: "123456",
-      csrStatus: "approved",
-      certificateStatus: "active",
-      certificateExpiry: "2027-12-31",
-      lastUsed: "2026-03-21T18:00:00Z",
-    },
-  ]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -130,7 +167,7 @@ export default function ZATCAPhase2Page() {
               <p className="text-muted-foreground mt-1">E-Invoicing Compliance & Real-time Reporting</p>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline">
+              <Button variant="outline" onClick={() => setActiveTab("settings")}>
                 <Settings className="h-4 w-4 mr-2" />
                 Configuration
               </Button>
@@ -207,7 +244,7 @@ export default function ZATCAPhase2Page() {
           </div>
 
           {/* Main Content Tabs */}
-          <Tabs defaultValue="overview" className="space-y-4">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
             <TabsList>
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="devices">Device Management</TabsTrigger>
@@ -348,37 +385,60 @@ export default function ZATCAPhase2Page() {
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <CardTitle>Compliance Devices</CardTitle>
-                    <Button>
-                      <Key className="h-4 w-4 mr-2" />
-                      Register New Device
-                    </Button>
+                    <Dialog open={isRegisterDialogOpen} onOpenChange={setIsRegisterDialogOpen}>
+                      <DialogTrigger asChild>
+                        <Button>
+                          <Key className="h-4 w-4 mr-2" />
+                          Register New Device
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Register New Compliance Device</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4 py-4">
+                          <div className="space-y-2">
+                            <Label>Device Name / POS Terminal</Label>
+                            <Input 
+                              placeholder="e.g. Main POS Riyadh" 
+                              value={newDeviceName}
+                              onChange={(e) => setNewDeviceName(e.target.value)}
+                            />
+                          </div>
+                        </div>
+                        <DialogFooter>
+                          <Button variant="outline" onClick={() => setIsRegisterDialogOpen(false)}>Cancel</Button>
+                          <Button onClick={handleRegisterDevice} disabled={isLoading}>
+                            {isLoading ? "Registering..." : "Register Device"}
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
                   </div>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    {devices.map((device) => (
+                    {devices.length === 0 ? (
+                      <div className="text-center py-8 text-muted-foreground">
+                        No devices registered. Click "Register New Device" to start.
+                      </div>
+                    ) : devices.map((device) => (
                       <div key={device.id} className="border rounded-lg p-4 space-y-3">
                         <div className="flex items-start justify-between">
                           <div>
-                            <h3 className="font-semibold">{device.deviceName}</h3>
-                            <p className="text-sm text-muted-foreground">Last used: {new Date(device.lastUsed).toLocaleString()}</p>
+                            <h3 className="font-semibold">{device.device_name}</h3>
+                            <p className="text-sm text-muted-foreground">Last used: {device.last_used ? new Date(device.last_used).toLocaleString() : "Never"}</p>
                           </div>
-                          <Badge className={getStatusColor(device.certificateStatus)}>
-                            {device.certificateStatus === "active" ? <Lock className="h-3 w-3 mr-1" /> : <Unlock className="h-3 w-3 mr-1" />}
-                            {device.certificateStatus}
+                          <Badge className={getStatusColor(device.status)}>
+                            {device.status === "active" ? <Lock className="h-3 w-3 mr-1" /> : <Unlock className="h-3 w-3 mr-1" />}
+                            {device.status}
                           </Badge>
                         </div>
                         
                         <div className="grid grid-cols-2 gap-4 text-sm">
                           <div>
-                            <span className="text-muted-foreground">CSR Status:</span>
-                            <Badge className={`ml-2 ${getStatusColor(device.csrStatus)}`}>
-                              {device.csrStatus}
-                            </Badge>
-                          </div>
-                          <div>
                             <span className="text-muted-foreground">Certificate Expiry:</span>
-                            <span className="ml-2 font-medium">{device.certificateExpiry}</span>
+                            <span className="ml-2 font-medium">{device.certificate_expiry ? new Date(device.certificate_expiry).toLocaleDateString() : "Not Generated"}</span>
                           </div>
                         </div>
 
@@ -390,10 +450,6 @@ export default function ZATCAPhase2Page() {
                           <Button size="sm" variant="outline">
                             <Key className="h-3 w-3 mr-1" />
                             Renew Certificate
-                          </Button>
-                          <Button size="sm" variant="outline">
-                            <Settings className="h-3 w-3 mr-1" />
-                            Configure
                           </Button>
                         </div>
                       </div>
