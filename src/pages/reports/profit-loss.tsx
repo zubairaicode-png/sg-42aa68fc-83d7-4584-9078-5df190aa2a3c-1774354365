@@ -88,10 +88,22 @@ export default function ProfitLossPage() {
       const cogsExpenses = expensesData?.filter(e => e.category.toLowerCase().includes('inventory') || e.category.toLowerCase().includes('purchase')) || [];
       const operatingExpenses = expensesData?.filter(e => !e.category.toLowerCase().includes('inventory') && !e.category.toLowerCase().includes('purchase')) || [];
 
-      const totalPurchases = cogsExpenses.reduce((sum, exp) => sum + exp.amount, 0);
+      let totalPurchases = 0;
+      if (cogsExpenses) {
+        for (const exp of cogsExpenses) {
+          totalPurchases += Number(exp.amount || 0);
+        }
+      }
+
       const grossProfit = netRevenue - totalPurchases;
 
-      const totalOperatingExpenses = operatingExpenses.reduce((sum, exp) => sum + exp.amount, 0);
+      let totalOperatingExpenses = 0;
+      if (operatingExpenses) {
+        for (const exp of operatingExpenses) {
+          totalOperatingExpenses += Number(exp.amount || 0);
+        }
+      }
+
       const netProfit = grossProfit - totalOperatingExpenses;
       const profitMargin = netRevenue > 0 ? (netProfit / netRevenue) * 100 : 0;
 
