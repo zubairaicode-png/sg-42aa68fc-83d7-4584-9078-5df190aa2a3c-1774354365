@@ -42,7 +42,10 @@ export default function SettingsPage() {
     email: "info@company.com",
     phone: "+966 50 000 0000",
     website: "www.company.com",
-    logo: ""
+    logo: "",
+    baseCurrency: "SAR",
+    currencySymbol: "SAR",
+    currencyPosition: "before"
   });
 
   // Tax Settings State
@@ -450,6 +453,47 @@ export default function SettingsPage() {
                           onChange={(e) => setCompanyInfo({ ...companyInfo, website: e.target.value })}
                           placeholder="www.company.com"
                         />
+                      </div>
+                    </div>
+
+                    {/* Currency Settings */}
+                    <div className="space-y-4">
+                      <h3 className="text-sm font-semibold">Currency & Formatting (العملة والتنسيق)</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="baseCurrency">Base Currency Code *</Label>
+                          <Input
+                            id="baseCurrency"
+                            value={companyInfo.baseCurrency || "SAR"}
+                            onChange={(e) => setCompanyInfo({ ...companyInfo, baseCurrency: e.target.value.toUpperCase() })}
+                            placeholder="SAR, USD, EUR..."
+                            maxLength={3}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="currencySymbol">Currency Symbol *</Label>
+                          <Input
+                            id="currencySymbol"
+                            value={companyInfo.currencySymbol || "SAR"}
+                            onChange={(e) => setCompanyInfo({ ...companyInfo, currencySymbol: e.target.value })}
+                            placeholder="SAR, $, €..."
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Symbol Position</Label>
+                          <Select
+                            value={companyInfo.currencyPosition || "before"}
+                            onValueChange={(v) => setCompanyInfo({ ...companyInfo, currencyPosition: v })}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Position" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="before">Before Amount (SAR 100)</SelectItem>
+                              <SelectItem value="after">After Amount (100 SAR)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </div>
                     </div>
 
