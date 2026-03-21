@@ -199,6 +199,25 @@ export default function QuotationDetailPage() {
                           <span className="font-mono">{quotation.customers.vat_number}</span>
                         </div>
                       )}
+                      {quotation.customers?.cr_number && (
+                        <div className="flex gap-2 text-sm">
+                          <span className="text-muted-foreground">CR Number:</span>
+                          <span className="font-mono">{quotation.customers.cr_number}</span>
+                        </div>
+                      )}
+                      {(quotation.customers?.building_number || quotation.customers?.street_name) && (
+                        <div className="flex gap-2 text-sm">
+                          <span className="text-muted-foreground">National Address:</span>
+                          <span>
+                            {quotation.customers.building_number && `Bldg ${quotation.customers.building_number}`}
+                            {quotation.customers.street_name && `, ${quotation.customers.street_name}`}
+                            {quotation.customers.additional_number && `, Add. ${quotation.customers.additional_number}`}
+                            {quotation.customers.district && `, ${quotation.customers.district}`}
+                            {quotation.customers.city && `, ${quotation.customers.city}`}
+                            {quotation.customers.postal_code && ` ${quotation.customers.postal_code}`}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
 

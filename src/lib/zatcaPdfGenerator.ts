@@ -78,8 +78,17 @@ export interface InvoiceData {
   
   // Customer
   customerName: string;
+  customerNameAr?: string;
   customerVAT?: string;
-  customerAddress: string;
+  customerCR?: string;
+  customerBuildingNo?: string;
+  customerStreet?: string;
+  customerDistrict?: string;
+  customerCity?: string;
+  customerPostalCode?: string;
+  customerAdditionalNo?: string;
+  customerPhone?: string;
+  customerEmail?: string;
   
   // Line Items
   items: Array<{
