@@ -206,9 +206,11 @@ export default function SalesPage() {
                           </td>
                           <td className="p-4">
                             <div className="flex items-center justify-center gap-2">
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <Eye className="h-4 w-4" />
-                              </Button>
+                              <Link href={`/sales/invoice/${invoice.id}`}>
+                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                              </Link>
                               <Button variant="ghost" size="icon" className="h-8 w-8">
                                 <Edit className="h-4 w-4" />
                               </Button>
