@@ -1,12 +1,17 @@
-import React from 'react'
+import { SEO } from "@/components/SEO";
+import { DashboardLayout } from "@/components/layouts/DashboardLayout";
+import { DashboardOverview } from "@/components/dashboard/DashboardOverview";
 
-export default function Home() {
+export default function HomePage() {
   return (
-    <main className="min-h-screen bg-background flex items-center justify-center">
-      <div className="text-center space-y-4">
-        <h1 className="text-4xl font-bold text-foreground">Hello World</h1>
-        <p className="text-lg text-muted-foreground">This is going to be your softgen app, start by describing your project.</p>
-      </div>
-    </main>
-  )
+    <>
+      <SEO 
+        title="Dashboard - Saudi ERP System"
+        description="Complete ERP solution for Saudi Arabian businesses with sales, purchases, inventory, and accounting"
+      />
+      <DashboardLayout>
+        <DashboardOverview />
+      </DashboardLayout>
+    </>
+  );
 }
