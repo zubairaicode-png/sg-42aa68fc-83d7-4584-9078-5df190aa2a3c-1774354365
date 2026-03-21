@@ -98,6 +98,7 @@ export default function CreateQuotationPage() {
 
     try {
       const customer = await customerService.create({
+        customer_number: `CUST-${Date.now()}`,
         name: newCustomer.name,
         email: newCustomer.email,
         phone: newCustomer.phone,
