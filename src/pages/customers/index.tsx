@@ -1,77 +1,68 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { SEO } from "@/components/SEO";
 import { DashboardLayout } from "@/components/layouts/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Plus, Search, Filter, Download, Eye, Edit, Trash2, Mail, Phone } from "lucide-react";
-import { Customer } from "@/types";
+import { Plus, Search, Filter, Download, Eye, Edit, Trash2 } from "lucide-react";
 import Link from "next/link";
+import { customerService } from "@/services/customerService";
+import type { Database } from "@/integrations/supabase/types";
+
+type Customer = Database["public"]["Tables"]["customers"]["Row"];
 
 export default function CustomersPage() {
   const [searchQuery, setSearchQuery] = useState("");
-  
-  const customers: Customer[] = [
-    {
-      id: "1",
-      name: "Al-Rajhi Trading Co.",
-      email: "info@alrajhi-trading.sa",
-      phone: "+966 11 234 5678",
-      vatNumber: "300123456700003",
-      address: "King Fahd Road",
-      city: "Riyadh",
-      country: "Saudi Arabia",
-      creditLimit: 50000,
-      balance: 12500,
-      createdAt: "2026-01-15T10:00:00Z",
-    },
-    {
-      id: "2",
-      name: "Najd Commercial Est.",
-      email: "contact@najd-com.sa",
-      phone: "+966 11 987 6543",
-      vatNumber: "300987654300003",
-      address: "Olaya Street",
-      city: "Riyadh",
-      country: "Saudi Arabia",
-      creditLimit: 30000,
-      balance: 8750,
-      createdAt: "2026-02-01T14:30:00Z",
-    },
-    {
-      id: "3",
-      name: "Riyadh Supplies Ltd.",
-      email: "sales@riyadh-supplies.sa",
-      phone: "+966 11 555 1234",
-      vatNumber: "300555123400003",
-      address: "Exit 10, Northern Ring",
-      city: "Riyadh",
-      country: "Saudi Arabia",
-      creditLimit: 75000,
-      balance: 23400,
-      createdAt: "2026-01-20T09:15:00Z",
-    },
-  ];
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const stats = {
-    totalCustomers: customers.length,
-    totalReceivables: customers.reduce((sum, c) => sum + c.balance, 0),
-    activeCustomers: customers.filter(c => c.balance > 0).length,
-    avgCreditLimit: customers.reduce((sum, c) => sum + c.creditLimit, 0) / customers.length,
+  useEffect(() => {
+    loadCustomers();
+  }, []);
+
+  const loadCustomers = async () => {
+    try {
+      setLoading(true);
+      const data = await customerService.getAll();
+      setCustomers(data);
+    } catch (error) {
+      console.error("Error loading customers:", error);
+    } finally {
+      setLoading(false);
+    }
   };
+
+  const handleDelete = async (id: string) => {
+    if (confirm("Are you sure you want to delete this customer?")) {
+      try {
+        await customerService.delete(id);
+        await loadCustomers();
+      } catch (error) {
+        console.error("Error deleting customer:", error);
+        alert("Failed to delete customer");
+      }
+    }
+  };
+
+  const filteredCustomers = customers.filter(customer =>
+    customer.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    customer.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    customer.phone?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
     <>
       <SEO 
         title="Customers - Saudi ERP System"
-        description="Manage customer accounts and receivables"
+        description="Manage your customer database"
       />
       <DashboardLayout>
         <div className="space-y-6">
+          {/* Header */}
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold font-heading">Customer Management</h1>
-              <p className="text-muted-foreground mt-1">Manage customer accounts and transactions</p>
+              <h1 className="text-3xl font-bold font-heading">Customers</h1>
+              <p className="text-muted-foreground mt-1">Manage your customer database</p>
             </div>
             <Link href="/customers/create">
               <Button size="lg">
@@ -81,21 +72,14 @@ export default function CustomersPage() {
             </Link>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {/* Stats Cards */}
+          <div className="grid gap-4 md:grid-cols-3">
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">Total Customers</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold font-heading">{stats.totalCustomers}</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Total Receivables</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold font-heading text-primary">SAR {stats.totalReceivables.toLocaleString()}</div>
+                <div className="text-2xl font-bold font-heading">{customers.length}</div>
               </CardContent>
             </Card>
             <Card>
@@ -103,19 +87,24 @@ export default function CustomersPage() {
                 <CardTitle className="text-sm font-medium text-muted-foreground">Active Customers</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold font-heading">{stats.activeCustomers}</div>
+                <div className="text-2xl font-bold font-heading text-success">
+                  {customers.filter(c => c.status === "active").length}
+                </div>
               </CardContent>
             </Card>
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Avg Credit Limit</CardTitle>
+                <CardTitle className="text-sm font-medium text-muted-foreground">Inactive Customers</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold font-heading">SAR {stats.avgCreditLimit.toLocaleString()}</div>
+                <div className="text-2xl font-bold font-heading text-muted-foreground">
+                  {customers.filter(c => c.status === "inactive").length}
+                </div>
               </CardContent>
             </Card>
           </div>
 
+          {/* Customers List */}
           <Card>
             <CardHeader>
               <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
@@ -140,61 +129,69 @@ export default function CustomersPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="rounded-md border">
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-table-header">
-                      <tr>
-                        <th className="text-left p-4 font-semibold text-sm">Customer Name</th>
-                        <th className="text-left p-4 font-semibold text-sm">Contact</th>
-                        <th className="text-left p-4 font-semibold text-sm">VAT Number</th>
-                        <th className="text-left p-4 font-semibold text-sm">Location</th>
-                        <th className="text-right p-4 font-semibold text-sm">Credit Limit</th>
-                        <th className="text-right p-4 font-semibold text-sm">Balance</th>
-                        <th className="text-center p-4 font-semibold text-sm">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {customers.map((customer) => (
-                        <tr key={customer.id} className="border-t hover:bg-table-row-hover transition-colors">
-                          <td className="p-4">
-                            <div className="font-medium">{customer.name}</div>
-                          </td>
-                          <td className="p-4">
-                            <div className="flex flex-col gap-1 text-sm">
-                              <div className="flex items-center gap-1 text-muted-foreground">
-                                <Mail className="h-3 w-3" />
-                                {customer.email}
-                              </div>
-                              <div className="flex items-center gap-1 text-muted-foreground">
-                                <Phone className="h-3 w-3" />
-                                {customer.phone}
-                              </div>
-                            </div>
-                          </td>
-                          <td className="p-4 text-sm font-mono">{customer.vatNumber}</td>
-                          <td className="p-4 text-sm">{customer.city}</td>
-                          <td className="p-4 text-right">SAR {customer.creditLimit.toLocaleString()}</td>
-                          <td className="p-4 text-right font-semibold">SAR {customer.balance.toLocaleString()}</td>
-                          <td className="p-4">
-                            <div className="flex items-center justify-center gap-2">
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive">
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+              {loading ? (
+                <div className="text-center py-8 text-muted-foreground">Loading customers...</div>
+              ) : filteredCustomers.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  {searchQuery ? "No customers found matching your search" : "No customers yet. Add your first customer!"}
                 </div>
-              </div>
+              ) : (
+                <div className="rounded-md border">
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-table-header">
+                        <tr>
+                          <th className="text-left p-4 font-semibold text-sm">Customer Name</th>
+                          <th className="text-left p-4 font-semibold text-sm">Email</th>
+                          <th className="text-left p-4 font-semibold text-sm">Phone</th>
+                          <th className="text-left p-4 font-semibold text-sm">VAT Number</th>
+                          <th className="text-left p-4 font-semibold text-sm">Status</th>
+                          <th className="text-center p-4 font-semibold text-sm">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredCustomers.map((customer) => (
+                          <tr key={customer.id} className="border-t hover:bg-table-row-hover transition-colors">
+                            <td className="p-4 font-medium">{customer.name}</td>
+                            <td className="p-4 text-sm">{customer.email || "-"}</td>
+                            <td className="p-4 text-sm">{customer.phone || "-"}</td>
+                            <td className="p-4 text-sm">{customer.vat_number || "-"}</td>
+                            <td className="p-4">
+                              <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium capitalize ${
+                                customer.status === "active" 
+                                  ? "bg-success/10 text-success" 
+                                  : "bg-muted text-muted-foreground"
+                              }`}>
+                                {customer.status}
+                              </span>
+                            </td>
+                            <td className="p-4">
+                              <div className="flex items-center justify-center gap-2">
+                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                                <Link href={`/customers/create?id=${customer.id}`}>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                                    <Edit className="h-4 w-4" />
+                                  </Button>
+                                </Link>
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  className="h-8 w-8 text-destructive hover:text-destructive"
+                                  onClick={() => handleDelete(customer.id)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

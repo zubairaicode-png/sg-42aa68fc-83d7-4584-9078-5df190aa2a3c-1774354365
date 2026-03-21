@@ -1,332 +1,267 @@
-import { useState } from "react";
-import { useRouter } from "next/router";
+import { useState, useEffect } from "react";
 import { SEO } from "@/components/SEO";
 import { DashboardLayout } from "@/components/layouts/DashboardLayout";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Save } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { Textarea } from "@/components/ui/textarea";
+import { Save, ArrowLeft } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/router";
+import { customerService } from "@/services/customerService";
 
-export default function CreateCustomer() {
+export default function CreateCustomerPage() {
   const router = useRouter();
-  const { toast } = useToast();
+  const { id } = router.query;
   const [loading, setLoading] = useState(false);
-
   const [formData, setFormData] = useState({
+    customerNumber: "",
     name: "",
-    nameAr: "",
     email: "",
     phone: "",
     vatNumber: "",
-    crNumber: "",
-    buildingNumber: "",
-    streetName: "",
-    additionalNumber: "",
-    postalCode: "",
     address: "",
     city: "",
+    postalCode: "",
     country: "Saudi Arabia",
-    creditLimit: "",
-    paymentTerms: "30",
-    type: "business" as "individual" | "business",
+    status: "active" as "active" | "inactive",
   });
+
+  useEffect(() => {
+    if (id && typeof id === "string") {
+      loadCustomer(id);
+    }
+  }, [id]);
+
+  const loadCustomer = async (customerId: string) => {
+    try {
+      const customer = await customerService.getById(customerId);
+      if (customer) {
+        setFormData({
+          customerNumber: customer.customer_number || "",
+          name: customer.name || "",
+          email: customer.email || "",
+          phone: customer.phone || "",
+          vatNumber: customer.vat_number || "",
+          address: customer.address || "",
+          city: customer.city || "",
+          postalCode: customer.postal_code || "",
+          country: customer.country || "Saudi Arabia",
+          status: (customer.status as "active" | "inactive") || "active",
+        });
+      }
+    } catch (error) {
+      console.error("Error loading customer:", error);
+      alert("Failed to load customer");
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-
-    // Validate required fields
-    if (!formData.name || !formData.phone) {
-      toast({
-        title: "Validation Error",
-        description: "Please fill in all required fields",
-        variant: "destructive",
-      });
-      setLoading(false);
+    
+    if (!formData.name || !formData.email || !formData.phone) {
+      alert("Please fill in all required fields");
       return;
     }
 
-    // ZATCA Phase 2 validation for business customers
-    if (formData.type === "business" && (!formData.vatNumber || !formData.crNumber)) {
-      toast({
-        title: "ZATCA Compliance Error",
-        description: "VAT Number and CR Number are required for business customers",
-        variant: "destructive",
-      });
-      setLoading(false);
-      return;
-    }
+    try {
+      setLoading(true);
+      const customerData = {
+        customer_number: formData.customerNumber || `CUST-${Math.floor(Math.random() * 100000)}`,
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone,
+        vat_number: formData.vatNumber || null,
+        address: formData.address || null,
+        city: formData.city || null,
+        postal_code: formData.postalCode || null,
+        country: formData.country,
+        status: formData.status,
+      };
 
-    // Simulate API call
-    setTimeout(() => {
-      toast({
-        title: "Success",
-        description: "Customer created successfully",
-      });
-      setLoading(false);
+      if (id && typeof id === "string") {
+        await customerService.update(id, customerData);
+        alert("Customer updated successfully!");
+      } else {
+        await customerService.create(customerData);
+        alert("Customer created successfully!");
+      }
+      
       router.push("/customers");
-    }, 1000);
+    } catch (error) {
+      console.error("Error saving customer:", error);
+      alert("Failed to save customer");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <>
-      <SEO
-        title="Create Customer | Saudi ERP"
-        description="Add new customer to your ERP system"
+      <SEO 
+        title={`${id ? "Edit" : "Add"} Customer - Saudi ERP System`}
+        description={`${id ? "Edit" : "Add new"} customer information`}
       />
       <DashboardLayout>
-        <div className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Header */}
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold">Create New Customer</h1>
-              <p className="text-muted-foreground mt-1">Add a new customer with ZATCA Phase 2 compliance</p>
+            <div className="flex items-center gap-4">
+              <Link href="/customers">
+                <Button type="button" variant="ghost" size="icon">
+                  <ArrowLeft className="h-5 w-5" />
+                </Button>
+              </Link>
+              <div>
+                <h1 className="text-3xl font-bold font-heading">{id ? "Edit" : "Add"} Customer</h1>
+                <p className="text-muted-foreground mt-1">{id ? "Update" : "Create new"} customer information</p>
+              </div>
             </div>
-            <Button variant="outline" onClick={() => router.push("/customers")}>
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Customers
-            </Button>
+            <div className="flex gap-2">
+              <Link href="/customers">
+                <Button type="button" variant="outline">Cancel</Button>
+              </Link>
+              <Button type="submit" disabled={loading}>
+                <Save className="h-4 w-4 mr-2" />
+                {loading ? "Saving..." : "Save Customer"}
+              </Button>
+            </div>
           </div>
 
-          <form onSubmit={handleSubmit}>
-            <Card>
-              <CardHeader>
-                <CardTitle>Customer Information</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Label htmlFor="type">Customer Type *</Label>
-                    <Select
-                      value={formData.type}
-                      onValueChange={(value: "individual" | "business") =>
-                        setFormData({ ...formData, type: value })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="individual">Individual</SelectItem>
-                        <SelectItem value="business">Business</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="name">Customer Name (English) *</Label>
-                    <Input
-                      id="name"
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      placeholder="Enter customer name in English"
-                      required
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="nameAr">Customer Name (Arabic)</Label>
-                    <Input
-                      id="nameAr"
-                      value={formData.nameAr}
-                      onChange={(e) => setFormData({ ...formData, nameAr: e.target.value })}
-                      placeholder="اسم العميل بالعربية"
-                      dir="rtl"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      placeholder="customer@example.com"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="phone">Phone Number *</Label>
-                    <Input
-                      id="phone"
-                      value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                      placeholder="+966 5X XXX XXXX"
-                      required
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="vatNumber">
-                      VAT Number {formData.type === "business" && "*"}
-                    </Label>
-                    <Input
-                      id="vatNumber"
-                      value={formData.vatNumber}
-                      onChange={(e) => setFormData({ ...formData, vatNumber: e.target.value })}
-                      placeholder="3000XXXXXXXX3"
-                      required={formData.type === "business"}
-                    />
-                    <p className="text-xs text-muted-foreground">15-digit VAT registration number (ZATCA required)</p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="crNumber">
-                      CR Number {formData.type === "business" && "*"}
-                    </Label>
-                    <Input
-                      id="crNumber"
-                      value={formData.crNumber}
-                      onChange={(e) => setFormData({ ...formData, crNumber: e.target.value })}
-                      placeholder="1010XXXXXX"
-                      required={formData.type === "business"}
-                    />
-                    <p className="text-xs text-muted-foreground">Commercial Registration Number (ZATCA Phase 2)</p>
-                  </div>
+          {/* Customer Information */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Customer Information</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="customerNumber">Customer Number</Label>
+                  <Input
+                    id="customerNumber"
+                    value={formData.customerNumber}
+                    onChange={(e) => setFormData({ ...formData, customerNumber: e.target.value })}
+                    placeholder="Auto-generated if empty"
+                  />
                 </div>
 
-                <div className="border-t pt-6">
-                  <h3 className="text-lg font-semibold mb-4">Address Details (ZATCA Phase 2 Required)</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <Label htmlFor="buildingNumber">Building Number</Label>
-                      <Input
-                        id="buildingNumber"
-                        value={formData.buildingNumber}
-                        onChange={(e) => setFormData({ ...formData, buildingNumber: e.target.value })}
-                        placeholder="e.g., 7630"
-                      />
-                      <p className="text-xs text-muted-foreground">رقم المبنى (4 digits)</p>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="streetName">Street Name</Label>
-                      <Input
-                        id="streetName"
-                        value={formData.streetName}
-                        onChange={(e) => setFormData({ ...formData, streetName: e.target.value })}
-                        placeholder="e.g., King Fahd Road"
-                      />
-                      <p className="text-xs text-muted-foreground">اسم الشارع</p>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="additionalNumber">Additional Number</Label>
-                      <Input
-                        id="additionalNumber"
-                        value={formData.additionalNumber}
-                        onChange={(e) => setFormData({ ...formData, additionalNumber: e.target.value })}
-                        placeholder="e.g., 2121"
-                      />
-                      <p className="text-xs text-muted-foreground">الرقم الإضافي (4 digits)</p>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="postalCode">Postal Code</Label>
-                      <Input
-                        id="postalCode"
-                        value={formData.postalCode}
-                        onChange={(e) => setFormData({ ...formData, postalCode: e.target.value })}
-                        placeholder="e.g., 12345"
-                      />
-                      <p className="text-xs text-muted-foreground">الرمز البريدي (5 digits)</p>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="city">City</Label>
-                      <Input
-                        id="city"
-                        value={formData.city}
-                        onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                        placeholder="Riyadh, Jeddah, etc."
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="country">Country</Label>
-                      <Input
-                        id="country"
-                        value={formData.country}
-                        onChange={(e) => setFormData({ ...formData, country: e.target.value })}
-                        placeholder="Saudi Arabia"
-                      />
-                    </div>
-
-                    <div className="space-y-2 md:col-span-2">
-                      <Label htmlFor="address">Additional Address Details</Label>
-                      <Textarea
-                        id="address"
-                        value={formData.address}
-                        onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                        placeholder="District, neighborhood, landmarks, etc."
-                        rows={2}
-                      />
-                    </div>
-                  </div>
+                <div className="space-y-2">
+                  <Label htmlFor="name">Customer Name *</Label>
+                  <Input
+                    id="name"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="Enter customer name"
+                    required
+                  />
                 </div>
 
-                <div className="border-t pt-6">
-                  <h3 className="text-lg font-semibold mb-4">Payment Terms</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <Label htmlFor="creditLimit">Credit Limit (SAR)</Label>
-                      <Input
-                        id="creditLimit"
-                        type="number"
-                        value={formData.creditLimit}
-                        onChange={(e) => setFormData({ ...formData, creditLimit: e.target.value })}
-                        placeholder="0.00"
-                        min="0"
-                        step="0.01"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="paymentTerms">Payment Terms (Days)</Label>
-                      <Select
-                        value={formData.paymentTerms}
-                        onValueChange={(value) =>
-                          setFormData({ ...formData, paymentTerms: value })
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="0">Cash on Delivery</SelectItem>
-                          <SelectItem value="7">7 Days</SelectItem>
-                          <SelectItem value="15">15 Days</SelectItem>
-                          <SelectItem value="30">30 Days</SelectItem>
-                          <SelectItem value="60">60 Days</SelectItem>
-                          <SelectItem value="90">90 Days</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email Address *</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    placeholder="customer@example.com"
+                    required
+                  />
                 </div>
 
-                <div className="flex justify-end gap-4 pt-4 border-t">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => router.push("/customers")}
-                    disabled={loading}
+                <div className="space-y-2">
+                  <Label htmlFor="phone">Phone Number *</Label>
+                  <Input
+                    id="phone"
+                    type="tel"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    placeholder="+966 XX XXX XXXX"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="vatNumber">VAT Number</Label>
+                  <Input
+                    id="vatNumber"
+                    value={formData.vatNumber}
+                    onChange={(e) => setFormData({ ...formData, vatNumber: e.target.value })}
+                    placeholder="300000000000003"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="status">Status</Label>
+                  <Select
+                    value={formData.status}
+                    onValueChange={(value: "active" | "inactive") => setFormData({ ...formData, status: value })}
                   >
-                    Cancel
-                  </Button>
-                  <Button type="submit" disabled={loading}>
-                    <Save className="w-4 h-4 mr-2" />
-                    {loading ? "Creating..." : "Create Customer"}
-                  </Button>
+                    <SelectTrigger id="status">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="inactive">Inactive</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-              </CardContent>
-            </Card>
-          </form>
-        </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Address Information */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Address Information</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="address">Street Address</Label>
+                <Textarea
+                  id="address"
+                  value={formData.address}
+                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                  placeholder="Enter street address"
+                  rows={3}
+                />
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="space-y-2">
+                  <Label htmlFor="city">City</Label>
+                  <Input
+                    id="city"
+                    value={formData.city}
+                    onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                    placeholder="Riyadh"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="postalCode">Postal Code</Label>
+                  <Input
+                    id="postalCode"
+                    value={formData.postalCode}
+                    onChange={(e) => setFormData({ ...formData, postalCode: e.target.value })}
+                    placeholder="12345"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="country">Country</Label>
+                  <Input
+                    id="country"
+                    value={formData.country}
+                    onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+                    placeholder="Saudi Arabia"
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </form>
       </DashboardLayout>
     </>
   );
