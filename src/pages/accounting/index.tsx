@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { SEO } from "@/components/SEO";
 import { DashboardLayout } from "@/components/layouts/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -7,9 +7,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Plus, Search, Filter, Download, TrendingUp, TrendingDown } from "lucide-react";
 import { AccountType } from "@/types";
+import Link from "next/link";
 
 export default function AccountingPage() {
   const [searchQuery, setSearchQuery] = useState("");
+  const [journalEntries, setJournalEntries] = useState<any[]>([]);
+
+  // Load journal entries from localStorage
+  useEffect(() => {
+    const storedEntries = JSON.parse(localStorage.getItem("journalEntries") || "[]");
+    setJournalEntries(storedEntries);
+  }, []);
 
   const accounts = [
     { id: "1", code: "1100", name: "Cash", type: "asset" as AccountType, balance: 150000, debit: 150000, credit: 0 },
@@ -21,27 +29,6 @@ export default function AccountingPage() {
     { id: "7", code: "4100", name: "Sales Revenue", type: "revenue" as AccountType, balance: 125000, debit: 0, credit: 125000 },
     { id: "8", code: "5100", name: "Cost of Goods Sold", type: "expense" as AccountType, balance: 65000, debit: 65000, credit: 0 },
     { id: "9", code: "5200", name: "Operating Expenses", type: "expense" as AccountType, balance: 18500, debit: 18500, credit: 0 },
-  ];
-
-  const journalEntries = [
-    {
-      id: "1",
-      entryNumber: "JE-2026-001",
-      date: "2026-03-20",
-      description: "Sales Invoice #INV-2026-00123",
-      debitAccount: "Accounts Receivable",
-      creditAccount: "Sales Revenue",
-      amount: 11500,
-    },
-    {
-      id: "2",
-      entryNumber: "JE-2026-002",
-      date: "2026-03-19",
-      description: "Purchase Invoice #PINV-2026-00045",
-      debitAccount: "Inventory",
-      creditAccount: "Accounts Payable",
-      amount: 28750,
-    },
   ];
 
   const getAccountTypeColor = (type: AccountType) => {
@@ -74,10 +61,12 @@ export default function AccountingPage() {
               <h1 className="text-3xl font-bold font-heading">Accounting</h1>
               <p className="text-muted-foreground mt-1">Chart of accounts and financial management</p>
             </div>
-            <Button size="lg">
-              <Plus className="h-5 w-5 mr-2" />
-              New Journal Entry
-            </Button>
+            <Link href="/accounting/journal/create">
+              <Button size="lg">
+                <Plus className="h-5 w-5 mr-2" />
+                New Journal Entry
+              </Button>
+            </Link>
           </div>
 
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -198,34 +187,44 @@ export default function AccountingPage() {
                   <CardTitle>Recent Journal Entries</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="rounded-md border">
-                    <div className="overflow-x-auto">
-                      <table className="w-full">
-                        <thead className="bg-table-header">
-                          <tr>
-                            <th className="text-left p-4 font-semibold text-sm">Entry #</th>
-                            <th className="text-left p-4 font-semibold text-sm">Date</th>
-                            <th className="text-left p-4 font-semibold text-sm">Description</th>
-                            <th className="text-left p-4 font-semibold text-sm">Debit Account</th>
-                            <th className="text-left p-4 font-semibold text-sm">Credit Account</th>
-                            <th className="text-right p-4 font-semibold text-sm">Amount</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {journalEntries.map((entry) => (
-                            <tr key={entry.id} className="border-t hover:bg-table-row-hover transition-colors">
-                              <td className="p-4 font-medium">{entry.entryNumber}</td>
-                              <td className="p-4 text-sm">{entry.date}</td>
-                              <td className="p-4 text-sm">{entry.description}</td>
-                              <td className="p-4 text-sm">{entry.debitAccount}</td>
-                              <td className="p-4 text-sm">{entry.creditAccount}</td>
-                              <td className="p-4 text-right font-semibold">SAR {entry.amount.toLocaleString()}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                  {journalEntries.length === 0 ? (
+                    <div className="text-center py-12">
+                      <p className="text-muted-foreground mb-4">No journal entries yet</p>
+                      <Link href="/accounting/journal/create">
+                        <Button>
+                          <Plus className="h-4 w-4 mr-2" />
+                          Create First Entry
+                        </Button>
+                      </Link>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="rounded-md border">
+                      <div className="overflow-x-auto">
+                        <table className="w-full">
+                          <thead className="bg-table-header">
+                            <tr>
+                              <th className="text-left p-4 font-semibold text-sm">Entry #</th>
+                              <th className="text-left p-4 font-semibold text-sm">Date</th>
+                              <th className="text-left p-4 font-semibold text-sm">Description</th>
+                              <th className="text-left p-4 font-semibold text-sm">Reference</th>
+                              <th className="text-right p-4 font-semibold text-sm">Amount</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {journalEntries.map((entry) => (
+                              <tr key={entry.id} className="border-t hover:bg-table-row-hover transition-colors">
+                                <td className="p-4 font-medium">{entry.entryNumber}</td>
+                                <td className="p-4 text-sm">{entry.date}</td>
+                                <td className="p-4 text-sm">{entry.description}</td>
+                                <td className="p-4 text-sm">{entry.reference || '-'}</td>
+                                <td className="p-4 text-right font-semibold">SAR {entry.totalDebit.toLocaleString()}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
