@@ -12,7 +12,8 @@ import {
   Settings,
   Menu,
   X,
-  Building2
+  Building2,
+  FileBarChart
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -28,9 +29,8 @@ const navItems = [
   { href: "/inventory", icon: Package, label: "Inventory" },
   { href: "/customers", icon: Users, label: "Customers" },
   { href: "/suppliers", icon: Building2, label: "Suppliers" },
-  { href: "/invoices", icon: FileText, label: "Invoices" },
-  { href: "/payments", icon: DollarSign, label: "Payments" },
   { href: "/accounting", icon: BarChart3, label: "Accounting" },
+  { href: "/reports", icon: FileBarChart, label: "Reports" },
   { href: "/settings", icon: Settings, label: "Settings" },
 ];
 
