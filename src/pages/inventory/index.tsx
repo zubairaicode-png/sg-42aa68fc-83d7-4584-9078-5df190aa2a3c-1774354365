@@ -1,13 +1,16 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/router";
 import { SEO } from "@/components/SEO";
 import { DashboardLayout } from "@/components/layouts/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Plus, Search, Filter, Download, Edit, Trash2, AlertTriangle, Package } from "lucide-react";
+import { Plus, Search, Filter, Download, Edit, Trash2, AlertTriangle, Package, Upload, FileSpreadsheet } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Product } from "@/types";
 import Link from "next/link";
+import { excelService } from "@/services/excelService";
+import { toast } from "@/sonnerie";
 
 export default function InventoryPage() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -85,6 +88,61 @@ export default function InventoryPage() {
     return { label: "In Stock", color: "text-success bg-success/10" };
   };
 
+  const loadProducts = async () => {
+  };
+
+  const handleExportExcel = () => {
+    try {
+      excelService.exportProducts(products);
+      toast({
+        title: "Success",
+        description: "Products exported to Excel successfully",
+      });
+    } catch (error) {
+      console.error("Error exporting products:", error);
+      toast({
+        title: "Error",
+        description: "Failed to export products",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleImportExcel = async (file: File) => {
+    try {
+      setLoading(true);
+      const importedProducts = await excelService.importProducts(file);
+      
+      // Import products to database
+      for (const product of importedProducts) {
+        await productService.create(product as any);
+      }
+      
+      toast({
+        title: "Success",
+        description: `Imported ${importedProducts.length} products successfully`,
+      });
+      
+      loadProducts();
+    } catch (error) {
+      console.error("Error importing products:", error);
+      toast({
+        title: "Error",
+        description: "Failed to import products",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDownloadTemplate = () => {
+    excelService.downloadTemplate("products");
+  };
+
+  const deleteProduct = async (id: string) => {
+  };
+
   return (
     <>
       <SEO 
@@ -95,15 +153,41 @@ export default function InventoryPage() {
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold font-heading">Inventory Management</h1>
-              <p className="text-muted-foreground mt-1">Track products and stock levels</p>
+              <h1 className="text-3xl font-bold font-heading">Products & Services</h1>
+              <p className="text-muted-foreground">Manage your inventory and services</p>
             </div>
-            <Link href="/inventory/create">
-              <Button size="lg">
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={handleDownloadTemplate}>
+                <FileSpreadsheet className="h-4 w-4 mr-2" />
+                Download Template
+              </Button>
+              <Label htmlFor="import-products" className="cursor-pointer">
+                <Button variant="outline" asChild>
+                  <span>
+                    <Upload className="h-4 w-4 mr-2" />
+                    Import Excel
+                  </span>
+                </Button>
+              </Label>
+              <Input
+                id="import-products"
+                type="file"
+                accept=".xlsx,.xls"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleImportExcel(file);
+                }}
+              />
+              <Button variant="outline" onClick={handleExportExcel}>
+                <Download className="h-4 w-4 mr-2" />
+                Export Excel
+              </Button>
+              <Button onClick={() => router.push("/inventory/create")}>
                 <Plus className="h-5 w-5 mr-2" />
                 Add Product
               </Button>
-            </Link>
+            </div>
           </div>
 
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
