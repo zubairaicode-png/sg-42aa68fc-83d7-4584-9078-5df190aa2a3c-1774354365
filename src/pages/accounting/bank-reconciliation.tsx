@@ -16,6 +16,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Table,
   TableBody,
   TableCell,
@@ -40,6 +48,18 @@ export default function BankReconciliationPage() {
   const [selectedTransactions, setSelectedTransactions] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
   const [reconciling, setReconciling] = useState(false);
+  const [isAccountDialogOpen, setIsAccountDialogOpen] = useState(false);
+  const [newAccount, setNewAccount] = useState({
+    accountName: "",
+    accountNumber: "",
+    bankName: "",
+    branchName: "",
+    iban: "",
+    swiftCode: "",
+    currency: "SAR",
+    openingBalance: "0",
+    accountType: "checking" as "checking" | "savings" | "current",
+  });
   
   const [filters, setFilters] = useState({
     startDate: "",
@@ -94,6 +114,63 @@ export default function BankReconciliationPage() {
       toast({
         title: "Error",
         description: "Failed to load transactions",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateAccount = async () => {
+    if (!newAccount.accountName || !newAccount.accountNumber || !newAccount.bankName) {
+      toast({
+        title: "Validation Error",
+        description: "Please fill in all required fields",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await bankReconciliationService.createBankAccount({
+        account_name: newAccount.accountName,
+        account_number: newAccount.accountNumber,
+        bank_name: newAccount.bankName,
+        branch_name: newAccount.branchName || null,
+        iban: newAccount.iban || null,
+        swift_code: newAccount.swiftCode || null,
+        currency: newAccount.currency,
+        opening_balance: parseFloat(newAccount.openingBalance) || 0,
+        current_balance: parseFloat(newAccount.openingBalance) || 0,
+        account_type: newAccount.accountType,
+        is_active: true,
+      } as any);
+
+      toast({
+        title: "Success",
+        description: "Bank account created successfully",
+      });
+
+      // Reset form
+      setNewAccount({
+        accountName: "",
+        accountNumber: "",
+        bankName: "",
+        branchName: "",
+        iban: "",
+        swiftCode: "",
+        currency: "SAR",
+        openingBalance: "0",
+        accountType: "checking",
+      });
+      setIsAccountDialogOpen(false);
+      loadBankAccounts();
+    } catch (error) {
+      console.error("Error creating bank account:", error);
+      toast({
+        title: "Error",
+        description: "Failed to create bank account",
         variant: "destructive",
       });
     } finally {
@@ -245,18 +322,27 @@ export default function BankReconciliationPage() {
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
                     <Label>Bank Account</Label>
-                    <Select value={selectedAccount} onValueChange={setSelectedAccount}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select bank account" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {bankAccounts.map(account => (
-                          <SelectItem key={account.id} value={account.id}>
-                            {account.account_name} ({account.account_number})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <div className="flex gap-2">
+                      <Select value={selectedAccount} onValueChange={setSelectedAccount}>
+                        <SelectTrigger className="flex-1">
+                          <SelectValue placeholder="Select bank account" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {bankAccounts.map(account => (
+                            <SelectItem key={account.id} value={account.id}>
+                              {account.account_name} ({account.account_number})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setIsAccountDialogOpen(true)}
+                      >
+                        Add Account
+                      </Button>
+                    </div>
                   </div>
                   
                   {selectedAccountData && (
@@ -293,6 +379,144 @@ export default function BankReconciliationPage() {
                 )}
               </CardContent>
             </Card>
+
+            {/* Add Bank Account Dialog */}
+            <Dialog open={isAccountDialogOpen} onOpenChange={setIsAccountDialogOpen}>
+              <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Add Bank Account</DialogTitle>
+                  <DialogDescription>
+                    Create a new bank account for reconciliation
+                  </DialogDescription>
+                </DialogHeader>
+                
+                <div className="grid gap-4 py-4">
+                  {/* Account Information */}
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="accountName">
+                        Account Name <span className="text-destructive">*</span>
+                      </Label>
+                      <Input
+                        id="accountName"
+                        placeholder="e.g., Al Rajhi Current Account"
+                        value={newAccount.accountName}
+                        onChange={(e) => setNewAccount({ ...newAccount, accountName: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="accountNumber">
+                        Account Number <span className="text-destructive">*</span>
+                      </Label>
+                      <Input
+                        id="accountNumber"
+                        placeholder="e.g., 123456789"
+                        value={newAccount.accountNumber}
+                        onChange={(e) => setNewAccount({ ...newAccount, accountNumber: e.target.value })}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="bankName">
+                        Bank Name <span className="text-destructive">*</span>
+                      </Label>
+                      <Input
+                        id="bankName"
+                        placeholder="e.g., Al Rajhi Bank"
+                        value={newAccount.bankName}
+                        onChange={(e) => setNewAccount({ ...newAccount, bankName: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="branchName">Branch Name</Label>
+                      <Input
+                        id="branchName"
+                        placeholder="e.g., Riyadh Main Branch"
+                        value={newAccount.branchName}
+                        onChange={(e) => setNewAccount({ ...newAccount, branchName: e.target.value })}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="iban">IBAN</Label>
+                      <Input
+                        id="iban"
+                        placeholder="e.g., SA0380000000608010167519"
+                        value={newAccount.iban}
+                        onChange={(e) => setNewAccount({ ...newAccount, iban: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="swiftCode">SWIFT/BIC Code</Label>
+                      <Input
+                        id="swiftCode"
+                        placeholder="e.g., RJHISARI"
+                        value={newAccount.swiftCode}
+                        onChange={(e) => setNewAccount({ ...newAccount, swiftCode: e.target.value })}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="accountType">Account Type</Label>
+                      <Select
+                        value={newAccount.accountType}
+                        onValueChange={(value: "checking" | "savings" | "current") =>
+                          setNewAccount({ ...newAccount, accountType: value })
+                        }
+                      >
+                        <SelectTrigger id="accountType">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="checking">Checking</SelectItem>
+                          <SelectItem value="savings">Savings</SelectItem>
+                          <SelectItem value="current">Current</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="currency">Currency</Label>
+                      <Input
+                        id="currency"
+                        placeholder="SAR"
+                        value={newAccount.currency}
+                        onChange={(e) => setNewAccount({ ...newAccount, currency: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="openingBalance">Opening Balance</Label>
+                      <Input
+                        id="openingBalance"
+                        type="number"
+                        step="0.01"
+                        placeholder="0.00"
+                        value={newAccount.openingBalance}
+                        onChange={(e) => setNewAccount({ ...newAccount, openingBalance: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <DialogFooter>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setIsAccountDialogOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="button" onClick={handleCreateAccount} disabled={loading}>
+                    {loading ? "Creating..." : "Create Account"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
 
             {/* Filters */}
             {selectedAccount && (
