@@ -181,7 +181,12 @@ export default function ZATCAPhase2Page() {
         // Customer details
         customerName: invoice.customers?.name || "Cash Customer",
         customerVAT: invoice.customers?.vat_number || undefined,
-        customerAddress: invoice.customers?.address || "",
+        customerBuildingNo: (invoice.customers as any)?.building_number || "",
+        customerStreet: (invoice.customers as any)?.street_name || "",
+        customerDistrict: (invoice.customers as any)?.district || "",
+        customerCity: (invoice.customers as any)?.city || "",
+        customerPostalCode: (invoice.customers as any)?.postal_code || "",
+        customerAdditionalNo: (invoice.customers as any)?.additional_number || "",
         
         // Line items
         items: (invoice.sales_invoice_items || []).map((item: any) => ({

@@ -178,46 +178,53 @@ export default function QuotationDetailPage() {
                   <div>
                     <h3 className="font-semibold mb-3 text-sm text-muted-foreground uppercase tracking-wide">Customer Information</h3>
                     <div className="space-y-2">
-                      <div>
-                        <p className="font-semibold text-lg">{quotation.customers?.name}</p>
-                      </div>
-                      {quotation.customers?.email && (
-                        <div className="flex gap-2 text-sm">
-                          <span className="text-muted-foreground">Email:</span>
-                          <span>{quotation.customers.email}</span>
-                        </div>
-                      )}
-                      {quotation.customers?.phone && (
-                        <div className="flex gap-2 text-sm">
-                          <span className="text-muted-foreground">Phone:</span>
-                          <span>{quotation.customers.phone}</span>
-                        </div>
-                      )}
-                      {quotation.customers?.vat_number && (
-                        <div className="flex gap-2 text-sm">
-                          <span className="text-muted-foreground">VAT Number:</span>
-                          <span className="font-mono">{quotation.customers.vat_number}</span>
-                        </div>
-                      )}
-                      {quotation.customers?.cr_number && (
-                        <div className="flex gap-2 text-sm">
-                          <span className="text-muted-foreground">CR Number:</span>
-                          <span className="font-mono">{quotation.customers.cr_number}</span>
-                        </div>
-                      )}
-                      {(quotation.customers?.building_number || quotation.customers?.street_name) && (
-                        <div className="flex gap-2 text-sm">
-                          <span className="text-muted-foreground">National Address:</span>
-                          <span>
-                            {quotation.customers.building_number && `Bldg ${quotation.customers.building_number}`}
-                            {quotation.customers.street_name && `, ${quotation.customers.street_name}`}
-                            {quotation.customers.additional_number && `, Add. ${quotation.customers.additional_number}`}
-                            {quotation.customers.district && `, ${quotation.customers.district}`}
-                            {quotation.customers.city && `, ${quotation.customers.city}`}
-                            {quotation.customers.postal_code && ` ${quotation.customers.postal_code}`}
-                          </span>
-                        </div>
-                      )}
+                      {(() => {
+                        const customer = quotation.customers as any;
+                        return (
+                          <>
+                            <div>
+                              <p className="font-semibold text-lg">{customer?.name}</p>
+                            </div>
+                            {customer?.email && (
+                              <div className="flex gap-2 text-sm">
+                                <span className="text-muted-foreground">Email:</span>
+                                <span>{customer.email}</span>
+                              </div>
+                            )}
+                            {customer?.phone && (
+                              <div className="flex gap-2 text-sm">
+                                <span className="text-muted-foreground">Phone:</span>
+                                <span>{customer.phone}</span>
+                              </div>
+                            )}
+                            {customer?.vat_number && (
+                              <div className="flex gap-2 text-sm">
+                                <span className="text-muted-foreground">VAT Number:</span>
+                                <span className="font-mono">{customer.vat_number}</span>
+                              </div>
+                            )}
+                            {customer?.cr_number && (
+                              <div className="flex gap-2 text-sm">
+                                <span className="text-muted-foreground">CR Number:</span>
+                                <span className="font-mono">{customer.cr_number}</span>
+                              </div>
+                            )}
+                            {(customer?.building_number || customer?.street_name) && (
+                              <div className="flex gap-2 text-sm">
+                                <span className="text-muted-foreground">National Address:</span>
+                                <span>
+                                  {customer.building_number && `Bldg ${customer.building_number}`}
+                                  {customer.street_name && `, ${customer.street_name}`}
+                                  {customer.additional_number && `, Add. ${customer.additional_number}`}
+                                  {customer.district && `, ${customer.district}`}
+                                  {customer.city && `, ${customer.city}`}
+                                  {customer.postal_code && ` ${customer.postal_code}`}
+                                </span>
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
                   </div>
 
