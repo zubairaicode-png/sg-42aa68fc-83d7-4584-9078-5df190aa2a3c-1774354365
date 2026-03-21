@@ -80,23 +80,30 @@ export default function BalanceSheetPage() {
       // Fetch inventory value
       const { data: inventoryData, error: inventoryError } = await supabase
         .from("products")
-        .select("quantity, cost_price");
+        .select("stock_quantity, cost_price");
 
       if (inventoryError) throw inventoryError;
 
-      // Fetch accounts payable (unpaid purchases)
-      const { data: unpaidPurchases, error: purchasesError } = await supabase
-        .from("purchases")
+      // Fetch accounts payable (unpaid expenses)
+      const { data: unpaidExpenses, error: expensesError } = await supabase
+        .from("expenses")
         .select("total_amount")
-        .lte("purchase_date", asOfDate)
+        .lte("expense_date", asOfDate)
         .neq("status", "paid");
 
-      if (purchasesError) throw purchasesError;
+      if (expensesError) throw expensesError;
 
       // Calculate totals
       const accountsReceivable = unpaidInvoices?.reduce((sum, inv) => sum + inv.total_amount, 0) || 0;
-      const inventoryValue = inventoryData?.reduce((sum, prod) => sum + (prod.quantity * prod.cost_price), 0) || 0;
-      const accountsPayable = unpaidPurchases?.reduce((sum, pur) => sum + pur.total_amount, 0) || 0;
+      
+      // Calculate inventory value using stock_quantity instead of quantity
+      const inventoryValue = inventoryData?.reduce((sum, prod) => {
+        const qty = Number(prod.stock_quantity) || 0;
+        const price = Number(prod.cost_price) || 0;
+        return sum + (qty * price);
+      }, 0) || 0;
+      
+      const accountsPayable = unpaidExpenses?.reduce((sum, exp) => sum + exp.total_amount, 0) || 0;
 
       // Simulate cash (would come from accounting system)
       const cash = 50000;

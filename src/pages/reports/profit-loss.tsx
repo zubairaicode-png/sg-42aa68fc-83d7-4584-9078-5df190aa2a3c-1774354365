@@ -70,19 +70,10 @@ export default function ProfitLossPage() {
 
       if (returnsError) throw returnsError;
 
-      // Fetch purchases (COGS)
-      const { data: purchasesData, error: purchasesError } = await supabase
-        .from("purchases")
-        .select("total_amount")
-        .gte("purchase_date", dateFrom)
-        .lte("purchase_date", dateTo);
-
-      if (purchasesError) throw purchasesError;
-
-      // Fetch expenses
+      // Fetch expenses (using as COGS and Operating Expenses)
       const { data: expensesData, error: expensesError } = await supabase
         .from("expenses")
-        .select("amount")
+        .select("amount, category")
         .gte("expense_date", dateFrom)
         .lte("expense_date", dateTo);
 
@@ -93,11 +84,15 @@ export default function ProfitLossPage() {
       const totalReturns = returnsData?.reduce((sum, ret) => sum + ret.total_amount, 0) || 0;
       const netRevenue = totalSales - totalReturns;
 
-      const totalPurchases = purchasesData?.reduce((sum, pur) => sum + pur.total_amount, 0) || 0;
+      // Split expenses into COGS (Inventory/Purchases) and Operating Expenses
+      const cogsExpenses = expensesData?.filter(e => e.category.toLowerCase().includes('inventory') || e.category.toLowerCase().includes('purchase')) || [];
+      const operatingExpenses = expensesData?.filter(e => !e.category.toLowerCase().includes('inventory') && !e.category.toLowerCase().includes('purchase')) || [];
+
+      const totalPurchases = cogsExpenses.reduce((sum, exp) => sum + exp.amount, 0);
       const grossProfit = netRevenue - totalPurchases;
 
-      const totalExpenses = expensesData?.reduce((sum, exp) => sum + exp.amount, 0) || 0;
-      const netProfit = grossProfit - totalExpenses;
+      const totalOperatingExpenses = operatingExpenses.reduce((sum, exp) => sum + exp.amount, 0);
+      const netProfit = grossProfit - totalOperatingExpenses;
       const profitMargin = netRevenue > 0 ? (netProfit / netRevenue) * 100 : 0;
 
       setData({
@@ -111,9 +106,9 @@ export default function ProfitLossPage() {
           grossProfit,
         },
         expenses: {
-          operating: totalExpenses,
+          operating: totalOperatingExpenses,
           other: 0,
-          totalExpenses,
+          totalExpenses: totalOperatingExpenses,
         },
         netProfit,
         profitMargin,
