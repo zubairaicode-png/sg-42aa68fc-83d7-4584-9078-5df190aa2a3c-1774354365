@@ -263,7 +263,7 @@ export default function QuotationDetailPage() {
                           return (
                             <tr key={item.id} className={cn("border-t", index % 2 === 1 && "bg-table-row-hover")}>
                               <td className="p-4">{index + 1}</td>
-                              <td className="p-4 font-mono text-sm">{item.products?.product_code || '-'}</td>
+                              <td className="p-4 font-mono text-sm">{(item.products as any)?.product_code || '-'}</td>
                               <td className="p-4 font-medium">{item.products?.name || item.description}</td>
                               <td className="p-4 text-center">{item.quantity}</td>
                               <td className="p-4 text-right">SAR {item.unit_price.toLocaleString()}</td>
