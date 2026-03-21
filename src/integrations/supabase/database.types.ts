@@ -1,4 +1,4 @@
- 
+/* eslint-disable @typescript-eslint/no-empty-object-type */
 export type Json =
   | string
   | number
@@ -724,6 +724,7 @@ export type Database = {
           device_name: string
           id: string
           last_used: string | null
+          pdf_template: string | null
           private_key: string | null
           status: string | null
           updated_at: string | null
@@ -737,6 +738,7 @@ export type Database = {
           device_name: string
           id?: string
           last_used?: string | null
+          pdf_template?: string | null
           private_key?: string | null
           status?: string | null
           updated_at?: string | null
@@ -750,9 +752,46 @@ export type Database = {
           device_name?: string
           id?: string
           last_used?: string | null
+          pdf_template?: string | null
           private_key?: string | null
           status?: string | null
           updated_at?: string | null
+        }
+        Relationships: []
+      }
+      zatca_invoice_pdfs: {
+        Row: {
+          created_at: string | null
+          generated_at: string | null
+          generated_by: string | null
+          id: string
+          invoice_id: string
+          invoice_type: string
+          pdf_template: string
+          pdf_url: string | null
+          qr_code: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          generated_at?: string | null
+          generated_by?: string | null
+          id?: string
+          invoice_id: string
+          invoice_type: string
+          pdf_template: string
+          pdf_url?: string | null
+          qr_code?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          generated_at?: string | null
+          generated_by?: string | null
+          id?: string
+          invoice_id?: string
+          invoice_type?: string
+          pdf_template?: string
+          pdf_url?: string | null
+          qr_code?: string | null
         }
         Relationships: []
       }
