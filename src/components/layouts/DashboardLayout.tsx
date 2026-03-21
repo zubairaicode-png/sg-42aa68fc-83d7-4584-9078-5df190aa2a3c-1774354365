@@ -19,6 +19,9 @@ import {
   X,
   ChevronDown,
   FileText,
+  Landmark,
+  TrendingUp,
+  Building,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -42,13 +45,17 @@ const navItems = [
   { href: "/sales/returns", icon: RotateCcw, label: "Sales Returns" },
   { href: "/quotations", icon: FileText, label: "Quotations" },
   { href: "/purchases", icon: Package, label: "Purchases" },
+  { href: "/purchases/returns", icon: RotateCcw, label: "Purchase Returns" },
   { href: "/inventory", icon: Package, label: "Inventory" },
   { href: "/customers", icon: Users, label: "Customers" },
   { href: "/suppliers", icon: Building2, label: "Suppliers" },
   { href: "/expenses", icon: Receipt, label: "Expenses" },
   { href: "/accounting", icon: Calculator, label: "Accounting" },
+  { href: "/accounting/bank-reconciliation", icon: Landmark, label: "Bank Reconciliation" },
+  { href: "/accounting/fixed-assets", icon: Building, label: "Fixed Assets" },
   { href: "/zatca", icon: Shield, label: "ZATCA Phase 2" },
   { href: "/reports", icon: FileBarChart, label: "Reports" },
+  { href: "/reports/cash-flow", icon: TrendingUp, label: "Cash Flow Statement" },
   { href: "/settings", icon: Settings, label: "Settings" },
 ];
 
