@@ -1,19 +1,21 @@
 import { useState, useEffect } from "react";
 import { SEO } from "@/components/SEO";
-import { DashboardLayout } from "@/components/layouts/DashboardLayout";
+import DashboardLayout from "@/components/layouts/DashboardLayout";
+import AuthGuard from "@/components/AuthGuard";
+import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { Building2, Save, Upload, Receipt, Palette } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { supabase } from "@/integrations/supabase/client";
-import { AuthGuard } from "@/components/AuthGuard";
+import { Building2, FileText, DollarSign, Palette, Loader2 } from "lucide-react";
+import { InvoiceLayoutDesigner, LayoutField } from "@/components/InvoiceLayoutDesigner";
 
 export default function SettingsPage() {
+  const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
 
@@ -53,6 +55,9 @@ export default function SettingsPage() {
     footerText: "Thank you for your business!",
     showQR: true,
   });
+
+  // Layout designer state
+  const [layoutFields, setLayoutFields] = useState<LayoutField[]>([]);
 
   useEffect(() => {
     loadSettings();
@@ -125,6 +130,113 @@ export default function SettingsPage() {
         setCompanyInfo({ ...companyInfo, logo: reader.result as string });
       };
       reader.readAsDataURL(file);
+    }
+  };
+
+  const fetchInvoiceDesign = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from("invoice_design_settings")
+        .select("*")
+        .eq("created_by", user.id)
+        .single();
+
+      if (error && error.code !== "PGRST116") throw error;
+
+      if (data) {
+        setInvoiceDesign({
+          template_type: data.template_type || "modern",
+          primary_color: data.primary_color || "#2980B9",
+          secondary_color: data.secondary_color || "#3498DB",
+          logo_position: data.logo_position || "left",
+          header_style: data.header_style || "standard",
+          show_logo: data.show_logo ?? true,
+          show_payment_terms: data.show_payment_terms ?? true,
+          show_bank_details: data.show_bank_details ?? true,
+          show_notes: data.show_notes ?? true,
+          footer_text: data.footer_text || "",
+        });
+
+        // Parse layout fields if they exist
+        if (data.header_layout || data.footer_layout) {
+          const headerFields = data.header_layout ? JSON.parse(data.header_layout as string) : [];
+          const footerFields = data.footer_layout ? JSON.parse(data.footer_layout as string) : [];
+          setLayoutFields([...headerFields, ...footerFields]);
+        }
+      }
+    } catch (error: any) {
+      console.error("Error fetching invoice design:", error);
+    }
+  };
+
+  const saveInvoiceDesign = async () => {
+    try {
+      setIsSaving(true);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("User not authenticated");
+
+      // Separate header and footer fields
+      const headerFields = layoutFields.filter(f => f.section === "header");
+      const footerFields = layoutFields.filter(f => f.section === "footer");
+
+      const designData = {
+        ...invoiceDesign,
+        header_layout: JSON.stringify(headerFields),
+        footer_layout: JSON.stringify(footerFields),
+        created_by: user.id,
+        updated_at: new Date().toISOString(),
+      };
+
+      const { error } = await supabase
+        .from("invoice_design_settings")
+        .upsert(designData, { onConflict: "created_by" });
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Invoice design settings saved successfully!",
+      });
+    } catch (error: any) {
+      console.error("Error saving invoice design:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to save invoice design settings",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const saveTaxSettings = async () => {
+    try {
+      setIsSaving(true);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("User not authenticated");
+
+      const { error } = await supabase
+        .from("tax_settings")
+        .upsert({ ...taxSettings, created_by: user.id, updated_at: new Date().toISOString() }, { onConflict: "created_by" });
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Tax settings saved successfully!",
+      });
+    } catch (error: any) {
+      console.error("Error saving tax settings:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to save tax settings",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -616,6 +728,33 @@ export default function SettingsPage() {
                       </Button>
                     </div>
                   </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="invoice-design">
+                <InvoiceLayoutDesigner
+                  initialLayout={layoutFields}
+                  onSave={(layout) => {
+                    setLayoutFields(layout);
+                    saveInvoiceDesign();
+                  }}
+                  companyData={{
+                    name_en: companyInfo.nameEn,
+                    name_ar: companyInfo.nameAr,
+                    vat_number: companyInfo.vatNumber,
+                    cr_number: companyInfo.crNumber,
+                    phone: companyInfo.phone,
+                    email: companyInfo.email,
+                    website: companyInfo.website,
+                    address: `${companyInfo.buildingNumber || ""} ${companyInfo.streetName || ""}, ${companyInfo.district || ""}, ${companyInfo.city || ""} ${companyInfo.postalCode || ""}`.trim(),
+                  }}
+                />
+
+                <Card className="mt-6">
+                  <CardHeader>
+                    <CardTitle>Template & Color Settings</CardTitle>
+                    <CardDescription>Choose template style and customize brand colors</CardDescription>
+                  </CardHeader>
                 </Card>
               </TabsContent>
             </Tabs>
