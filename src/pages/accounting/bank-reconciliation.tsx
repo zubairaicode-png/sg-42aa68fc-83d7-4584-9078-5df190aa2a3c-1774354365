@@ -120,11 +120,12 @@ export default function BankReconciliationPage() {
             description: description?.trim(),
             amount,
             transaction_type: type,
-            balance: parseFloat(balance || "0"),
-            reference_number: null,
+            balance_after: parseFloat(balance || "0"),
+            category: "Uncategorized",
+            matched_transaction_type: null,
             reconciled: false,
             matched_transaction_id: null,
-          };
+          } as any;
         }).filter(t => t.transaction_date && t.amount);
 
         await bankReconciliationService.importBankTransactions(selectedAccount, transactions);
@@ -175,13 +176,14 @@ export default function BankReconciliationPage() {
       // Create reconciliation record
       const reconData = {
         account_id: selectedAccount,
+        statement_date: new Date().toISOString().split("T")[0],
         reconciliation_date: new Date().toISOString().split("T")[0],
         statement_balance: 0, // Calculate from selected transactions
         book_balance: 0, // Calculate from accounting records
         difference: 0,
         status: "completed" as const,
         notes: `Reconciled ${selectedTransactions.size} transactions`,
-      };
+      } as any;
       
       await bankReconciliationService.createReconciliation(reconData);
       
@@ -447,7 +449,7 @@ export default function BankReconciliationPage() {
                                 ) : "-"}
                               </TableCell>
                               <TableCell className="text-right font-medium">
-                                SAR {transaction.balance?.toLocaleString() || "0.00"}
+                                SAR {transaction.balance_after?.toLocaleString() || "0.00"}
                               </TableCell>
                               <TableCell>
                                 {transaction.is_matched ? (

@@ -11,9 +11,15 @@ import { Product } from "@/types";
 import Link from "next/link";
 import { excelService } from "@/services/excelService";
 import { toast } from "@/sonnerie";
+import { useToast } from "@/hooks/use-toast";
+import { productService } from "@/services/productService";
+import { Label } from "@/components/ui/label";
 
 export default function InventoryPage() {
+  const router = useRouter();
+  const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
+  const [loading, setLoading] = useState(false);
   
   const products: Product[] = [
     {
@@ -93,7 +99,7 @@ export default function InventoryPage() {
 
   const handleExportExcel = () => {
     try {
-      excelService.exportProducts(products);
+      excelService.exportProducts(products as any);
       toast({
         title: "Success",
         description: "Products exported to Excel successfully",
