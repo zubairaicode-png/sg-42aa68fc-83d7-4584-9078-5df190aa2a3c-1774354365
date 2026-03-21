@@ -93,17 +93,25 @@ export default function BalanceSheetPage() {
 
       if (expensesError) throw expensesError;
 
-      // Calculate totals with explicit number type
-      const accountsReceivable: number = unpaidInvoices?.reduce((sum: number, inv) => sum + Number(inv.total_amount || 0), 0) || 0;
+      // Calculate totals - simplified to avoid deep type inference
+      let accountsReceivable = 0;
+      if (unpaidInvoices && Array.isArray(unpaidInvoices)) {
+        accountsReceivable = unpaidInvoices.reduce((sum, inv) => sum + Number(inv.total_amount || 0), 0);
+      }
       
-      // Calculate inventory value with explicit types
-      const inventoryValue: number = inventoryData?.reduce((sum: number, prod) => {
-        const qty = Number(prod.stock_quantity || 0);
-        const price = Number(prod.cost_price || 0);
-        return sum + (qty * price);
-      }, 0) || 0;
+      let inventoryValue = 0;
+      if (inventoryData && Array.isArray(inventoryData)) {
+        for (const prod of inventoryData) {
+          const qty = Number(prod.stock_quantity || 0);
+          const price = Number(prod.cost_price || 0);
+          inventoryValue += qty * price;
+        }
+      }
       
-      const accountsPayable: number = unpaidExpenses?.reduce((sum: number, exp) => sum + Number(exp.amount || 0), 0) || 0;
+      let accountsPayable = 0;
+      if (unpaidExpenses && Array.isArray(unpaidExpenses)) {
+        accountsPayable = unpaidExpenses.reduce((sum, exp) => sum + Number(exp.amount || 0), 0);
+      }
 
       // Simulate cash (would come from accounting system)
       const cash = 50000;
