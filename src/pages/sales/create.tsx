@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Trash2, Save, ArrowLeft } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Plus, Trash2, Save, ArrowLeft, UserPlus } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { SAUDI_VAT_RATE } from "@/lib/constants";
@@ -23,6 +24,13 @@ interface InvoiceFormData {
 
 export default function CreateSalesInvoicePage() {
   const router = useRouter();
+  const [isCustomerDialogOpen, setIsCustomerDialogOpen] = useState(false);
+  const [newCustomer, setNewCustomer] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    vatNumber: "",
+  });
   const [formData, setFormData] = useState<InvoiceFormData>({
     customerId: "",
     date: new Date().toISOString().split("T")[0],
@@ -41,6 +49,43 @@ export default function CreateSalesInvoicePage() {
     ],
     notes: "",
   });
+
+  const handleAddCustomer = () => {
+    if (!newCustomer.name || !newCustomer.email || !newCustomer.phone) {
+      alert("Please fill in all required customer fields");
+      return;
+    }
+
+    // Get existing customers
+    const existingCustomers = JSON.parse(localStorage.getItem("customers") || "[]");
+    
+    // Create new customer
+    const customer = {
+      id: (existingCustomers.length + 1).toString(),
+      ...newCustomer,
+      type: "business",
+      address: "",
+      city: "",
+      country: "Saudi Arabia",
+      taxNumber: newCustomer.vatNumber,
+      paymentTerms: 30,
+      creditLimit: 0,
+      balance: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    // Save to localStorage
+    existingCustomers.push(customer);
+    localStorage.setItem("customers", JSON.stringify(existingCustomers));
+
+    // Set as selected customer
+    setFormData({ ...formData, customerId: customer.id });
+
+    // Reset form and close dialog
+    setNewCustomer({ name: "", email: "", phone: "", vatNumber: "" });
+    setIsCustomerDialogOpen(false);
+  };
 
   const addItem = () => {
     setFormData({
@@ -146,20 +191,82 @@ export default function CreateSalesInvoicePage() {
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="customer">Customer *</Label>
-                  <Select
-                    value={formData.customerId}
-                    onValueChange={(value) => setFormData({ ...formData, customerId: value })}
-                  >
-                    <SelectTrigger id="customer">
-                      <SelectValue placeholder="Select customer" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="1">Al-Rajhi Trading Co.</SelectItem>
-                      <SelectItem value="2">Najd Commercial Est.</SelectItem>
-                      <SelectItem value="3">Riyadh Supplies Ltd.</SelectItem>
-                      <SelectItem value="4">Gulf Electronics</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <div className="flex gap-2">
+                    <Select
+                      value={formData.customerId}
+                      onValueChange={(value) => setFormData({ ...formData, customerId: value })}
+                    >
+                      <SelectTrigger id="customer" className="flex-1">
+                        <SelectValue placeholder="Select customer" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1">Al-Rajhi Trading Co.</SelectItem>
+                        <SelectItem value="2">Najd Commercial Est.</SelectItem>
+                        <SelectItem value="3">Riyadh Supplies Ltd.</SelectItem>
+                        <SelectItem value="4">Gulf Electronics</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    
+                    <Dialog open={isCustomerDialogOpen} onOpenChange={setIsCustomerDialogOpen}>
+                      <DialogTrigger asChild>
+                        <Button type="button" variant="outline" size="icon">
+                          <UserPlus className="h-4 w-4" />
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Add New Customer</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4 py-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="customerName">Customer Name *</Label>
+                            <Input
+                              id="customerName"
+                              value={newCustomer.name}
+                              onChange={(e) => setNewCustomer({ ...newCustomer, name: e.target.value })}
+                              placeholder="Enter customer name"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="customerEmail">Email *</Label>
+                            <Input
+                              id="customerEmail"
+                              type="email"
+                              value={newCustomer.email}
+                              onChange={(e) => setNewCustomer({ ...newCustomer, email: e.target.value })}
+                              placeholder="customer@example.com"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="customerPhone">Phone *</Label>
+                            <Input
+                              id="customerPhone"
+                              value={newCustomer.phone}
+                              onChange={(e) => setNewCustomer({ ...newCustomer, phone: e.target.value })}
+                              placeholder="+966 XX XXX XXXX"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="customerVat">VAT Number (Optional)</Label>
+                            <Input
+                              id="customerVat"
+                              value={newCustomer.vatNumber}
+                              onChange={(e) => setNewCustomer({ ...newCustomer, vatNumber: e.target.value })}
+                              placeholder="3XXXXXXXXXX003"
+                            />
+                          </div>
+                        </div>
+                        <DialogFooter>
+                          <Button type="button" variant="outline" onClick={() => setIsCustomerDialogOpen(false)}>
+                            Cancel
+                          </Button>
+                          <Button type="button" onClick={handleAddCustomer}>
+                            Add Customer
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
                 </div>
                 
                 <div className="space-y-2">
@@ -227,7 +334,7 @@ export default function CreateSalesInvoicePage() {
                       )}
                     </div>
                     
-                    <div className="grid gap-4 md:grid-cols-6">
+                    <div className="grid gap-4 md:grid-cols-7">
                       <div className="md:col-span-2 space-y-2">
                         <Label>Product/Service *</Label>
                         <Select
@@ -280,6 +387,15 @@ export default function CreateSalesInvoicePage() {
                           step="0.01"
                           value={item.discount}
                           onChange={(e) => updateItem(index, "discount", parseFloat(e.target.value) || 0)}
+                        />
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label>VAT Amount</Label>
+                        <Input
+                          value={`SAR ${item.taxAmount.toFixed(2)}`}
+                          disabled
+                          className="bg-muted font-medium"
                         />
                       </div>
                       
