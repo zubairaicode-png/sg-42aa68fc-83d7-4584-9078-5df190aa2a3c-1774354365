@@ -83,10 +83,12 @@ export interface InvoiceData {
   
   // Line Items
   items: Array<{
+    itemCode?: string;
     description: string;
     descriptionAr?: string;
     quantity: number;
     unitPrice: number;
+    discount?: number;
     vatRate: number;
     vatAmount: number;
     total: number;
@@ -221,28 +223,37 @@ function generateModernTemplate(
     startY: tableStartY,
     head: [
       [
+        { content: "Item Code\nرمز الصنف", styles: { halign: "left" } },
         { content: "Description\nالوصف", styles: { halign: "left" } },
         { content: "Qty\nالكمية", styles: { halign: "center" } },
         { content: "Unit Price\nسعر الوحدة", styles: { halign: "right" } },
+        { content: "Discount\nالخصم", styles: { halign: "right" } },
+        { content: "Subtotal\nالمجموع الفرعي", styles: { halign: "right" } },
         { content: "VAT %\nضريبة", styles: { halign: "center" } },
-        { content: "VAT Amount\nمبلغ الضريبة", styles: { halign: "right" } },
+        { content: "Total Tax\nإجمالي الضريبة", styles: { halign: "right" } },
         { content: "Total\nالمجموع", styles: { halign: "right" } },
       ],
     ],
-    body: data.items.map(item => [
-      item.descriptionAr 
-        ? `${item.description}\n${item.descriptionAr}`
-        : item.description,
-      item.quantity.toString(),
-      item.unitPrice.toFixed(2),
-      `${item.vatRate}%`,
-      item.vatAmount.toFixed(2),
-      item.total.toFixed(2),
-    ]),
+    body: data.items.map(item => {
+      const itemSubtotal = (item.quantity * item.unitPrice) - (item.discount || 0);
+      return [
+        item.itemCode || "-",
+        item.descriptionAr 
+          ? `${item.description}\n${item.descriptionAr}`
+          : item.description,
+        item.quantity.toString(),
+        item.unitPrice.toFixed(2),
+        item.discount ? item.discount.toFixed(2) : "0.00",
+        itemSubtotal.toFixed(2),
+        `${item.vatRate}%`,
+        item.vatAmount.toFixed(2),
+        item.total.toFixed(2),
+      ];
+    }),
     foot: [
-      ["", "", "", "", "Subtotal / المجموع الفرعي:", data.subtotal.toFixed(2)],
-      ["", "", "", "", "VAT (15%) / ضريبة القيمة المضافة:", data.totalVAT.toFixed(2)],
-      ["", "", "", "", { content: "Total / الإجمالي:", styles: { fontStyle: "bold" } }, { content: data.total.toFixed(2), styles: { fontStyle: "bold" } }],
+      ["", "", "", "", "", "", "", "Subtotal / المجموع الفرعي:", data.subtotal.toFixed(2)],
+      ["", "", "", "", "", "", "", "VAT (15%) / ضريبة القيمة المضافة:", data.totalVAT.toFixed(2)],
+      ["", "", "", "", "", "", "", { content: "Total / الإجمالي:", styles: { fontStyle: "bold" } }, { content: data.total.toFixed(2), styles: { fontStyle: "bold" } }],
     ],
     headStyles: {
       fillColor: primaryColor,
@@ -354,25 +365,34 @@ function generateClassicTemplate(
   autoTable(doc, {
     startY: 90,
     head: [[
+      "Item Code",
       "Item Description",
       "Quantity",
       "Unit Price",
+      "Discount",
+      "Subtotal",
       "VAT %",
-      "VAT Amount",
+      "Total Tax",
       "Total",
     ]],
-    body: data.items.map(item => [
-      item.description,
-      item.quantity.toString(),
-      item.unitPrice.toFixed(2),
-      `${item.vatRate}%`,
-      item.vatAmount.toFixed(2),
-      item.total.toFixed(2),
-    ]),
+    body: data.items.map(item => {
+      const itemSubtotal = (item.quantity * item.unitPrice) - (item.discount || 0);
+      return [
+        item.itemCode || "-",
+        item.description,
+        item.quantity.toString(),
+        item.unitPrice.toFixed(2),
+        item.discount ? item.discount.toFixed(2) : "0.00",
+        itemSubtotal.toFixed(2),
+        `${item.vatRate}%`,
+        item.vatAmount.toFixed(2),
+        item.total.toFixed(2),
+      ];
+    }),
     foot: [
-      ["", "", "", "", "Subtotal:", data.subtotal.toFixed(2)],
-      ["", "", "", "", "VAT (15%):", data.totalVAT.toFixed(2)],
-      ["", "", "", "", { content: "Total Amount:", styles: { fontStyle: "bold" } }, { content: `SAR ${data.total.toFixed(2)}`, styles: { fontStyle: "bold" } }],
+      ["", "", "", "", "", "", "", "Subtotal:", data.subtotal.toFixed(2)],
+      ["", "", "", "", "", "", "", "VAT (15%):", data.totalVAT.toFixed(2)],
+      ["", "", "", "", "", "", "", { content: "Total Amount:", styles: { fontStyle: "bold" } }, { content: `SAR ${data.total.toFixed(2)}`, styles: { fontStyle: "bold" } }],
     ],
     headStyles: {
       fillColor: primaryColor,
@@ -499,25 +519,34 @@ function generatePremiumTemplate(
   autoTable(doc, {
     startY: 125,
     head: [[
+      { content: "Code", styles: { halign: "left" } },
       { content: "Description / الوصف", styles: { halign: "left" } },
       { content: "Qty", styles: { halign: "center" } },
       { content: "Price", styles: { halign: "right" } },
+      { content: "Disc.", styles: { halign: "right" } },
+      { content: "Subtotal", styles: { halign: "right" } },
       { content: "VAT%", styles: { halign: "center" } },
       { content: "VAT Amt", styles: { halign: "right" } },
       { content: "Total", styles: { halign: "right" } },
     ]],
-    body: data.items.map(item => [
-      item.description,
-      item.quantity.toString(),
-      item.unitPrice.toFixed(2),
-      `${item.vatRate}%`,
-      item.vatAmount.toFixed(2),
-      item.total.toFixed(2),
-    ]),
+    body: data.items.map(item => {
+      const itemSubtotal = (item.quantity * item.unitPrice) - (item.discount || 0);
+      return [
+        item.itemCode || "-",
+        item.description,
+        item.quantity.toString(),
+        item.unitPrice.toFixed(2),
+        item.discount ? item.discount.toFixed(2) : "0.00",
+        itemSubtotal.toFixed(2),
+        `${item.vatRate}%`,
+        item.vatAmount.toFixed(2),
+        item.total.toFixed(2),
+      ];
+    }),
     foot: [
-      ["", "", "", "", "Subtotal:", data.subtotal.toFixed(2)],
-      ["", "", "", "", "VAT (15%):", data.totalVAT.toFixed(2)],
-      ["", "", "", "", { content: "TOTAL", styles: { fontStyle: "bold", fontSize: 11 } }, { content: `SAR ${data.total.toFixed(2)}`, styles: { fontStyle: "bold", fontSize: 11, fillColor: primaryColor, textColor: [255, 255, 255] } }],
+      ["", "", "", "", "", "", "", "Subtotal:", data.subtotal.toFixed(2)],
+      ["", "", "", "", "", "", "", "VAT (15%):", data.totalVAT.toFixed(2)],
+      ["", "", "", "", "", "", "", { content: "TOTAL", styles: { fontStyle: "bold", fontSize: 11 } }, { content: `SAR ${data.total.toFixed(2)}`, styles: { fontStyle: "bold", fontSize: 11, fillColor: primaryColor, textColor: [255, 255, 255] } }],
     ],
     headStyles: {
       fillColor: primaryColor,

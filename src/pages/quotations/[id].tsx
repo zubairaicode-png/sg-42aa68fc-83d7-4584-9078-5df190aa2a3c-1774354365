@@ -244,27 +244,39 @@ export default function QuotationDetailPage() {
                     <table className="w-full">
                       <thead className="bg-table-header">
                         <tr>
-                          <th className="text-left p-4 font-semibold text-sm">Product/Service</th>
-                          <th className="text-right p-4 font-semibold text-sm">Quantity</th>
-                          <th className="text-right p-4 font-semibold text-sm">Unit Price</th>
-                          <th className="text-right p-4 font-semibold text-sm">Discount</th>
-                          <th className="text-right p-4 font-semibold text-sm">Total Tax ({quotation.quotation_items[0]?.vat_rate}%)</th>
-                          <th className="text-right p-4 font-semibold text-sm">Total</th>
+                          <th className="text-left p-4 font-semibold text-sm">#</th>
+                          <th className="text-left p-4 font-semibold text-sm">Item Code<br/><span className="text-xs font-normal">رمز الصنف</span></th>
+                          <th className="text-left p-4 font-semibold text-sm">Product/Service<br/><span className="text-xs font-normal">الوصف</span></th>
+                          <th className="text-center p-4 font-semibold text-sm">Qty<br/><span className="text-xs font-normal">الكمية</span></th>
+                          <th className="text-right p-4 font-semibold text-sm">Unit Price<br/><span className="text-xs font-normal">سعر الوحدة</span></th>
+                          <th className="text-right p-4 font-semibold text-sm">Discount<br/><span className="text-xs font-normal">الخصم</span></th>
+                          <th className="text-right p-4 font-semibold text-sm">Subtotal<br/><span className="text-xs font-normal">المجموع الفرعي</span></th>
+                          <th className="text-center p-4 font-semibold text-sm">VAT %<br/><span className="text-xs font-normal">ض.ق.م</span></th>
+                          <th className="text-right p-4 font-semibold text-sm">Total Tax<br/><span className="text-xs font-normal">إجمالي الضريبة</span></th>
+                          <th className="text-right p-4 font-semibold text-sm">Total<br/><span className="text-xs font-normal">المجموع</span></th>
                         </tr>
                       </thead>
                       <tbody>
-                        {quotation.quotation_items.map((item, index) => (
-                          <tr key={item.id} className={cn("border-t", index % 2 === 1 && "bg-table-row-hover")}>
-                            <td className="p-4 font-medium">{item.products?.name || item.description}</td>
-                            <td className="p-4 text-right">{item.quantity}</td>
-                            <td className="p-4 text-right">SAR {item.unit_price.toLocaleString()}</td>
-                            <td className="p-4 text-right">SAR {item.discount_amount.toLocaleString()}</td>
-                            <td className="p-4 text-right font-semibold">
-                              SAR {((item.quantity * item.unit_price - item.discount_amount) * item.vat_rate / 100).toFixed(2)}
-                            </td>
-                            <td className="p-4 text-right font-semibold">SAR {item.total_amount.toLocaleString()}</td>
-                          </tr>
-                        ))}
+                        {quotation.quotation_items.map((item, index) => {
+                          const itemSubtotal = (item.quantity * item.unit_price) - item.discount_amount;
+                          const taxAmount = itemSubtotal * (item.vat_rate / 100);
+                          return (
+                            <tr key={item.id} className={cn("border-t", index % 2 === 1 && "bg-table-row-hover")}>
+                              <td className="p-4">{index + 1}</td>
+                              <td className="p-4 font-mono text-sm">{item.products?.product_code || '-'}</td>
+                              <td className="p-4 font-medium">{item.products?.name || item.description}</td>
+                              <td className="p-4 text-center">{item.quantity}</td>
+                              <td className="p-4 text-right">SAR {item.unit_price.toLocaleString()}</td>
+                              <td className="p-4 text-right text-destructive">
+                                {item.discount_amount > 0 ? `-SAR ${item.discount_amount.toLocaleString()}` : '-'}
+                              </td>
+                              <td className="p-4 text-right font-semibold">SAR {itemSubtotal.toFixed(2)}</td>
+                              <td className="p-4 text-center">{item.vat_rate}%</td>
+                              <td className="p-4 text-right font-semibold">SAR {taxAmount.toFixed(2)}</td>
+                              <td className="p-4 text-right font-semibold">SAR {item.total_amount.toLocaleString()}</td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>

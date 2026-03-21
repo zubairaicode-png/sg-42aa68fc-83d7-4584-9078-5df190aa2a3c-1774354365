@@ -29,9 +29,11 @@ interface InvoiceData {
     email: string;
   };
   items: Array<{
+    itemCode?: string;
     description: string;
     quantity: number;
     unitPrice: number;
+    discount?: number;
     vatRate: number;
     amount: number;
   }>;
@@ -96,16 +98,20 @@ export default function InvoiceViewPage() {
         },
         items: [
           {
+            itemCode: "PROD-001",
             description: "Product/Service 1",
             quantity: 2,
             unitPrice: 1000,
+            discount: 100,
             vatRate: 15,
             amount: 2000
           },
           {
+            itemCode: "PROD-002",
             description: "Product/Service 2",
             quantity: 1,
             unitPrice: 1500,
+            discount: 0,
             vatRate: 15,
             amount: 1500
           }
@@ -312,26 +318,36 @@ export default function InvoiceViewPage() {
                   <thead className="bg-primary text-primary-foreground">
                     <tr>
                       <th className="text-left p-3">#</th>
+                      <th className="text-left p-3">Item Code<br/><span className="text-xs font-normal">رمز الصنف</span></th>
                       <th className="text-left p-3">Description<br/><span className="text-xs font-normal">الوصف</span></th>
                       <th className="text-center p-3">Qty<br/><span className="text-xs font-normal">الكمية</span></th>
                       <th className="text-right p-3">Unit Price<br/><span className="text-xs font-normal">سعر الوحدة</span></th>
+                      <th className="text-right p-3">Discount<br/><span className="text-xs font-normal">الخصم</span></th>
+                      <th className="text-right p-3">Subtotal<br/><span className="text-xs font-normal">المجموع الفرعي</span></th>
                       <th className="text-center p-3">VAT %<br/><span className="text-xs font-normal">ض.ق.م</span></th>
                       <th className="text-right p-3">Total Tax<br/><span className="text-xs font-normal">مجموع الضريبة</span></th>
                       <th className="text-right p-3">Amount<br/><span className="text-xs font-normal">المبلغ</span></th>
                     </tr>
                   </thead>
                   <tbody>
-                    {invoice.items.map((item, index) => (
-                      <tr key={index} className="border-b">
-                        <td className="p-3">{index + 1}</td>
-                        <td className="p-3">{item.description}</td>
-                        <td className="text-center p-3">{item.quantity}</td>
-                        <td className="text-right p-3">{item.unitPrice.toFixed(2)} SAR</td>
-                        <td className="text-center p-3">{item.vatRate}%</td>
-                        <td className="text-right p-3 font-semibold">{((item.quantity * item.unitPrice) * (item.vatRate / 100)).toFixed(2)} SAR</td>
-                        <td className="text-right p-3 font-semibold">{item.amount.toFixed(2)} SAR</td>
-                      </tr>
-                    ))}
+                    {invoice.items.map((item, index) => {
+                      const subtotal = (item.quantity * item.unitPrice) - (item.discount || 0);
+                      const taxAmount = subtotal * (item.vatRate / 100);
+                      return (
+                        <tr key={index} className="border-b">
+                          <td className="p-3">{index + 1}</td>
+                          <td className="p-3">{item.itemCode || '-'}</td>
+                          <td className="p-3">{item.description}</td>
+                          <td className="text-center p-3">{item.quantity}</td>
+                          <td className="text-right p-3">{item.unitPrice.toFixed(2)} SAR</td>
+                          <td className="text-right p-3">{item.discount ? `${item.discount.toFixed(2)} SAR` : '-'}</td>
+                          <td className="text-right p-3 font-semibold">{subtotal.toFixed(2)} SAR</td>
+                          <td className="text-center p-3">{item.vatRate}%</td>
+                          <td className="text-right p-3 font-semibold">{taxAmount.toFixed(2)} SAR</td>
+                          <td className="text-right p-3 font-semibold">{item.amount.toFixed(2)} SAR</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
