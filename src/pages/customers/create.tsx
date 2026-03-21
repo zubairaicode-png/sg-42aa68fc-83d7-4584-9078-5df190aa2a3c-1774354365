@@ -22,9 +22,15 @@ export default function CreateCustomerPage() {
     email: "",
     phone: "",
     vatNumber: "",
-    address: "",
+    buildingNumber: "",
+    additionalNumber: "",
+    streetName: "",
+    district: "",
     city: "",
     postalCode: "",
+    unitNumber: "",
+    shortAddress: "",
+    address: "",
     country: "Saudi Arabia",
     status: "active" as "active" | "inactive",
   });
@@ -45,9 +51,15 @@ export default function CreateCustomerPage() {
           email: customer.email || "",
           phone: customer.phone || "",
           vatNumber: customer.vat_number || "",
-          address: customer.address || "",
+          buildingNumber: customer.building_number || "",
+          additionalNumber: customer.additional_number || "",
+          streetName: customer.street_name || "",
+          district: customer.district || "",
           city: customer.city || "",
           postalCode: customer.postal_code || "",
+          unitNumber: customer.unit_number || "",
+          shortAddress: customer.short_address || "",
+          address: customer.address || "",
           country: customer.country || "Saudi Arabia",
           status: (customer.status as "active" | "inactive") || "active",
         });
@@ -74,9 +86,15 @@ export default function CreateCustomerPage() {
         email: formData.email,
         phone: formData.phone,
         vat_number: formData.vatNumber || null,
-        address: formData.address || null,
+        building_number: formData.buildingNumber || null,
+        additional_number: formData.additionalNumber || null,
+        street_name: formData.streetName || null,
+        district: formData.district || null,
         city: formData.city || null,
         postal_code: formData.postalCode || null,
+        unit_number: formData.unitNumber || null,
+        short_address: formData.shortAddress || null,
+        address: formData.address || null,
         country: formData.country,
         status: formData.status,
       };
@@ -214,23 +232,67 @@ export default function CreateCustomerPage() {
           {/* Address Information */}
           <Card>
             <CardHeader>
-              <CardTitle>Address Information</CardTitle>
+              <CardTitle>Saudi National Address Information</CardTitle>
+              <p className="text-sm text-muted-foreground">As per Saudi Post National Address format</p>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="address">Street Address</Label>
-                <Textarea
-                  id="address"
-                  value={formData.address}
-                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                  placeholder="Enter street address"
-                  rows={3}
-                />
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="space-y-2">
+                  <Label htmlFor="buildingNumber">Building Number (رقم المبنى) *</Label>
+                  <Input
+                    id="buildingNumber"
+                    value={formData.buildingNumber}
+                    onChange={(e) => setFormData({ ...formData, buildingNumber: e.target.value })}
+                    placeholder="1234"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="additionalNumber">Additional Number (الرقم الإضافي)</Label>
+                  <Input
+                    id="additionalNumber"
+                    value={formData.additionalNumber}
+                    onChange={(e) => setFormData({ ...formData, additionalNumber: e.target.value })}
+                    placeholder="5678"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="unitNumber">Unit Number (رقم الوحدة)</Label>
+                  <Input
+                    id="unitNumber"
+                    value={formData.unitNumber}
+                    onChange={(e) => setFormData({ ...formData, unitNumber: e.target.value })}
+                    placeholder="10"
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="streetName">Street Name (اسم الشارع) *</Label>
+                  <Input
+                    id="streetName"
+                    value={formData.streetName}
+                    onChange={(e) => setFormData({ ...formData, streetName: e.target.value })}
+                    placeholder="King Fahd Road"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="district">District (الحي) *</Label>
+                  <Input
+                    id="district"
+                    value={formData.district}
+                    onChange={(e) => setFormData({ ...formData, district: e.target.value })}
+                    placeholder="Al Olaya"
+                  />
+                </div>
               </div>
 
               <div className="grid gap-4 md:grid-cols-3">
                 <div className="space-y-2">
-                  <Label htmlFor="city">City</Label>
+                  <Label htmlFor="city">City (المدينة) *</Label>
                   <Input
                     id="city"
                     value={formData.city}
@@ -240,12 +302,13 @@ export default function CreateCustomerPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="postalCode">Postal Code</Label>
+                  <Label htmlFor="postalCode">Postal Code (الرمز البريدي) *</Label>
                   <Input
                     id="postalCode"
                     value={formData.postalCode}
                     onChange={(e) => setFormData({ ...formData, postalCode: e.target.value })}
                     placeholder="12345"
+                    maxLength={5}
                   />
                 </div>
 
@@ -258,6 +321,27 @@ export default function CreateCustomerPage() {
                     placeholder="Saudi Arabia"
                   />
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="shortAddress">Short Address (العنوان المختصر)</Label>
+                <Input
+                  id="shortAddress"
+                  value={formData.shortAddress}
+                  onChange={(e) => setFormData({ ...formData, shortAddress: e.target.value })}
+                  placeholder="e.g., Near Al Faisaliah Tower"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="address">Additional Address Notes</Label>
+                <Textarea
+                  id="address"
+                  value={formData.address}
+                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                  placeholder="Any additional address information..."
+                  rows={3}
+                />
               </div>
             </CardContent>
           </Card>

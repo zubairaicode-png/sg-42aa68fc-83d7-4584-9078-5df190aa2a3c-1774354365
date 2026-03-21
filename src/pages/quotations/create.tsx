@@ -40,6 +40,12 @@ export default function CreateQuotationPage() {
     email: "",
     phone: "",
     vatNumber: "",
+    buildingNumber: "",
+    additionalNumber: "",
+    streetName: "",
+    district: "",
+    city: "",
+    postalCode: "",
   });
 
   const [formData, setFormData] = useState({
@@ -102,15 +108,31 @@ export default function CreateQuotationPage() {
         name: newCustomer.name,
         email: newCustomer.email,
         phone: newCustomer.phone,
-        vat_number: newCustomer.vatNumber,
+        vat_number: newCustomer.vatNumber || null,
+        building_number: newCustomer.buildingNumber || null,
+        additional_number: newCustomer.additionalNumber || null,
+        street_name: newCustomer.streetName || null,
+        district: newCustomer.district || null,
+        city: newCustomer.city || null,
+        postal_code: newCustomer.postalCode || null,
         address: "",
-        city: "",
         country: "Saudi Arabia",
       });
 
       setFormData({ ...formData, customer_id: customer.id });
       setCustomers([...customers, customer]);
-      setNewCustomer({ name: "", email: "", phone: "", vatNumber: "" });
+      setNewCustomer({ 
+        name: "", 
+        email: "", 
+        phone: "", 
+        vatNumber: "",
+        buildingNumber: "",
+        additionalNumber: "",
+        streetName: "",
+        district: "",
+        city: "",
+        postalCode: "",
+      });
       setIsCustomerDialogOpen(false);
 
       toast({
@@ -312,47 +334,112 @@ export default function CreateQuotationPage() {
                             <UserPlus className="h-4 w-4" />
                           </Button>
                         </DialogTrigger>
-                        <DialogContent>
+                        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
                           <DialogHeader>
                             <DialogTitle>Add New Customer</DialogTitle>
                           </DialogHeader>
                           <div className="space-y-4 py-4">
-                            <div className="space-y-2">
-                              <Label htmlFor="customerName">Customer Name *</Label>
-                              <Input
-                                id="customerName"
-                                value={newCustomer.name}
-                                onChange={(e) => setNewCustomer({ ...newCustomer, name: e.target.value })}
-                                placeholder="Enter customer name"
-                              />
+                            <div className="grid gap-4 md:grid-cols-2">
+                              <div className="space-y-2">
+                                <Label htmlFor="customerName">Customer Name *</Label>
+                                <Input
+                                  id="customerName"
+                                  value={newCustomer.name}
+                                  onChange={(e) => setNewCustomer({ ...newCustomer, name: e.target.value })}
+                                  placeholder="Enter customer name"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="customerEmail">Email *</Label>
+                                <Input
+                                  id="customerEmail"
+                                  type="email"
+                                  value={newCustomer.email}
+                                  onChange={(e) => setNewCustomer({ ...newCustomer, email: e.target.value })}
+                                  placeholder="customer@example.com"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="customerPhone">Phone *</Label>
+                                <Input
+                                  id="customerPhone"
+                                  value={newCustomer.phone}
+                                  onChange={(e) => setNewCustomer({ ...newCustomer, phone: e.target.value })}
+                                  placeholder="+966 XX XXX XXXX"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="customerVat">VAT Number</Label>
+                                <Input
+                                  id="customerVat"
+                                  value={newCustomer.vatNumber}
+                                  onChange={(e) => setNewCustomer({ ...newCustomer, vatNumber: e.target.value })}
+                                  placeholder="3XXXXXXXXXX003"
+                                />
+                              </div>
                             </div>
-                            <div className="space-y-2">
-                              <Label htmlFor="customerEmail">Email *</Label>
-                              <Input
-                                id="customerEmail"
-                                type="email"
-                                value={newCustomer.email}
-                                onChange={(e) => setNewCustomer({ ...newCustomer, email: e.target.value })}
-                                placeholder="customer@example.com"
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label htmlFor="customerPhone">Phone *</Label>
-                              <Input
-                                id="customerPhone"
-                                value={newCustomer.phone}
-                                onChange={(e) => setNewCustomer({ ...newCustomer, phone: e.target.value })}
-                                placeholder="+966 XX XXX XXXX"
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label htmlFor="customerVat">VAT Number (Optional)</Label>
-                              <Input
-                                id="customerVat"
-                                value={newCustomer.vatNumber}
-                                onChange={(e) => setNewCustomer({ ...newCustomer, vatNumber: e.target.value })}
-                                placeholder="3XXXXXXXXXX003"
-                              />
+
+                            <div className="pt-4 border-t">
+                              <h4 className="font-medium mb-3">Saudi National Address</h4>
+                              <div className="grid gap-4 md:grid-cols-3">
+                                <div className="space-y-2">
+                                  <Label htmlFor="buildingNumber">Building Number *</Label>
+                                  <Input
+                                    id="buildingNumber"
+                                    value={newCustomer.buildingNumber}
+                                    onChange={(e) => setNewCustomer({ ...newCustomer, buildingNumber: e.target.value })}
+                                    placeholder="1234"
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label htmlFor="additionalNumber">Additional Number</Label>
+                                  <Input
+                                    id="additionalNumber"
+                                    value={newCustomer.additionalNumber}
+                                    onChange={(e) => setNewCustomer({ ...newCustomer, additionalNumber: e.target.value })}
+                                    placeholder="5678"
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label htmlFor="postalCode">Postal Code *</Label>
+                                  <Input
+                                    id="postalCode"
+                                    value={newCustomer.postalCode}
+                                    onChange={(e) => setNewCustomer({ ...newCustomer, postalCode: e.target.value })}
+                                    placeholder="12345"
+                                    maxLength={5}
+                                  />
+                                </div>
+                              </div>
+                              <div className="grid gap-4 md:grid-cols-2 mt-4">
+                                <div className="space-y-2">
+                                  <Label htmlFor="streetName">Street Name *</Label>
+                                  <Input
+                                    id="streetName"
+                                    value={newCustomer.streetName}
+                                    onChange={(e) => setNewCustomer({ ...newCustomer, streetName: e.target.value })}
+                                    placeholder="King Fahd Road"
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label htmlFor="district">District *</Label>
+                                  <Input
+                                    id="district"
+                                    value={newCustomer.district}
+                                    onChange={(e) => setNewCustomer({ ...newCustomer, district: e.target.value })}
+                                    placeholder="Al Olaya"
+                                  />
+                                </div>
+                              </div>
+                              <div className="space-y-2 mt-4">
+                                <Label htmlFor="city">City *</Label>
+                                <Input
+                                  id="city"
+                                  value={newCustomer.city}
+                                  onChange={(e) => setNewCustomer({ ...newCustomer, city: e.target.value })}
+                                  placeholder="Riyadh"
+                                />
+                              </div>
                             </div>
                           </div>
                           <DialogFooter>

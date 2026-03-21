@@ -198,14 +198,17 @@ export type Database = {
       }
       customers: {
         Row: {
+          additional_number: string | null
           address: string | null
           balance: number | null
+          building_number: string | null
           city: string | null
           country: string | null
           created_at: string | null
           created_by: string | null
           credit_limit: number | null
           customer_number: string
+          district: string | null
           email: string | null
           id: string
           name: string
@@ -213,19 +216,25 @@ export type Database = {
           payment_terms: number | null
           phone: string | null
           postal_code: string | null
+          short_address: string | null
           status: string | null
+          street_name: string | null
+          unit_number: string | null
           updated_at: string | null
           vat_number: string | null
         }
         Insert: {
+          additional_number?: string | null
           address?: string | null
           balance?: number | null
+          building_number?: string | null
           city?: string | null
           country?: string | null
           created_at?: string | null
           created_by?: string | null
           credit_limit?: number | null
           customer_number: string
+          district?: string | null
           email?: string | null
           id?: string
           name: string
@@ -233,19 +242,25 @@ export type Database = {
           payment_terms?: number | null
           phone?: string | null
           postal_code?: string | null
+          short_address?: string | null
           status?: string | null
+          street_name?: string | null
+          unit_number?: string | null
           updated_at?: string | null
           vat_number?: string | null
         }
         Update: {
+          additional_number?: string | null
           address?: string | null
           balance?: number | null
+          building_number?: string | null
           city?: string | null
           country?: string | null
           created_at?: string | null
           created_by?: string | null
           credit_limit?: number | null
           customer_number?: string
+          district?: string | null
           email?: string | null
           id?: string
           name?: string
@@ -253,7 +268,10 @@ export type Database = {
           payment_terms?: number | null
           phone?: string | null
           postal_code?: string | null
+          short_address?: string | null
           status?: string | null
+          street_name?: string | null
+          unit_number?: string | null
           updated_at?: string | null
           vat_number?: string | null
         }
