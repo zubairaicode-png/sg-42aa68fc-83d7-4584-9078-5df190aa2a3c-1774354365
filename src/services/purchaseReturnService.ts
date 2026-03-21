@@ -80,9 +80,9 @@ export const purchaseReturnService = {
       purchase_return_id: returnData.id,
     }));
 
-    const { error: itemsError } = await supabase
+    const { error: itemsError } = await (supabase
       .from("purchase_return_items")
-      .insert(itemsToInsert);
+      .insert(itemsToInsert as any) as Promise<any>);
 
     if (itemsError) throw itemsError;
 

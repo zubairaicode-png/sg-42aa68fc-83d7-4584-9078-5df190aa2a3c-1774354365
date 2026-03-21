@@ -36,14 +36,14 @@ export const bankReconciliationService = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error("User not authenticated");
 
-    const { data, error } = await supabase
+    const { data, error } = await (supabase
       .from("bank_accounts")
       .insert({
         ...account,
         created_by: user.id,
-      })
+      } as any)
       .select()
-      .single();
+      .single() as Promise<any>);
 
     if (error) throw error;
     return data;
@@ -101,14 +101,14 @@ export const bankReconciliationService = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error("User not authenticated");
 
-    const { data, error } = await supabase
+    const { data, error } = await (supabase
       .from("bank_reconciliations")
       .insert({
         ...reconciliation,
         created_by: user.id,
-      })
+      } as any)
       .select()
-      .single();
+      .single() as Promise<any>);
 
     if (error) throw error;
     return data;
@@ -128,30 +128,30 @@ export const bankReconciliationService = {
   },
 
   async matchTransaction(transactionId: string, journalEntryId: string) {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase
       .from("bank_transactions")
       .update({ 
-        is_reconciled: true,
-        reconciled_journal_entry_id: journalEntryId 
-      })
+        reconciled: true,
+        matched_transaction_id: journalEntryId 
+      } as any)
       .eq("id", transactionId)
       .select()
-      .single();
+      .single() as Promise<any>);
 
     if (error) throw error;
     return data;
   },
 
   async unmatchTransaction(transactionId: string) {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase
       .from("bank_transactions")
       .update({ 
-        is_reconciled: false,
-        reconciled_journal_entry_id: null 
-      })
+        reconciled: false,
+        matched_transaction_id: null 
+      } as any)
       .eq("id", transactionId)
       .select()
-      .single();
+      .single() as Promise<any>);
 
     if (error) throw error;
     return data;

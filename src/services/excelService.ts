@@ -9,7 +9,7 @@ export const excelService = {
   // Products
   exportProducts(products: Product[]) {
     const worksheet = XLSX.utils.json_to_sheet(
-      products.map(p => ({
+      products.map((p: any) => ({
         "Product Code": p.product_code,
         "Product Name": p.name,
         "Product Name (Arabic)": p.name_ar || "",
@@ -72,7 +72,7 @@ export const excelService = {
   // Customers
   exportCustomers(customers: Customer[]) {
     const worksheet = XLSX.utils.json_to_sheet(
-      customers.map(c => ({
+      customers.map((c: any) => ({
         "Customer Name": c.name,
         "Email": c.email || "",
         "Phone": c.phone || "",
@@ -137,7 +137,7 @@ export const excelService = {
   // Suppliers
   exportSuppliers(suppliers: Supplier[]) {
     const worksheet = XLSX.utils.json_to_sheet(
-      suppliers.map(s => ({
+      suppliers.map((s: any) => ({
         "Supplier Name": s.name,
         "Email": s.email || "",
         "Phone": s.phone || "",
