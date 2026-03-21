@@ -57,14 +57,13 @@ export const purchaseReturnService = {
 
   async create(
     purchaseReturn: Omit<PurchaseReturn, "id" | "created_at" | "updated_at" | "created_by">,
-    items: Array<Omit<PurchaseReturnItem, "id" | "purchase_return_id" | "created_at">>
+    items: Array<Omit<PurchaseReturnItem, "id" | "return_id" | "created_at">>
   ) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error("User not authenticated");
 
     // Create purchase return
-    const { data: returnData, error: returnError } = await supabase
-      .from("purchase_returns")
+    const { data: returnData, error: returnError } = await (supabase.from("purchase_returns") as any)
       .insert({
         ...purchaseReturn,
         created_by: user.id,
@@ -77,12 +76,11 @@ export const purchaseReturnService = {
     // Create return items
     const itemsToInsert = items.map(item => ({
       ...item,
-      purchase_return_id: returnData.id,
+      return_id: returnData.id,
     }));
 
-    const { error: itemsError } = await (supabase
-      .from("purchase_return_items")
-      .insert(itemsToInsert as any) as Promise<any>);
+    const { error: itemsError } = await (supabase.from("purchase_return_items") as any)
+      .insert(itemsToInsert);
 
     if (itemsError) throw itemsError;
 
@@ -90,8 +88,7 @@ export const purchaseReturnService = {
   },
 
   async updateStatus(id: string, status: string) {
-    const { data, error } = await supabase
-      .from("purchase_returns")
+    const { data, error } = await (supabase.from("purchase_returns") as any)
       .update({ status })
       .eq("id", id)
       .select()
@@ -103,16 +100,14 @@ export const purchaseReturnService = {
 
   async delete(id: string) {
     // Delete items first (foreign key constraint)
-    const { error: itemsError } = await supabase
-      .from("purchase_return_items")
+    const { error: itemsError } = await (supabase.from("purchase_return_items") as any)
       .delete()
-      .eq("purchase_return_id", id);
+      .eq("return_id", id);
 
     if (itemsError) throw itemsError;
 
     // Delete return
-    const { error } = await supabase
-      .from("purchase_returns")
+    const { error } = await (supabase.from("purchase_returns") as any)
       .delete()
       .eq("id", id);
 

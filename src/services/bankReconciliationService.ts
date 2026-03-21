@@ -36,22 +36,20 @@ export const bankReconciliationService = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error("User not authenticated");
 
-    const { data, error } = await (supabase
-      .from("bank_accounts")
+    const { data, error } = await (supabase.from("bank_accounts") as any)
       .insert({
         ...account,
         created_by: user.id,
-      } as any)
+      })
       .select()
-      .single() as Promise<any>);
+      .single();
 
     if (error) throw error;
     return data;
   },
 
   async updateBankAccount(id: string, updates: Partial<BankAccount>) {
-    const { data, error } = await supabase
-      .from("bank_accounts")
+    const { data, error } = await (supabase.from("bank_accounts") as any)
       .update(updates)
       .eq("id", id)
       .select()
@@ -63,10 +61,9 @@ export const bankReconciliationService = {
 
   // Bank Transactions
   async getBankTransactions(bankAccountId: string, startDate?: string, endDate?: string): Promise<BankTransactionWithMatching[]> {
-    let query = supabase
-      .from("bank_transactions")
+    let query = (supabase.from("bank_transactions") as any)
       .select("*")
-      .eq("bank_account_id", bankAccountId)
+      .eq("account_id", bankAccountId)
       .order("transaction_date", { ascending: false });
 
     if (startDate) query = query.gte("transaction_date", startDate);
@@ -77,18 +74,17 @@ export const bankReconciliationService = {
     return (data || []) as BankTransactionWithMatching[];
   },
 
-  async importBankTransactions(bankAccountId: string, transactions: Array<Omit<BankTransaction, "id" | "bank_account_id" | "created_at" | "created_by">>) {
+  async importBankTransactions(bankAccountId: string, transactions: Array<Omit<BankTransaction, "id" | "account_id" | "created_at" | "created_by">>) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error("User not authenticated");
 
     const transactionsToInsert = transactions.map(t => ({
       ...t,
-      bank_account_id: bankAccountId,
+      account_id: bankAccountId,
       created_by: user.id,
     }));
 
-    const { data, error } = await supabase
-      .from("bank_transactions")
+    const { data, error } = await (supabase.from("bank_transactions") as any)
       .insert(transactionsToInsert)
       .select();
 
@@ -101,26 +97,24 @@ export const bankReconciliationService = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error("User not authenticated");
 
-    const { data, error } = await (supabase
-      .from("bank_reconciliations")
+    const { data, error } = await (supabase.from("bank_reconciliations") as any)
       .insert({
         ...reconciliation,
         created_by: user.id,
-      } as any)
+      })
       .select()
-      .single() as Promise<any>);
+      .single();
 
     if (error) throw error;
     return data;
   },
 
   async getReconciliations(bankAccountId?: string): Promise<ReconciliationWithTransactions[]> {
-    let query = supabase
-      .from("bank_reconciliations")
+    let query = (supabase.from("bank_reconciliations") as any)
       .select("*")
       .order("reconciliation_date", { ascending: false });
 
-    if (bankAccountId) query = query.eq("bank_account_id", bankAccountId);
+    if (bankAccountId) query = query.eq("account_id", bankAccountId);
 
     const { data, error } = await query;
     if (error) throw error;
@@ -128,30 +122,28 @@ export const bankReconciliationService = {
   },
 
   async matchTransaction(transactionId: string, journalEntryId: string) {
-    const { data, error } = await (supabase
-      .from("bank_transactions")
+    const { data, error } = await (supabase.from("bank_transactions") as any)
       .update({ 
         reconciled: true,
         matched_transaction_id: journalEntryId 
-      } as any)
+      })
       .eq("id", transactionId)
       .select()
-      .single() as Promise<any>);
+      .single();
 
     if (error) throw error;
     return data;
   },
 
   async unmatchTransaction(transactionId: string) {
-    const { data, error } = await (supabase
-      .from("bank_transactions")
+    const { data, error } = await (supabase.from("bank_transactions") as any)
       .update({ 
         reconciled: false,
         matched_transaction_id: null 
-      } as any)
+      })
       .eq("id", transactionId)
       .select()
-      .single() as Promise<any>);
+      .single();
 
     if (error) throw error;
     return data;
