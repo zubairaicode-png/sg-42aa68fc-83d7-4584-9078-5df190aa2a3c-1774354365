@@ -102,7 +102,6 @@ export default function CreateQuotationPage() {
         email: newCustomer.email,
         phone: newCustomer.phone,
         vat_number: newCustomer.vatNumber,
-        type: "business",
         address: "",
         city: "",
         country: "Saudi Arabia",

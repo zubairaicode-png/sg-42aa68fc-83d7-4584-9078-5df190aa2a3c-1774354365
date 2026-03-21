@@ -13,6 +13,7 @@ export interface QuotationWithItems extends Quotation {
     name: string;
     email: string | null;
     phone: string | null;
+    vat_number: string | null;
   };
 }
 
@@ -41,7 +42,7 @@ export const quotationService = {
       .select(`
         *,
         quotation_items(*, products(name)),
-        customers(name, email, phone)
+        customers(name, email, phone, vat_number)
       `)
       .order("created_at", { ascending: false });
 
@@ -59,7 +60,7 @@ export const quotationService = {
       .select(`
         *,
         quotation_items(*, products(name)),
-        customers(name, email, phone)
+        customers(name, email, phone, vat_number)
       `)
       .eq("id", id)
       .single();
