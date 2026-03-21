@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FileText, Download, Calendar } from "lucide-react";
+import Link from "next/link";
 
 export default function ReportsPage() {
   const [dateFrom, setDateFrom] = useState("2026-03-01");
@@ -16,44 +17,44 @@ export default function ReportsPage() {
     {
       title: "Sales Reports",
       reports: [
-        { name: "Sales Summary", description: "Overview of sales by period", icon: FileText },
-        { name: "Sales by Customer", description: "Customer-wise sales analysis", icon: FileText },
-        { name: "Sales by Product", description: "Product-wise sales breakdown", icon: FileText },
-        { name: "VAT Report (Sales)", description: "VAT collected on sales", icon: FileText },
+        { name: "Sales Summary", description: "Overview of sales by period", icon: FileText, href: "/reports" },
+        { name: "Sales by Customer", description: "Customer-wise sales analysis", icon: FileText, href: "/reports/customer-ledger" },
+        { name: "Sales by Product", description: "Product-wise sales breakdown", icon: FileText, href: "/reports" },
+        { name: "VAT Report (Sales)", description: "VAT collected on sales", icon: FileText, href: "/reports/vat-report" },
       ],
     },
     {
       title: "Purchase Reports",
       reports: [
-        { name: "Purchase Summary", description: "Overview of purchases by period", icon: FileText },
-        { name: "Purchase by Supplier", description: "Supplier-wise purchase analysis", icon: FileText },
-        { name: "VAT Report (Purchases)", description: "VAT paid on purchases", icon: FileText },
+        { name: "Purchase Summary", description: "Overview of purchases by period", icon: FileText, href: "/reports" },
+        { name: "Purchase by Supplier", description: "Supplier-wise purchase analysis", icon: FileText, href: "/reports/supplier-ledger" },
+        { name: "VAT Report (Purchases)", description: "VAT paid on purchases", icon: FileText, href: "/reports/vat-report" },
       ],
     },
     {
       title: "Inventory Reports",
       reports: [
-        { name: "Stock Summary", description: "Current inventory levels", icon: FileText },
-        { name: "Stock Valuation", description: "Inventory value report", icon: FileText },
-        { name: "Low Stock Alert", description: "Products below minimum level", icon: FileText },
-        { name: "Stock Movement", description: "Inventory transactions history", icon: FileText },
+        { name: "Stock Summary", description: "Current inventory levels", icon: FileText, href: "/reports/stock-report" },
+        { name: "Stock Valuation", description: "Inventory value report", icon: FileText, href: "/reports/stock-report" },
+        { name: "Low Stock Alert", description: "Products below minimum level", icon: FileText, href: "/reports/stock-report" },
+        { name: "Stock Movement", description: "Inventory transactions history", icon: FileText, href: "/reports/stock-report" },
       ],
     },
     {
       title: "Financial Reports",
       reports: [
-        { name: "Profit & Loss Statement", description: "Income statement for the period", icon: FileText },
-        { name: "Balance Sheet", description: "Financial position snapshot", icon: FileText },
-        { name: "Cash Flow Statement", description: "Cash inflows and outflows", icon: FileText },
-        { name: "Trial Balance", description: "Account balances verification", icon: FileText },
+        { name: "General Ledger", description: "Account transaction history", icon: FileText, href: "/reports/general-ledger" },
+        { name: "Trial Balance", description: "Account balances verification", icon: FileText, href: "/reports/trial-balance" },
+        { name: "Customer Ledger", description: "Customer account statements", icon: FileText, href: "/reports/customer-ledger" },
+        { name: "Supplier Ledger", description: "Supplier account statements", icon: FileText, href: "/reports/supplier-ledger" },
       ],
     },
     {
       title: "Tax Reports",
       reports: [
-        { name: "VAT Return", description: "Saudi Arabia VAT filing report", icon: FileText },
-        { name: "Withholding Tax Report", description: "Tax withholding summary", icon: FileText },
-        { name: "ZATCA E-Invoice Log", description: "Electronic invoice submissions", icon: FileText },
+        { name: "VAT Return", description: "Saudi Arabia VAT filing report", icon: FileText, href: "/reports/vat-report" },
+        { name: "Sales Tax Report", description: "Tax collected on sales", icon: FileText, href: "/reports/vat-report" },
+        { name: "Purchase Tax Report", description: "Tax paid on purchases", icon: FileText, href: "/reports/vat-report" },
       ],
     },
   ];
@@ -108,10 +109,10 @@ export default function ReportsPage() {
           <Tabs defaultValue="all" className="space-y-4">
             <TabsList>
               <TabsTrigger value="all">All Reports</TabsTrigger>
+              <TabsTrigger value="financial">Financial</TabsTrigger>
               <TabsTrigger value="sales">Sales</TabsTrigger>
               <TabsTrigger value="purchases">Purchases</TabsTrigger>
               <TabsTrigger value="inventory">Inventory</TabsTrigger>
-              <TabsTrigger value="financial">Financial</TabsTrigger>
               <TabsTrigger value="tax">Tax</TabsTrigger>
             </TabsList>
 
@@ -124,10 +125,35 @@ export default function ReportsPage() {
                   <CardContent>
                     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                       {category.reports.map((report, reportIdx) => (
-                        <div
-                          key={reportIdx}
-                          className="p-4 border rounded-lg hover:border-primary transition-colors cursor-pointer group"
-                        >
+                        <Link key={reportIdx} href={report.href}>
+                          <div className="p-4 border rounded-lg hover:border-primary hover:bg-accent transition-colors cursor-pointer group">
+                            <div className="flex items-start justify-between mb-2">
+                              <report.icon className="h-8 w-8 text-primary" />
+                              <Button size="sm" variant="ghost" className="opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Download className="h-4 w-4" />
+                              </Button>
+                            </div>
+                            <h3 className="font-semibold mb-1">{report.name}</h3>
+                            <p className="text-sm text-muted-foreground">{report.description}</p>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </TabsContent>
+
+            <TabsContent value="financial">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Financial Reports</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    {reportCategories[3].reports.map((report, idx) => (
+                      <Link key={idx} href={report.href}>
+                        <div className="p-4 border rounded-lg hover:border-primary hover:bg-accent transition-colors cursor-pointer group">
                           <div className="flex items-start justify-between mb-2">
                             <report.icon className="h-8 w-8 text-primary" />
                             <Button size="sm" variant="ghost" className="opacity-0 group-hover:opacity-100 transition-opacity">
@@ -137,11 +163,11 @@ export default function ReportsPage() {
                           <h3 className="font-semibold mb-1">{report.name}</h3>
                           <p className="text-sm text-muted-foreground">{report.description}</p>
                         </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                      </Link>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
             </TabsContent>
 
             <TabsContent value="sales">
@@ -152,19 +178,18 @@ export default function ReportsPage() {
                 <CardContent>
                   <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                     {reportCategories[0].reports.map((report, idx) => (
-                      <div
-                        key={idx}
-                        className="p-4 border rounded-lg hover:border-primary transition-colors cursor-pointer group"
-                      >
-                        <div className="flex items-start justify-between mb-2">
-                          <report.icon className="h-8 w-8 text-primary" />
-                          <Button size="sm" variant="ghost" className="opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Download className="h-4 w-4" />
-                          </Button>
+                      <Link key={idx} href={report.href}>
+                        <div className="p-4 border rounded-lg hover:border-primary hover:bg-accent transition-colors cursor-pointer group">
+                          <div className="flex items-start justify-between mb-2">
+                            <report.icon className="h-8 w-8 text-primary" />
+                            <Button size="sm" variant="ghost" className="opacity-0 group-hover:opacity-100 transition-opacity">
+                              <Download className="h-4 w-4" />
+                            </Button>
+                          </div>
+                          <h3 className="font-semibold mb-1">{report.name}</h3>
+                          <p className="text-sm text-muted-foreground">{report.description}</p>
                         </div>
-                        <h3 className="font-semibold mb-1">{report.name}</h3>
-                        <p className="text-sm text-muted-foreground">{report.description}</p>
-                      </div>
+                      </Link>
                     ))}
                   </div>
                 </CardContent>
@@ -179,19 +204,18 @@ export default function ReportsPage() {
                 <CardContent>
                   <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                     {reportCategories[1].reports.map((report, idx) => (
-                      <div
-                        key={idx}
-                        className="p-4 border rounded-lg hover:border-primary transition-colors cursor-pointer group"
-                      >
-                        <div className="flex items-start justify-between mb-2">
-                          <report.icon className="h-8 w-8 text-primary" />
-                          <Button size="sm" variant="ghost" className="opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Download className="h-4 w-4" />
-                          </Button>
+                      <Link key={idx} href={report.href}>
+                        <div className="p-4 border rounded-lg hover:border-primary hover:bg-accent transition-colors cursor-pointer group">
+                          <div className="flex items-start justify-between mb-2">
+                            <report.icon className="h-8 w-8 text-primary" />
+                            <Button size="sm" variant="ghost" className="opacity-0 group-hover:opacity-100 transition-opacity">
+                              <Download className="h-4 w-4" />
+                            </Button>
+                          </div>
+                          <h3 className="font-semibold mb-1">{report.name}</h3>
+                          <p className="text-sm text-muted-foreground">{report.description}</p>
                         </div>
-                        <h3 className="font-semibold mb-1">{report.name}</h3>
-                        <p className="text-sm text-muted-foreground">{report.description}</p>
-                      </div>
+                      </Link>
                     ))}
                   </div>
                 </CardContent>
@@ -206,46 +230,18 @@ export default function ReportsPage() {
                 <CardContent>
                   <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                     {reportCategories[2].reports.map((report, idx) => (
-                      <div
-                        key={idx}
-                        className="p-4 border rounded-lg hover:border-primary transition-colors cursor-pointer group"
-                      >
-                        <div className="flex items-start justify-between mb-2">
-                          <report.icon className="h-8 w-8 text-primary" />
-                          <Button size="sm" variant="ghost" className="opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Download className="h-4 w-4" />
-                          </Button>
+                      <Link key={idx} href={report.href}>
+                        <div className="p-4 border rounded-lg hover:border-primary hover:bg-accent transition-colors cursor-pointer group">
+                          <div className="flex items-start justify-between mb-2">
+                            <report.icon className="h-8 w-8 text-primary" />
+                            <Button size="sm" variant="ghost" className="opacity-0 group-hover:opacity-100 transition-opacity">
+                              <Download className="h-4 w-4" />
+                            </Button>
+                          </div>
+                          <h3 className="font-semibold mb-1">{report.name}</h3>
+                          <p className="text-sm text-muted-foreground">{report.description}</p>
                         </div>
-                        <h3 className="font-semibold mb-1">{report.name}</h3>
-                        <p className="text-sm text-muted-foreground">{report.description}</p>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="financial">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Financial Reports</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {reportCategories[3].reports.map((report, idx) => (
-                      <div
-                        key={idx}
-                        className="p-4 border rounded-lg hover:border-primary transition-colors cursor-pointer group"
-                      >
-                        <div className="flex items-start justify-between mb-2">
-                          <report.icon className="h-8 w-8 text-primary" />
-                          <Button size="sm" variant="ghost" className="opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Download className="h-4 w-4" />
-                          </Button>
-                        </div>
-                        <h3 className="font-semibold mb-1">{report.name}</h3>
-                        <p className="text-sm text-muted-foreground">{report.description}</p>
-                      </div>
+                      </Link>
                     ))}
                   </div>
                 </CardContent>
@@ -260,19 +256,18 @@ export default function ReportsPage() {
                 <CardContent>
                   <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                     {reportCategories[4].reports.map((report, idx) => (
-                      <div
-                        key={idx}
-                        className="p-4 border rounded-lg hover:border-primary transition-colors cursor-pointer group"
-                      >
-                        <div className="flex items-start justify-between mb-2">
-                          <report.icon className="h-8 w-8 text-primary" />
-                          <Button size="sm" variant="ghost" className="opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Download className="h-4 w-4" />
-                          </Button>
+                      <Link key={idx} href={report.href}>
+                        <div className="p-4 border rounded-lg hover:border-primary hover:bg-accent transition-colors cursor-pointer group">
+                          <div className="flex items-start justify-between mb-2">
+                            <report.icon className="h-8 w-8 text-primary" />
+                            <Button size="sm" variant="ghost" className="opacity-0 group-hover:opacity-100 transition-opacity">
+                              <Download className="h-4 w-4" />
+                            </Button>
+                          </div>
+                          <h3 className="font-semibold mb-1">{report.name}</h3>
+                          <p className="text-sm text-muted-foreground">{report.description}</p>
                         </div>
-                        <h3 className="font-semibold mb-1">{report.name}</h3>
-                        <p className="text-sm text-muted-foreground">{report.description}</p>
-                      </div>
+                      </Link>
                     ))}
                   </div>
                 </CardContent>
