@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FileText, Download, Calendar } from "lucide-react";
+import { FileText, Download, Calendar, BookOpen, Scale, Receipt } from "lucide-react";
 import Link from "next/link";
 
 export default function ReportsPage() {
@@ -272,6 +272,61 @@ export default function ReportsPage() {
                   </div>
                 </CardContent>
               </Card>
+            </TabsContent>
+
+            <TabsContent value="accounting">
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                <Link href="/reports/general-ledger">
+                  <Card className="hover:border-primary transition-colors cursor-pointer">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <BookOpen className="h-5 w-5 text-primary" />
+                        General Ledger
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm text-muted-foreground">
+                        Detailed transaction history for all accounts with running balances
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-2">دفتر الأستاذ العام</p>
+                    </CardContent>
+                  </Card>
+                </Link>
+
+                <Link href="/reports/trial-balance">
+                  <Card className="hover:border-primary transition-colors cursor-pointer">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Scale className="h-5 w-5 text-primary" />
+                        Trial Balance
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm text-muted-foreground">
+                        Verify accounting accuracy - all debits must equal credits
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-2">ميزان المراجعة</p>
+                    </CardContent>
+                  </Card>
+                </Link>
+
+                <Link href="/reports/expense-report">
+                  <Card className="hover:border-primary transition-colors cursor-pointer">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Receipt className="h-5 w-5 text-primary" />
+                        Expense Report
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm text-muted-foreground">
+                        Comprehensive expense analysis by category with VAT breakdown
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-2">تقرير المصروفات</p>
+                    </CardContent>
+                  </Card>
+                </Link>
+              </div>
             </TabsContent>
           </Tabs>
         </div>

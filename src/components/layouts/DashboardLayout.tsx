@@ -15,7 +15,10 @@ import {
   Building2,
   FileBarChart,
   Home,
-  RotateCcw
+  RotateCcw,
+  Receipt,
+  Calculator,
+  Shield
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -32,7 +35,9 @@ const navItems = [
   { href: "/inventory", icon: Package, label: "Inventory" },
   { href: "/customers", icon: Users, label: "Customers" },
   { href: "/suppliers", icon: Building2, label: "Suppliers" },
-  { href: "/accounting", icon: BarChart3, label: "Accounting" },
+  { href: "/expenses", icon: Receipt, label: "Expenses" },
+  { href: "/accounting", icon: Calculator, label: "Accounting" },
+  { href: "/zatca-phase-2", icon: Shield, label: "ZATCA Phase 2" },
   { href: "/reports", icon: FileBarChart, label: "Reports" },
   { href: "/settings", icon: Settings, label: "Settings" },
 ];
