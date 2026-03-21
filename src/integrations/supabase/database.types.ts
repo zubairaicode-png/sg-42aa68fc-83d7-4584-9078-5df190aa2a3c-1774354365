@@ -1,4 +1,4 @@
- 
+/* eslint-disable @typescript-eslint/no-empty-object-type */
 export type Json =
   | string
   | number
@@ -137,47 +137,50 @@ export type Database = {
       }
       invoice_design_settings: {
         Row: {
+          available_fields: Json | null
           created_at: string | null
           created_by: string | null
+          footer_layout: Json | null
           footer_text: string | null
+          header_layout: Json | null
           id: string
-          logo_position: string | null
+          layout_name: string | null
           organization_id: string | null
           primary_color: string | null
           secondary_color: string | null
           show_company_details: boolean | null
-          show_logo: boolean | null
-          show_payment_terms: boolean | null
           template_style: string
           updated_at: string | null
         }
         Insert: {
+          available_fields?: Json | null
           created_at?: string | null
           created_by?: string | null
+          footer_layout?: Json | null
           footer_text?: string | null
+          header_layout?: Json | null
           id?: string
-          logo_position?: string | null
+          layout_name?: string | null
           organization_id?: string | null
           primary_color?: string | null
           secondary_color?: string | null
           show_company_details?: boolean | null
-          show_logo?: boolean | null
-          show_payment_terms?: boolean | null
           template_style?: string
           updated_at?: string | null
         }
         Update: {
+          available_fields?: Json | null
           created_at?: string | null
           created_by?: string | null
+          footer_layout?: Json | null
           footer_text?: string | null
+          header_layout?: Json | null
           id?: string
-          logo_position?: string | null
+          layout_name?: string | null
           organization_id?: string | null
           primary_color?: string | null
           secondary_color?: string | null
           show_company_details?: boolean | null
-          show_logo?: boolean | null
-          show_payment_terms?: boolean | null
           template_style?: string
           updated_at?: string | null
         }
