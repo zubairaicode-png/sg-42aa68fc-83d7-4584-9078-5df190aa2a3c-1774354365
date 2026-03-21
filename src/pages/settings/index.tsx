@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { SEO } from "@/components/SEO";
-import DashboardLayout from "@/components/layouts/DashboardLayout";
-import AuthGuard from "@/components/AuthGuard";
+import { DashboardLayout } from "@/components/layouts/DashboardLayout";
+import { AuthGuard } from "@/components/AuthGuard";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,8 +11,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Building2, FileText, DollarSign, Palette, Loader2 } from "lucide-react";
+import { Building2, FileText, DollarSign, Palette, Loader2, Upload, Save, Receipt } from "lucide-react";
 import { InvoiceLayoutDesigner, LayoutField } from "@/components/InvoiceLayoutDesigner";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export default function SettingsPage() {
   const [isSaving, setIsSaving] = useState(false);
@@ -48,12 +55,11 @@ export default function SettingsPage() {
 
   // Invoice Design State
   const [invoiceDesign, setInvoiceDesign] = useState({
-    template: "modern",
-    primaryColor: "#2980B9",
-    showLogo: true,
-    logoPosition: "left",
-    footerText: "Thank you for your business!",
-    showQR: true,
+    template_style: "modern",
+    primary_color: "#2980B9",
+    secondary_color: "#3498DB",
+    footer_text: "Thank you for your business!",
+    layout_name: "Default Layout"
   });
 
   // Layout designer state
@@ -148,16 +154,11 @@ export default function SettingsPage() {
 
       if (data) {
         setInvoiceDesign({
-          template_type: data.template_type || "modern",
+          template_style: data.template_style || "modern",
           primary_color: data.primary_color || "#2980B9",
           secondary_color: data.secondary_color || "#3498DB",
-          logo_position: data.logo_position || "left",
-          header_style: data.header_style || "standard",
-          show_logo: data.show_logo ?? true,
-          show_payment_terms: data.show_payment_terms ?? true,
-          show_bank_details: data.show_bank_details ?? true,
-          show_notes: data.show_notes ?? true,
           footer_text: data.footer_text || "",
+          layout_name: data.layout_name || "Default Layout"
         });
 
         // Parse layout fields if they exist
@@ -755,6 +756,70 @@ export default function SettingsPage() {
                     <CardTitle>Template & Color Settings</CardTitle>
                     <CardDescription>Choose template style and customize brand colors</CardDescription>
                   </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div className="space-y-2">
+                      <Label>Invoice Template</Label>
+                      <Select
+                        value={invoiceDesign.template_style}
+                        onValueChange={(value) => setInvoiceDesign({ ...invoiceDesign, template_style: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="modern">Modern Minimal (Blue Accent)</SelectItem>
+                          <SelectItem value="classic">Classic Professional (Green Accent)</SelectItem>
+                          <SelectItem value="premium">Premium Corporate (Gold Accent)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        Choose the default template for PDF invoices and quotations
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="primaryColor">Primary Color</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          id="primaryColor"
+                          type="color"
+                          value={invoiceDesign.primary_color}
+                          onChange={(e) => setInvoiceDesign({ ...invoiceDesign, primary_color: e.target.value })}
+                          className="w-20 h-10"
+                        />
+                        <Input
+                          value={invoiceDesign.primary_color}
+                          onChange={(e) => setInvoiceDesign({ ...invoiceDesign, primary_color: e.target.value })}
+                          placeholder="#2980B9"
+                          className="flex-1"
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Accent color for headers and highlights in invoices
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="footerText">Invoice Footer Text</Label>
+                      <Textarea
+                        id="footerText"
+                        value={invoiceDesign.footer_text}
+                        onChange={(e) => setInvoiceDesign({ ...invoiceDesign, footer_text: e.target.value })}
+                        rows={3}
+                        placeholder="Thank you for your business!"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Text displayed at the bottom of every invoice
+                      </p>
+                    </div>
+
+                    <div className="flex justify-end">
+                      <Button onClick={handleSaveInvoiceDesign} disabled={loading}>
+                        <Save className="mr-2 h-4 w-4" />
+                        {loading ? "Saving..." : "Save Design Settings"}
+                      </Button>
+                    </div>
+                  </CardContent>
                 </Card>
               </TabsContent>
             </Tabs>
