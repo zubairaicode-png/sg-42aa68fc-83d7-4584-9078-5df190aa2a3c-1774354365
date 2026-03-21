@@ -93,17 +93,17 @@ export default function BalanceSheetPage() {
 
       if (expensesError) throw expensesError;
 
-      // Calculate totals
-      const accountsReceivable = unpaidInvoices?.reduce((sum, inv) => sum + inv.total_amount, 0) || 0;
+      // Calculate totals with explicit number type
+      const accountsReceivable: number = unpaidInvoices?.reduce((sum: number, inv) => sum + Number(inv.total_amount || 0), 0) || 0;
       
-      // Calculate inventory value using stock_quantity instead of quantity
-      const inventoryValue = inventoryData?.reduce((sum, prod) => {
-        const qty = Number(prod.stock_quantity) || 0;
-        const price = Number(prod.cost_price) || 0;
+      // Calculate inventory value with explicit types
+      const inventoryValue: number = inventoryData?.reduce((sum: number, prod) => {
+        const qty = Number(prod.stock_quantity || 0);
+        const price = Number(prod.cost_price || 0);
         return sum + (qty * price);
       }, 0) || 0;
       
-      const accountsPayable = unpaidExpenses?.reduce((sum, exp) => sum + exp.amount, 0) || 0;
+      const accountsPayable: number = unpaidExpenses?.reduce((sum: number, exp) => sum + Number(exp.amount || 0), 0) || 0;
 
       // Simulate cash (would come from accounting system)
       const cash = 50000;
