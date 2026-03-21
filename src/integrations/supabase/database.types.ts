@@ -1,4 +1,4 @@
- 
+/* eslint-disable @typescript-eslint/no-empty-object-type */
 export type Json =
   | string
   | number
@@ -15,6 +15,187 @@ export type Database = {
   }
   public: {
     Tables: {
+      bank_accounts: {
+        Row: {
+          account_name: string
+          account_number: string
+          bank_name: string
+          created_at: string | null
+          created_by: string | null
+          currency: string | null
+          current_balance: number | null
+          iban: string | null
+          id: string
+          notes: string | null
+          opening_balance: number | null
+          opening_date: string | null
+          status: string | null
+          swift_code: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          account_name: string
+          account_number: string
+          bank_name: string
+          created_at?: string | null
+          created_by?: string | null
+          currency?: string | null
+          current_balance?: number | null
+          iban?: string | null
+          id?: string
+          notes?: string | null
+          opening_balance?: number | null
+          opening_date?: string | null
+          status?: string | null
+          swift_code?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          account_name?: string
+          account_number?: string
+          bank_name?: string
+          created_at?: string | null
+          created_by?: string | null
+          currency?: string | null
+          current_balance?: number | null
+          iban?: string | null
+          id?: string
+          notes?: string | null
+          opening_balance?: number | null
+          opening_date?: string | null
+          status?: string | null
+          swift_code?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      bank_reconciliations: {
+        Row: {
+          account_id: string | null
+          approved_by: string | null
+          book_balance: number
+          created_at: string | null
+          difference: number
+          id: string
+          notes: string | null
+          reconciled_by: string | null
+          reconciliation_date: string
+          statement_balance: number
+          statement_date: string
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          account_id?: string | null
+          approved_by?: string | null
+          book_balance: number
+          created_at?: string | null
+          difference: number
+          id?: string
+          notes?: string | null
+          reconciled_by?: string | null
+          reconciliation_date: string
+          statement_balance: number
+          statement_date: string
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          account_id?: string | null
+          approved_by?: string | null
+          book_balance?: number
+          created_at?: string | null
+          difference?: number
+          id?: string
+          notes?: string | null
+          reconciled_by?: string | null
+          reconciliation_date?: string
+          statement_balance?: number
+          statement_date?: string
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bank_reconciliations_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "bank_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bank_transactions: {
+        Row: {
+          account_id: string | null
+          amount: number
+          balance_after: number | null
+          category: string | null
+          created_at: string | null
+          created_by: string | null
+          description: string
+          id: string
+          matched_transaction_id: string | null
+          matched_transaction_type: string | null
+          notes: string | null
+          reconciled: boolean | null
+          reconciled_by: string | null
+          reconciled_date: string | null
+          reference_number: string | null
+          transaction_date: string
+          transaction_type: string
+          updated_at: string | null
+        }
+        Insert: {
+          account_id?: string | null
+          amount: number
+          balance_after?: number | null
+          category?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          description: string
+          id?: string
+          matched_transaction_id?: string | null
+          matched_transaction_type?: string | null
+          notes?: string | null
+          reconciled?: boolean | null
+          reconciled_by?: string | null
+          reconciled_date?: string | null
+          reference_number?: string | null
+          transaction_date: string
+          transaction_type: string
+          updated_at?: string | null
+        }
+        Update: {
+          account_id?: string | null
+          amount?: number
+          balance_after?: number | null
+          category?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string
+          id?: string
+          matched_transaction_id?: string | null
+          matched_transaction_type?: string | null
+          notes?: string | null
+          reconciled?: boolean | null
+          reconciled_by?: string | null
+          reconciled_date?: string | null
+          reference_number?: string | null
+          transaction_date?: string
+          transaction_type?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bank_transactions_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "bank_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customers: {
         Row: {
           address: string | null
@@ -275,6 +456,278 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      purchase_items: {
+        Row: {
+          created_at: string | null
+          discount_amount: number | null
+          discount_percentage: number | null
+          id: string
+          line_total: number
+          product_code: string | null
+          product_id: string | null
+          product_name: string
+          purchase_id: string | null
+          quantity: number
+          tax_amount: number
+          tax_rate: number | null
+          unit_price: number
+        }
+        Insert: {
+          created_at?: string | null
+          discount_amount?: number | null
+          discount_percentage?: number | null
+          id?: string
+          line_total: number
+          product_code?: string | null
+          product_id?: string | null
+          product_name: string
+          purchase_id?: string | null
+          quantity: number
+          tax_amount: number
+          tax_rate?: number | null
+          unit_price: number
+        }
+        Update: {
+          created_at?: string | null
+          discount_amount?: number | null
+          discount_percentage?: number | null
+          id?: string
+          line_total?: number
+          product_code?: string | null
+          product_id?: string | null
+          product_name?: string
+          purchase_id?: string | null
+          quantity?: number
+          tax_amount?: number
+          tax_rate?: number | null
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_items_purchase_id_fkey"
+            columns: ["purchase_id"]
+            isOneToOne: false
+            referencedRelation: "purchases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      purchase_return_items: {
+        Row: {
+          created_at: string | null
+          id: string
+          line_total: number
+          original_quantity: number
+          product_id: string | null
+          product_name: string
+          return_id: string | null
+          return_quantity: number
+          tax_amount: number
+          tax_rate: number | null
+          unit_price: number
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          line_total: number
+          original_quantity: number
+          product_id?: string | null
+          product_name: string
+          return_id?: string | null
+          return_quantity: number
+          tax_amount: number
+          tax_rate?: number | null
+          unit_price: number
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          line_total?: number
+          original_quantity?: number
+          product_id?: string | null
+          product_name?: string
+          return_id?: string | null
+          return_quantity?: number
+          tax_amount?: number
+          tax_rate?: number | null
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_return_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_return_items_return_id_fkey"
+            columns: ["return_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_returns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      purchase_returns: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          id: string
+          notes: string | null
+          original_purchase_id: string | null
+          original_purchase_number: string
+          reason: string
+          refund_amount: number | null
+          refund_method: string | null
+          return_date: string
+          return_number: string
+          status: string | null
+          subtotal: number
+          supplier_id: string | null
+          supplier_name: string
+          tax_amount: number
+          total_amount: number
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          original_purchase_id?: string | null
+          original_purchase_number: string
+          reason: string
+          refund_amount?: number | null
+          refund_method?: string | null
+          return_date: string
+          return_number: string
+          status?: string | null
+          subtotal: number
+          supplier_id?: string | null
+          supplier_name: string
+          tax_amount: number
+          total_amount: number
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          original_purchase_id?: string | null
+          original_purchase_number?: string
+          reason?: string
+          refund_amount?: number | null
+          refund_method?: string | null
+          return_date?: string
+          return_number?: string
+          status?: string | null
+          subtotal?: number
+          supplier_id?: string | null
+          supplier_name?: string
+          tax_amount?: number
+          total_amount?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_returns_original_purchase_id_fkey"
+            columns: ["original_purchase_id"]
+            isOneToOne: false
+            referencedRelation: "purchases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_returns_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      purchases: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          discount_amount: number | null
+          due_date: string | null
+          id: string
+          notes: string | null
+          paid_amount: number | null
+          payment_method: string | null
+          payment_status: string | null
+          purchase_date: string
+          purchase_number: string
+          status: string | null
+          subtotal: number
+          supplier_id: string | null
+          supplier_name: string
+          supplier_vat: string | null
+          tax_amount: number
+          total_amount: number
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          discount_amount?: number | null
+          due_date?: string | null
+          id?: string
+          notes?: string | null
+          paid_amount?: number | null
+          payment_method?: string | null
+          payment_status?: string | null
+          purchase_date: string
+          purchase_number: string
+          status?: string | null
+          subtotal: number
+          supplier_id?: string | null
+          supplier_name: string
+          supplier_vat?: string | null
+          tax_amount: number
+          total_amount: number
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          discount_amount?: number | null
+          due_date?: string | null
+          id?: string
+          notes?: string | null
+          paid_amount?: number | null
+          payment_method?: string | null
+          payment_status?: string | null
+          purchase_date?: string
+          purchase_number?: string
+          status?: string | null
+          subtotal?: number
+          supplier_id?: string | null
+          supplier_name?: string
+          supplier_vat?: string | null
+          tax_amount?: number
+          total_amount?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchases_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       quotation_items: {
         Row: {
