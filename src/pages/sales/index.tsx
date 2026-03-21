@@ -4,7 +4,7 @@ import { DashboardLayout } from "@/components/layouts/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Plus, Search, Filter, Download, Eye, Edit, Trash2 } from "lucide-react";
+import { Plus, Search, Filter, Download, Eye, Edit, Trash2, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Invoice, InvoiceStatus } from "@/types";
 import Link from "next/link";
@@ -101,12 +101,20 @@ export default function SalesPage() {
               <h1 className="text-3xl font-bold font-heading">Sales Management</h1>
               <p className="text-muted-foreground mt-1">Create and manage sales invoices</p>
             </div>
-            <Link href="/sales/create">
-              <Button size="lg">
-                <Plus className="h-5 w-5 mr-2" />
-                New Sales Invoice
-              </Button>
-            </Link>
+            <div className="flex gap-2">
+              <Link href="/sales/returns">
+                <Button variant="outline" size="lg">
+                  <RotateCcw className="h-5 w-5 mr-2" />
+                  Sales Returns
+                </Button>
+              </Link>
+              <Link href="/sales/create">
+                <Button size="lg">
+                  <Plus className="h-5 w-5 mr-2" />
+                  New Sales Invoice
+                </Button>
+              </Link>
+            </div>
           </div>
 
           {/* Stats Cards */}
