@@ -10,7 +10,6 @@ import { cn } from "@/lib/utils";
 import { Product } from "@/types";
 import Link from "next/link";
 import { excelService } from "@/services/excelService";
-import { toast } from "@/sonnerie";
 import { useToast } from "@/hooks/use-toast";
 import { productService } from "@/services/productService";
 import { Label } from "@/components/ui/label";

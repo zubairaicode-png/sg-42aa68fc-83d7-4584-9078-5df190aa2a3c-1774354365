@@ -4,10 +4,13 @@ import { DashboardLayout } from "@/components/layouts/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Plus, Search, Filter, Download, Eye, Edit, Trash2 } from "lucide-react";
+import { Plus, Search, Filter, Download, Eye, Edit, Trash2, Upload, FileSpreadsheet } from "lucide-react";
 import Link from "next/link";
 import { customerService } from "@/services/customerService";
 import type { Database } from "@/integrations/supabase/types";
+import { Label } from "@/components/ui/label";
+import { excelService } from "@/services/excelService";
+import { useToast } from "@/hooks/use-toast";
 
 type Customer = Database["public"]["Tables"]["customers"]["Row"];
 
@@ -15,6 +18,7 @@ export default function CustomersPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
 
   useEffect(() => {
     loadCustomers();
@@ -44,6 +48,35 @@ export default function CustomersPage() {
     }
   };
 
+  const handleExportExcel = () => {
+    try {
+      excelService.exportCustomers(customers as any);
+      toast({ title: "Success", description: "Customers exported successfully" });
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to export customers", variant: "destructive" });
+    }
+  };
+
+  const handleImportExcel = async (file: File) => {
+    try {
+      setLoading(true);
+      const imported = await excelService.importCustomers(file);
+      for (const customer of imported) {
+        await customerService.create(customer as any);
+      }
+      toast({ title: "Success", description: `Imported ${imported.length} customers successfully` });
+      loadCustomers();
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to import customers", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDownloadTemplate = () => {
+    excelService.downloadTemplate("customers");
+  };
+
   const filteredCustomers = customers.filter(customer =>
     customer.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     customer.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -59,17 +92,45 @@ export default function CustomersPage() {
       <DashboardLayout>
         <div className="space-y-6">
           {/* Header */}
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
               <h1 className="text-3xl font-bold font-heading">Customers</h1>
               <p className="text-muted-foreground mt-1">Manage your customer database</p>
             </div>
-            <Link href="/customers/create">
-              <Button size="lg">
-                <Plus className="h-5 w-5 mr-2" />
-                Add Customer
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={handleDownloadTemplate} className="hidden sm:flex">
+                <FileSpreadsheet className="h-4 w-4 mr-2" />
+                Template
               </Button>
-            </Link>
+              <Label htmlFor="import-customers" className="cursor-pointer mb-0">
+                <Button variant="outline" asChild>
+                  <span>
+                    <Upload className="h-4 w-4 mr-2" />
+                    Import
+                  </span>
+                </Button>
+              </Label>
+              <Input
+                id="import-customers"
+                type="file"
+                accept=".xlsx,.xls"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleImportExcel(file);
+                }}
+              />
+              <Button variant="outline" onClick={handleExportExcel}>
+                <Download className="h-4 w-4 mr-2" />
+                Export
+              </Button>
+              <Link href="/customers/create">
+                <Button>
+                  <Plus className="h-5 w-5 mr-2" />
+                  Add Customer
+                </Button>
+              </Link>
+            </div>
           </div>
 
           {/* Stats Cards */}
