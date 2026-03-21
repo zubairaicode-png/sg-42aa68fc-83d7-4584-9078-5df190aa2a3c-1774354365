@@ -116,3 +116,4 @@ export interface DashboardStats {
 
 export type InvoiceStatus = "draft" | "pending" | "paid" | "overdue" | "cancelled";
 export type PaymentMethod = "cash" | "bank" | "cheque" | "card";
+export type AccountType = "asset" | "liability" | "equity" | "revenue" | "expense";
