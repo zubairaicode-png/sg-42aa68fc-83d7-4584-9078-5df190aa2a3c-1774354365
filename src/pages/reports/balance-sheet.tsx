@@ -87,7 +87,7 @@ export default function BalanceSheetPage() {
       // Fetch accounts payable (unpaid expenses)
       const { data: unpaidExpenses, error: expensesError } = await supabase
         .from("expenses")
-        .select("total_amount")
+        .select("amount")
         .lte("expense_date", asOfDate)
         .neq("status", "paid");
 
@@ -103,7 +103,7 @@ export default function BalanceSheetPage() {
         return sum + (qty * price);
       }, 0) || 0;
       
-      const accountsPayable = unpaidExpenses?.reduce((sum, exp) => sum + exp.total_amount, 0) || 0;
+      const accountsPayable = unpaidExpenses?.reduce((sum, exp) => sum + exp.amount, 0) || 0;
 
       // Simulate cash (would come from accounting system)
       const cash = 50000;
