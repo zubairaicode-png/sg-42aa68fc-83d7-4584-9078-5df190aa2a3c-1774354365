@@ -1,4 +1,4 @@
- 
+/* eslint-disable @typescript-eslint/no-empty-object-type */
 export type Json =
   | string
   | number
@@ -202,6 +202,7 @@ export type Database = {
           email: string | null
           full_name: string | null
           id: string
+          role: string | null
           updated_at: string | null
         }
         Insert: {
@@ -210,6 +211,7 @@ export type Database = {
           email?: string | null
           full_name?: string | null
           id: string
+          role?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -218,9 +220,143 @@ export type Database = {
           email?: string | null
           full_name?: string | null
           id?: string
+          role?: string | null
           updated_at?: string | null
         }
         Relationships: []
+      }
+      quotation_items: {
+        Row: {
+          created_at: string | null
+          description: string
+          id: string
+          product_id: string
+          quantity: number
+          quotation_id: string
+          total_amount: number
+          unit_price: number
+          vat_amount: number
+          vat_rate: number
+        }
+        Insert: {
+          created_at?: string | null
+          description: string
+          id?: string
+          product_id: string
+          quantity: number
+          quotation_id: string
+          total_amount?: number
+          unit_price: number
+          vat_amount?: number
+          vat_rate?: number
+        }
+        Update: {
+          created_at?: string | null
+          description?: string
+          id?: string
+          product_id?: string
+          quantity?: number
+          quotation_id?: string
+          total_amount?: number
+          unit_price?: number
+          vat_amount?: number
+          vat_rate?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quotation_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quotation_items_quotation_id_fkey"
+            columns: ["quotation_id"]
+            isOneToOne: false
+            referencedRelation: "quotations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quotations: {
+        Row: {
+          converted_at: string | null
+          converted_to_invoice_id: string | null
+          created_at: string | null
+          created_by: string | null
+          customer_id: string
+          id: string
+          notes: string | null
+          quotation_date: string
+          quotation_number: string
+          status: string
+          subtotal: number
+          terms_conditions: string | null
+          total_amount: number
+          updated_at: string | null
+          valid_until: string
+          vat_amount: number
+        }
+        Insert: {
+          converted_at?: string | null
+          converted_to_invoice_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          customer_id: string
+          id?: string
+          notes?: string | null
+          quotation_date?: string
+          quotation_number: string
+          status?: string
+          subtotal?: number
+          terms_conditions?: string | null
+          total_amount?: number
+          updated_at?: string | null
+          valid_until: string
+          vat_amount?: number
+        }
+        Update: {
+          converted_at?: string | null
+          converted_to_invoice_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          customer_id?: string
+          id?: string
+          notes?: string | null
+          quotation_date?: string
+          quotation_number?: string
+          status?: string
+          subtotal?: number
+          terms_conditions?: string | null
+          total_amount?: number
+          updated_at?: string | null
+          valid_until?: string
+          vat_amount?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quotations_converted_to_invoice_id_fkey"
+            columns: ["converted_to_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "sales_invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quotations_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quotations_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       sales_invoice_items: {
         Row: {
@@ -649,7 +785,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      generate_quotation_number: { Args: never; Returns: string }
     }
     Enums: {
       [_ in never]: never
