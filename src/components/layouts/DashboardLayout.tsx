@@ -18,6 +18,7 @@ import {
   Menu,
   X,
   ChevronDown,
+  FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -39,6 +40,7 @@ const navItems = [
   { href: "/", icon: Home, label: "Dashboard" },
   { href: "/sales", icon: ShoppingCart, label: "Sales" },
   { href: "/sales/returns", icon: RotateCcw, label: "Sales Returns" },
+  { href: "/quotations", icon: FileText, label: "Quotations" },
   { href: "/purchases", icon: Package, label: "Purchases" },
   { href: "/inventory", icon: Package, label: "Inventory" },
   { href: "/customers", icon: Users, label: "Customers" },
