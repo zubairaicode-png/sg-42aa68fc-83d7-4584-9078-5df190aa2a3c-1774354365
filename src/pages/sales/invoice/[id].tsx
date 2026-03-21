@@ -7,6 +7,8 @@ import { Card } from "@/components/ui/card";
 import { Printer, Download, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import QRCode from "qrcode";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 
 interface InvoiceData {
   id: string;
@@ -144,6 +146,71 @@ export default function InvoiceViewPage() {
     window.print();
   };
 
+  const handleDownloadPDF = async () => {
+    if (!invoiceRef.current) return;
+
+    try {
+      // Show loading state
+      const button = document.querySelector('[data-pdf-button]') as HTMLButtonElement;
+      if (button) {
+        button.disabled = true;
+        button.textContent = 'Generating PDF...';
+      }
+
+      // Hide action buttons before capturing
+      const actionButtons = document.querySelector('.no-print');
+      if (actionButtons) {
+        (actionButtons as HTMLElement).style.display = 'none';
+      }
+
+      // Capture the invoice content as canvas
+      const canvas = await html2canvas(invoiceRef.current, {
+        scale: 2, // Higher quality
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff'
+      });
+
+      // Show action buttons again
+      if (actionButtons) {
+        (actionButtons as HTMLElement).style.display = 'flex';
+      }
+
+      // Calculate PDF dimensions (A4 size)
+      const imgWidth = 210; // A4 width in mm
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      
+      // Create PDF
+      const pdf = new jsPDF({
+        orientation: imgHeight > imgWidth ? 'portrait' : 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      const imgData = canvas.toDataURL('image/png');
+      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+
+      // Save PDF with invoice number as filename
+      pdf.save(`${invoice.invoiceNumber}_ZATCA_Invoice.pdf`);
+
+      // Reset button state
+      if (button) {
+        button.disabled = false;
+        button.innerHTML = '<svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>Download PDF';
+      }
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('Failed to generate PDF. Please try again.');
+      
+      // Reset button state on error
+      const button = document.querySelector('[data-pdf-button]') as HTMLButtonElement;
+      if (button) {
+        button.disabled = false;
+        button.innerHTML = '<svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>Download PDF';
+      }
+    }
+  };
+
   if (!invoice || !companyInfo) {
     return (
       <DashboardLayout>
@@ -175,7 +242,7 @@ export default function InvoiceViewPage() {
                 <Printer className="mr-2 h-4 w-4" />
                 Print Invoice
               </Button>
-              <Button>
+              <Button onClick={handleDownloadPDF} data-pdf-button>
                 <Download className="mr-2 h-4 w-4" />
                 Download PDF
               </Button>
