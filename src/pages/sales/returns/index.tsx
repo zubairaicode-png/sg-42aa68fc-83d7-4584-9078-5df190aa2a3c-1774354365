@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { SEO } from "@/components/SEO";
 import { DashboardLayout } from "@/components/layouts/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -7,81 +7,77 @@ import { Input } from "@/components/ui/input";
 import { Plus, Search, Filter, Download, Eye, Edit, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
-
-interface SalesReturn {
-  id: string;
-  returnNumber: string;
-  originalInvoiceNumber: string;
-  customerId: string;
-  customerName: string;
-  date: string;
-  items: Array<{
-    productName: string;
-    quantity: number;
-    unitPrice: number;
-    total: number;
-  }>;
-  subtotal: number;
-  taxAmount: number;
-  total: number;
-  refundAmount: number;
-  status: "pending" | "approved" | "refunded" | "cancelled";
-  reason: string;
-  createdAt: string;
-}
+import { useToast } from "@/hooks/use-toast";
+import { salesReturnService } from "@/services/salesReturnService";
 
 export default function SalesReturnsPage() {
+  const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
-  
-  // Mock data - will be replaced with real data
-  const salesReturns: SalesReturn[] = [
-    {
-      id: "1",
-      returnNumber: "RET-2026-00001",
-      originalInvoiceNumber: "INV-2026-00123",
-      customerId: "1",
-      customerName: "Al-Rajhi Trading Co.",
-      date: "2026-03-21",
-      items: [
-        {
-          productName: "HP LaserJet Printer",
-          quantity: 1,
-          unitPrice: 1500,
-          total: 1725,
-        },
-      ],
-      subtotal: 1500,
-      taxAmount: 225,
-      total: 1725,
-      refundAmount: 1725,
-      status: "approved",
-      reason: "Defective product",
-      createdAt: "2026-03-21T10:00:00Z",
-    },
-    {
-      id: "2",
-      returnNumber: "RET-2026-00002",
-      originalInvoiceNumber: "INV-2026-00120",
-      customerId: "2",
-      customerName: "Najd Commercial Est.",
-      date: "2026-03-20",
-      items: [
-        {
-          productName: "Office Chair Executive",
-          quantity: 2,
-          unitPrice: 850,
-          total: 1955,
-        },
-      ],
-      subtotal: 1700,
-      taxAmount: 255,
-      total: 1955,
-      refundAmount: 0,
-      status: "pending",
-      reason: "Wrong item delivered",
-      createdAt: "2026-03-20T14:30:00Z",
-    },
-  ];
+  const [salesReturns, setSalesReturns] = useState<any[]>([]);
+  const [filteredReturns, setFilteredReturns] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadSalesReturns();
+  }, []);
+
+  useEffect(() => {
+    if (searchQuery.trim() === "") {
+      setFilteredReturns(salesReturns);
+    } else {
+      const query = searchQuery.toLowerCase();
+      const filtered = salesReturns.filter(
+        (returnItem) =>
+          returnItem.return_number?.toLowerCase().includes(query) ||
+          returnItem.original_invoice_number?.toLowerCase().includes(query) ||
+          returnItem.customer_name?.toLowerCase().includes(query) ||
+          returnItem.status?.toLowerCase().includes(query)
+      );
+      setFilteredReturns(filtered);
+    }
+  }, [searchQuery, salesReturns]);
+
+  const loadSalesReturns = async () => {
+    try {
+      setLoading(true);
+      console.log("Loading sales returns...");
+      const data = await salesReturnService.getAll();
+      console.log("Sales returns loaded:", data);
+      setSalesReturns(data);
+      setFilteredReturns(data);
+    } catch (error: any) {
+      console.error("Error loading sales returns:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load sales returns",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this sales return?")) {
+      return;
+    }
+
+    try {
+      await salesReturnService.delete(id);
+      toast({
+        title: "Success",
+        description: "Sales return deleted successfully",
+      });
+      loadSalesReturns(); // Reload list after delete
+    } catch (error: any) {
+      console.error("Error deleting sales return:", error);
+      toast({
+        title: "Error",
+        description: "Failed to delete sales return",
+        variant: "destructive",
+      });
+    }
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -93,11 +89,15 @@ export default function SalesReturnsPage() {
     }
   };
 
+  const formatStatus = (status: string) => {
+    return status.charAt(0).toUpperCase() + status.slice(1);
+  };
+
   const stats = {
-    totalReturns: salesReturns.length,
-    pendingReturns: salesReturns.filter(r => r.status === "pending").length,
-    totalRefunded: salesReturns.filter(r => r.status === "refunded").reduce((sum, r) => sum + r.refundAmount, 0),
-    totalPendingAmount: salesReturns.filter(r => r.status === "pending" || r.status === "approved").reduce((sum, r) => sum + r.total, 0),
+    totalReturns: filteredReturns.length,
+    pendingReturns: filteredReturns.filter(r => r.status === "pending").length,
+    totalRefunded: filteredReturns.filter(r => r.status === "refunded").reduce((sum, r) => sum + (r.refund_amount || 0), 0),
+    totalPendingAmount: filteredReturns.filter(r => r.status === "pending" || r.status === "approved").reduce((sum, r) => sum + (r.total_amount || 0), 0),
   };
 
   return (
@@ -200,38 +200,60 @@ export default function SalesReturnsPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {salesReturns.map((returnItem) => (
-                        <tr key={returnItem.id} className="border-t hover:bg-table-row-hover transition-colors">
-                          <td className="p-4 font-medium">{returnItem.returnNumber}</td>
-                          <td className="p-4 text-primary">{returnItem.originalInvoiceNumber}</td>
-                          <td className="p-4">{returnItem.customerName}</td>
-                          <td className="p-4 text-sm">{returnItem.date}</td>
-                          <td className="p-4 text-sm">{returnItem.reason}</td>
-                          <td className="p-4 text-right font-semibold">SAR {returnItem.total.toLocaleString()}</td>
-                          <td className="p-4 text-right">SAR {returnItem.refundAmount.toLocaleString()}</td>
-                          <td className="p-4 text-center">
-                            <span className={cn(
-                              "inline-block px-3 py-1 rounded-full text-xs font-medium capitalize",
-                              getStatusColor(returnItem.status)
-                            )}>
-                              {returnItem.status}
-                            </span>
-                          </td>
-                          <td className="p-4">
+                      {loading ? (
+                        <tr>
+                          <td colSpan={9} className="p-8 text-center">
                             <div className="flex items-center justify-center gap-2">
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive">
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
+                              <div className="h-5 w-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                              <span className="text-muted-foreground">Loading sales returns...</span>
                             </div>
                           </td>
                         </tr>
-                      ))}
+                      ) : filteredReturns.length === 0 ? (
+                        <tr>
+                          <td colSpan={9} className="p-8 text-center text-muted-foreground">
+                            {searchQuery ? "No sales returns found matching your search" : "No sales returns yet"}
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredReturns.map((returnItem) => (
+                          <tr key={returnItem.id} className="border-t hover:bg-table-row-hover transition-colors">
+                            <td className="p-4 font-medium">{returnItem.return_number}</td>
+                            <td className="p-4 text-primary">{returnItem.original_invoice_number}</td>
+                            <td className="p-4">{returnItem.customer_name}</td>
+                            <td className="p-4 text-sm">{new Date(returnItem.return_date).toLocaleDateString()}</td>
+                            <td className="p-4 text-sm">{returnItem.reason}</td>
+                            <td className="p-4 text-right font-semibold">SAR {returnItem.total_amount?.toLocaleString() || "0"}</td>
+                            <td className="p-4 text-right">SAR {returnItem.refund_amount?.toLocaleString() || "0"}</td>
+                            <td className="p-4 text-center">
+                              <span className={cn(
+                                "inline-block px-3 py-1 rounded-full text-xs font-medium capitalize",
+                                getStatusColor(returnItem.status)
+                              )}>
+                                {formatStatus(returnItem.status)}
+                              </span>
+                            </td>
+                            <td className="p-4">
+                              <div className="flex items-center justify-center gap-2">
+                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  className="h-8 w-8 text-destructive hover:text-destructive"
+                                  onClick={() => handleDelete(returnItem.id)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>
