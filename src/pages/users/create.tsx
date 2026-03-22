@@ -41,16 +41,24 @@ export default function CreateUserPage() {
 
   const loadLocations = async () => {
     try {
+      console.log("Starting to load business locations...");
+      
       const { data, error } = await supabase
         .from("business_locations")
         .select("*")
         .eq("status", "active")
         .order("location_name", { ascending: true });
 
+      console.log("Business locations query result:", { data, error });
+
       if (error) throw error;
       
       console.log("Loaded business locations:", data);
       setLocations(data || []);
+      
+      if (!data || data.length === 0) {
+        console.warn("No business locations found in database");
+      }
     } catch (error: any) {
       console.error("Error loading locations:", error);
       toast({
