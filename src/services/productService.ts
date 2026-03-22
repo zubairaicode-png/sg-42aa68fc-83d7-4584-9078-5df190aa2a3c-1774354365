@@ -118,7 +118,7 @@ export const productService = {
     const { data, error } = await supabase
       .from("products")
       .select("*")
-      .or(`name.ilike.%${query}%,sku.ilike.%${query}%,barcode.ilike.%${query}%`)
+      .or(`name.ilike.%${query}%,product_code.ilike.%${query}%,barcode.ilike.%${query}%,serial_number.ilike.%${query}%`)
       .order("created_at", { ascending: false });
 
     if (error) {

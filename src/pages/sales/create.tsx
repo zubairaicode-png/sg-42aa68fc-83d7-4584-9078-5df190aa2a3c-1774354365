@@ -176,7 +176,7 @@ export default function CreateSalesInvoicePage() {
     const query = productSearchQuery.toLowerCase();
     return products.filter(p => 
       p.name.toLowerCase().includes(query) ||
-      p.sku.toLowerCase().includes(query) ||
+      (p.product_code && p.product_code.toLowerCase().includes(query)) ||
       (p.serial_number && p.serial_number.toLowerCase().includes(query)) ||
       (p.description && p.description.toLowerCase().includes(query))
     );
@@ -544,7 +544,7 @@ export default function CreateSalesInvoicePage() {
                                     >
                                       <div className="font-medium">{product.name}</div>
                                       <div className="text-xs text-muted-foreground">
-                                        SKU: {product.sku} | Stock: {product.stock_quantity}
+                                        Code: {product.product_code} | Stock: {product.stock_quantity}
                                         {product.serial_number && ` | S/N: ${product.serial_number}`}
                                       </div>
                                     </button>
