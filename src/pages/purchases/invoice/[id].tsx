@@ -9,7 +9,6 @@ import Link from "next/link";
 import QRCode from "qrcode";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
-import { salesService } from "@/services/salesService";
 import { useToast } from "@/hooks/use-toast";
 import { PaymentDialog } from "@/components/PaymentDialog";
 import { generatePaymentReceipt, generateReceiptNumber } from "@/lib/paymentReceiptGenerator";
@@ -20,17 +19,17 @@ interface InvoiceData {
   invoice_number: string;
   invoice_date: string;
   due_date: string;
-  customer_name: string;
-  customer_name_ar?: string;
-  customer_vat?: string;
-  customer_cr?: string;
-  customer_building?: string;
-  customer_street?: string;
-  customer_additional?: string;
-  customer_postal?: string;
-  customer_city?: string;
-  customer_phone?: string;
-  customer_email?: string;
+  supplier_name: string;
+  supplier_name_ar?: string;
+  supplier_vat?: string;
+  supplier_cr?: string;
+  supplier_building?: string;
+  supplier_street?: string;
+  supplier_additional?: string;
+  supplier_postal?: string;
+  supplier_city?: string;
+  supplier_phone?: string;
+  supplier_email?: string;
   items: Array<{
     item_code?: string;
     description: string;
@@ -48,7 +47,7 @@ interface InvoiceData {
   paid_amount: number;
 }
 
-export default function InvoiceViewPage() {
+export default function PurchaseInvoiceViewPage() {
   const router = useRouter();
   const { id } = router.query;
   const [invoice, setInvoice] = useState<InvoiceData | null>(null);
@@ -92,34 +91,34 @@ export default function InvoiceViewPage() {
   const loadInvoice = async (invoiceId: string) => {
     try {
       setLoading(true);
-      console.log("Loading invoice:", invoiceId);
+      console.log("Loading purchase invoice:", invoiceId);
       
       const { data, error } = await supabase
-        .from("sales_invoices")
+        .from("purchase_invoices")
         .select(`
           *,
-          items:sales_invoice_items(*)
+          items:purchase_invoice_items(*)
         `)
         .eq("id", invoiceId)
         .single();
 
       if (error) {
-        console.error("Error loading invoice:", error);
+        console.error("Error loading purchase invoice:", error);
         toast({
           title: "Error",
-          description: "Failed to load invoice details",
+          description: "Failed to load purchase invoice details",
           variant: "destructive",
         });
         return;
       }
 
-      console.log("Invoice loaded:", data);
+      console.log("Purchase invoice loaded:", data);
       setInvoice(data as InvoiceData);
     } catch (error: any) {
-      console.error("Error loading invoice:", error);
+      console.error("Error loading purchase invoice:", error);
       toast({
         title: "Error",
-        description: "Failed to load invoice details",
+        description: "Failed to load purchase invoice details",
         variant: "destructive",
       });
     } finally {
@@ -164,7 +163,7 @@ export default function InvoiceViewPage() {
       }
 
       const { error } = await supabase
-        .from("sales_invoices")
+        .from("purchase_invoices")
         .update({
           paid_amount: newPaidAmount,
           payment_status: newStatus,
@@ -177,14 +176,14 @@ export default function InvoiceViewPage() {
         receiptNumber: generateReceiptNumber(),
         paymentDate: new Date().toLocaleDateString(),
         invoiceNumber: invoice.invoice_number,
-        customerName: invoice.customer_name,
-        customerVat: invoice.customer_vat,
+        supplierName: invoice.supplier_name,
+        supplierVat: invoice.supplier_vat,
         paymentAmount: paymentAmount,
         paymentMethod: paymentMethod,
         previousBalance: totalAmount - parseFloat(invoice.paid_amount || 0),
         newBalance: newBalance,
         notes: notes,
-        type: "sales",
+        type: "purchase",
       });
 
       toast({
@@ -246,7 +245,7 @@ export default function InvoiceViewPage() {
       const imgData = canvas.toDataURL('image/png');
       pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
 
-      pdf.save(`${invoice?.invoice_number}_ZATCA_Invoice.pdf`);
+      pdf.save(`${invoice?.invoice_number}_Purchase_Invoice.pdf`);
 
       if (button) {
         button.disabled = false;
@@ -270,7 +269,7 @@ export default function InvoiceViewPage() {
         <div className="flex items-center justify-center h-96">
           <div className="flex items-center gap-2">
             <div className="h-5 w-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-            <p className="text-muted-foreground">Loading invoice...</p>
+            <p className="text-muted-foreground">Loading purchase invoice...</p>
           </div>
         </div>
       </DashboardLayout>
@@ -280,17 +279,17 @@ export default function InvoiceViewPage() {
   return (
     <>
       <SEO 
-        title={`Invoice ${invoice.invoice_number}`}
-        description="View and print invoice"
+        title={`Purchase Invoice ${invoice.invoice_number}`}
+        description="View and print purchase invoice"
       />
       <DashboardLayout>
         <div className="space-y-4">
           {/* Action Buttons */}
           <div className="no-print flex items-center justify-between">
-            <Link href="/sales">
+            <Link href="/purchases">
               <Button variant="outline">
                 <ArrowLeft className="mr-2 h-4 w-4" />
-                Back to Sales
+                Back to Purchases
               </Button>
             </Link>
             <div className="flex gap-2">
@@ -332,9 +331,9 @@ export default function InvoiceViewPage() {
                     <p>Email: {companyInfo.email} | Phone: {companyInfo.phone}</p>
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <h2 className="text-4xl font-bold">INVOICE</h2>
-                  <p className="text-2xl font-semibold text-primary" dir="rtl">فاتورة ضريبية</p>
+                <div className="text-right space-y-2">
+                  <h2 className="text-4xl font-bold">PURCHASE INVOICE</h2>
+                  <p className="text-2xl font-semibold text-primary" dir="rtl">فاتورة مشتريات</p>
                   <div className="text-sm space-y-1 mt-4">
                     <p><span className="font-semibold">Invoice No:</span> {invoice.invoice_number}</p>
                     <p><span className="font-semibold">Date:</span> {new Date(invoice.invoice_date).toLocaleDateString()}</p>
@@ -344,36 +343,36 @@ export default function InvoiceViewPage() {
                 </div>
               </div>
 
-              {/* Company & Customer Details */}
+              {/* Company & Supplier Details */}
               <div className="grid grid-cols-2 gap-8">
                 <div>
-                  <h3 className="font-semibold text-lg mb-3 text-primary">Seller Information / بيانات البائع</h3>
+                  <h3 className="font-semibold text-lg mb-3 text-primary">Buyer Information / بيانات المشتري</h3>
                   <div className="text-sm space-y-1 bg-muted/30 p-4 rounded">
                     <p><span className="font-semibold">VAT No / الرقم الضريبي:</span> {companyInfo.vatNumber}</p>
                     <p><span className="font-semibold">CR No / السجل التجاري:</span> {companyInfo.crNumber}</p>
                   </div>
                 </div>
                 <div>
-                  <h3 className="font-semibold text-lg mb-3 text-primary">Bill To / الفاتورة إلى</h3>
+                  <h3 className="font-semibold text-lg mb-3 text-primary">Supplier / المورد</h3>
                   <div className="text-sm space-y-1 bg-muted/30 p-4 rounded">
-                    <p className="font-semibold text-base">{invoice.customer_name}</p>
-                    {invoice.customer_name_ar && (
-                      <p className="font-semibold" dir="rtl">{invoice.customer_name_ar}</p>
+                    <p className="font-semibold text-base">{invoice.supplier_name}</p>
+                    {invoice.supplier_name_ar && (
+                      <p className="font-semibold" dir="rtl">{invoice.supplier_name_ar}</p>
                     )}
-                    {invoice.customer_vat && (
-                      <p><span className="font-semibold">VAT No:</span> {invoice.customer_vat}</p>
+                    {invoice.supplier_vat && (
+                      <p><span className="font-semibold">VAT No:</span> {invoice.supplier_vat}</p>
                     )}
-                    {invoice.customer_cr && (
-                      <p><span className="font-semibold">CR No:</span> {invoice.customer_cr}</p>
+                    {invoice.supplier_cr && (
+                      <p><span className="font-semibold">CR No:</span> {invoice.supplier_cr}</p>
                     )}
-                    {invoice.customer_building && invoice.customer_street && (
-                      <p>{invoice.customer_building} {invoice.customer_street}, {invoice.customer_additional}</p>
+                    {invoice.supplier_building && invoice.supplier_street && (
+                      <p>{invoice.supplier_building} {invoice.supplier_street}, {invoice.supplier_additional}</p>
                     )}
-                    {invoice.customer_city && invoice.customer_postal && (
-                      <p>{invoice.customer_city} {invoice.customer_postal}</p>
+                    {invoice.supplier_city && invoice.supplier_postal && (
+                      <p>{invoice.supplier_city} {invoice.supplier_postal}</p>
                     )}
-                    {invoice.customer_email && invoice.customer_phone && (
-                      <p>{invoice.customer_email} | {invoice.customer_phone}</p>
+                    {invoice.supplier_email && invoice.supplier_phone && (
+                      <p>{invoice.supplier_email} | {invoice.supplier_phone}</p>
                     )}
                   </div>
                 </div>
@@ -474,8 +473,8 @@ export default function InvoiceViewPage() {
 
               {/* ZATCA Compliance Footer */}
               <div className="text-center text-xs text-muted-foreground border-t pt-4">
-                <p>This is a tax invoice issued in accordance with Saudi ZATCA e-invoicing regulations</p>
-                <p dir="rtl">هذه فاتورة ضريبية صادرة وفقاً لأنظمة الفوترة الإلكترونية السعودية</p>
+                <p>This is a purchase invoice issued in accordance with Saudi regulations</p>
+                <p dir="rtl">هذه فاتورة مشتريات صادرة وفقاً للأنظمة السعودية</p>
               </div>
             </div>
           </Card>
@@ -485,7 +484,7 @@ export default function InvoiceViewPage() {
           open={paymentDialogOpen}
           onOpenChange={setPaymentDialogOpen}
           invoice={invoice}
-          type="sales"
+          type="purchase"
           onPaymentRecorded={handleRecordPayment}
         />
       </DashboardLayout>
