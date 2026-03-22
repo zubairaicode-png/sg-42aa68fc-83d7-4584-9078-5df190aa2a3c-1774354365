@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Building2, FileText, DollarSign, Palette, Loader2, Upload, Save, Receipt } from "lucide-react";
+import { Building2, FileText, DollarSign, Palette, Loader2, Upload, Save, Receipt, Plus } from "lucide-react";
 import { InvoiceLayoutDesigner, LayoutField } from "@/components/InvoiceLayoutDesigner";
 import {
   Select,
@@ -20,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 
 export default function SettingsPage() {
   const [isSaving, setIsSaving] = useState(false);
@@ -75,6 +76,40 @@ export default function SettingsPage() {
     allowPostingToPreviousYear: false,
   });
 
+  // Business Locations State
+  const [businessLocations, setBusinessLocations] = useState([
+    {
+      id: "1",
+      name: "Main Branch",
+      name_ar: "الفرع الرئيسي",
+      buildingNumber: "1234",
+      streetName: "King Fahd Road",
+      district: "Al Olaya",
+      additionalNumber: "5678",
+      postalCode: "12345",
+      city: "Riyadh",
+      country: "Saudi Arabia",
+      phone: "+966 50 000 0000",
+      email: "main@company.com",
+      isDefault: true,
+    }
+  ]);
+
+  const [newLocation, setNewLocation] = useState({
+    name: "",
+    name_ar: "",
+    buildingNumber: "",
+    streetName: "",
+    district: "",
+    additionalNumber: "",
+    postalCode: "",
+    city: "",
+    country: "Saudi Arabia",
+    phone: "",
+    email: "",
+    isDefault: false,
+  });
+
   // Layout designer state
   const [layoutFields, setLayoutFields] = useState<LayoutField[]>([]);
 
@@ -105,6 +140,12 @@ export default function SettingsPage() {
     const savedAccountingYear = localStorage.getItem("accountingYear");
     if (savedAccountingYear) {
       setAccountingYear(JSON.parse(savedAccountingYear));
+    }
+
+    // Load business locations
+    const savedLocations = localStorage.getItem("businessLocations");
+    if (savedLocations) {
+      setBusinessLocations(JSON.parse(savedLocations));
     }
   };
 
@@ -158,6 +199,82 @@ export default function SettingsPage() {
         description: "Fiscal year settings have been updated successfully",
       });
     }, 1000);
+  };
+
+  const handleAddLocation = () => {
+    if (!newLocation.name || !newLocation.city) {
+      toast({
+        title: "Error",
+        description: "Please fill in location name and city",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const locationToAdd = {
+      ...newLocation,
+      id: Date.now().toString(),
+      isDefault: businessLocations.length === 0,
+    };
+
+    const updatedLocations = [...businessLocations, locationToAdd];
+    setBusinessLocations(updatedLocations);
+    localStorage.setItem("businessLocations", JSON.stringify(updatedLocations));
+    
+    // Reset form
+    setNewLocation({
+      name: "",
+      name_ar: "",
+      buildingNumber: "",
+      streetName: "",
+      district: "",
+      additionalNumber: "",
+      postalCode: "",
+      city: "",
+      country: "Saudi Arabia",
+      phone: "",
+      email: "",
+      isDefault: false,
+    });
+
+    toast({
+      title: "Location Added",
+      description: "Business location has been added successfully",
+    });
+  };
+
+  const handleSetDefaultLocation = (locationId: string) => {
+    const updatedLocations = businessLocations.map(loc => ({
+      ...loc,
+      isDefault: loc.id === locationId,
+    }));
+    setBusinessLocations(updatedLocations);
+    localStorage.setItem("businessLocations", JSON.stringify(updatedLocations));
+    
+    toast({
+      title: "Default Location Updated",
+      description: "Default business location has been changed",
+    });
+  };
+
+  const handleDeleteLocation = (locationId: string) => {
+    if (businessLocations.find(l => l.id === locationId)?.isDefault) {
+      toast({
+        title: "Error",
+        description: "Cannot delete default location. Set another location as default first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const updatedLocations = businessLocations.filter(loc => loc.id !== locationId);
+    setBusinessLocations(updatedLocations);
+    localStorage.setItem("businessLocations", JSON.stringify(updatedLocations));
+    
+    toast({
+      title: "Location Deleted",
+      description: "Business location has been removed",
+    });
   };
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -293,6 +410,7 @@ export default function SettingsPage() {
                 <TabsTrigger value="tax">Tax Settings</TabsTrigger>
                 <TabsTrigger value="invoice">Invoice Design</TabsTrigger>
                 <TabsTrigger value="accounting-year">Accounting Year</TabsTrigger>
+                <TabsTrigger value="locations">Business Locations</TabsTrigger>
               </TabsList>
 
               <TabsContent value="company">
@@ -1016,6 +1134,203 @@ export default function SettingsPage() {
                         <Save className="mr-2 h-4 w-4" />
                         {loading ? "Saving..." : "Save Accounting Year Settings"}
                       </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="locations">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Building2 className="h-5 w-5" />
+                      Business Locations & Branches
+                    </CardTitle>
+                    <CardDescription>
+                      Manage multiple business locations and branches for your organization
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    {/* Existing Locations List */}
+                    <div className="space-y-4">
+                      <h3 className="text-sm font-semibold">Active Business Locations</h3>
+                      {businessLocations.map((location) => (
+                        <Card key={location.id} className={cn(
+                          "p-4",
+                          location.isDefault && "border-primary"
+                        )}>
+                          <div className="flex items-start justify-between">
+                            <div className="space-y-2 flex-1">
+                              <div className="flex items-center gap-2">
+                                <h4 className="font-semibold">{location.name}</h4>
+                                {location.isDefault && (
+                                  <span className="text-xs bg-primary text-primary-foreground px-2 py-1 rounded">
+                                    Default
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-sm text-muted-foreground" dir="rtl">{location.name_ar}</p>
+                              <div className="text-sm space-y-1">
+                                <p>{location.buildingNumber} {location.streetName}</p>
+                                <p>{location.district}, {location.city} {location.postalCode}</p>
+                                <p>{location.country}</p>
+                                <p className="text-muted-foreground">
+                                  📞 {location.phone} | ✉️ {location.email}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex gap-2">
+                              {!location.isDefault && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleSetDefaultLocation(location.id)}
+                                >
+                                  Set as Default
+                                </Button>
+                              )}
+                              {!location.isDefault && (
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  onClick={() => handleDeleteLocation(location.id)}
+                                >
+                                  Delete
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        </Card>
+                      ))}
+                    </div>
+
+                    {/* Add New Location Form */}
+                    <div className="border-t pt-6">
+                      <h3 className="text-sm font-semibold mb-4">Add New Business Location</h3>
+                      <div className="space-y-4">
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label htmlFor="locName">Location Name (English) *</Label>
+                            <Input
+                              id="locName"
+                              value={newLocation.name}
+                              onChange={(e) => setNewLocation({ ...newLocation, name: e.target.value })}
+                              placeholder="e.g., North Branch"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="locNameAr">Location Name (Arabic) *</Label>
+                            <Input
+                              id="locNameAr"
+                              value={newLocation.name_ar}
+                              onChange={(e) => setNewLocation({ ...newLocation, name_ar: e.target.value })}
+                              placeholder="الفرع الشمالي"
+                              dir="rtl"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid gap-4 md:grid-cols-3">
+                          <div className="space-y-2">
+                            <Label htmlFor="locBuilding">Building Number *</Label>
+                            <Input
+                              id="locBuilding"
+                              value={newLocation.buildingNumber}
+                              onChange={(e) => setNewLocation({ ...newLocation, buildingNumber: e.target.value })}
+                              placeholder="1234"
+                              maxLength={4}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="locStreet">Street Name *</Label>
+                            <Input
+                              id="locStreet"
+                              value={newLocation.streetName}
+                              onChange={(e) => setNewLocation({ ...newLocation, streetName: e.target.value })}
+                              placeholder="King Fahd Road"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="locDistrict">District</Label>
+                            <Input
+                              id="locDistrict"
+                              value={newLocation.district}
+                              onChange={(e) => setNewLocation({ ...newLocation, district: e.target.value })}
+                              placeholder="Al Olaya"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid gap-4 md:grid-cols-3">
+                          <div className="space-y-2">
+                            <Label htmlFor="locAdditional">Additional Number</Label>
+                            <Input
+                              id="locAdditional"
+                              value={newLocation.additionalNumber}
+                              onChange={(e) => setNewLocation({ ...newLocation, additionalNumber: e.target.value })}
+                              placeholder="5678"
+                              maxLength={4}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="locPostal">Postal Code *</Label>
+                            <Input
+                              id="locPostal"
+                              value={newLocation.postalCode}
+                              onChange={(e) => setNewLocation({ ...newLocation, postalCode: e.target.value })}
+                              placeholder="12345"
+                              maxLength={5}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="locCity">City *</Label>
+                            <Input
+                              id="locCity"
+                              value={newLocation.city}
+                              onChange={(e) => setNewLocation({ ...newLocation, city: e.target.value })}
+                              placeholder="Riyadh"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid gap-4 md:grid-cols-3">
+                          <div className="space-y-2">
+                            <Label htmlFor="locCountry">Country</Label>
+                            <Input
+                              id="locCountry"
+                              value={newLocation.country}
+                              onChange={(e) => setNewLocation({ ...newLocation, country: e.target.value })}
+                              placeholder="Saudi Arabia"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="locPhone">Phone</Label>
+                            <Input
+                              id="locPhone"
+                              value={newLocation.phone}
+                              onChange={(e) => setNewLocation({ ...newLocation, phone: e.target.value })}
+                              placeholder="+966 50 000 0000"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="locEmail">Email</Label>
+                            <Input
+                              id="locEmail"
+                              type="email"
+                              value={newLocation.email}
+                              onChange={(e) => setNewLocation({ ...newLocation, email: e.target.value })}
+                              placeholder="branch@company.com"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex justify-end">
+                          <Button onClick={handleAddLocation}>
+                            <Plus className="mr-2 h-4 w-4" />
+                            Add Business Location
+                          </Button>
+                        </div>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>

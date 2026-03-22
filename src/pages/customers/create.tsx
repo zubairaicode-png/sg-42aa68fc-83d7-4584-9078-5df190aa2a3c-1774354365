@@ -33,6 +33,7 @@ export default function CreateCustomerPage() {
     address: "",
     country: "Saudi Arabia",
     status: "active" as "active" | "inactive",
+    openingBalance: 0,
   });
 
   useEffect(() => {
@@ -62,6 +63,7 @@ export default function CreateCustomerPage() {
           address: customer.address || "",
           country: customer.country || "Saudi Arabia",
           status: (customer.status as "active" | "inactive") || "active",
+          openingBalance: customer.opening_balance || 0,
         });
       }
     } catch (error) {
@@ -97,6 +99,7 @@ export default function CreateCustomerPage() {
         address: formData.address || null,
         country: formData.country,
         status: formData.status,
+        opening_balance: Number(formData.openingBalance) || 0,
       };
 
       if (id && typeof id === "string") {
@@ -224,6 +227,21 @@ export default function CreateCustomerPage() {
                       <SelectItem value="inactive">Inactive</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="openingBalance">Opening Balance (SAR)</Label>
+                  <Input
+                    id="openingBalance"
+                    type="number"
+                    step="0.01"
+                    value={formData.openingBalance}
+                    onChange={(e) => setFormData({ ...formData, openingBalance: parseFloat(e.target.value) || 0 })}
+                    placeholder="0.00"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Initial account balance for this customer
+                  </p>
                 </div>
               </div>
             </CardContent>

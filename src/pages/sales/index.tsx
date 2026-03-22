@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { SEO } from "@/components/SEO";
 import { DashboardLayout } from "@/components/layouts/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -8,67 +8,46 @@ import { Plus, Search, Filter, Download, Eye, Edit, Trash2, RotateCcw } from "lu
 import { cn } from "@/lib/utils";
 import { Invoice, InvoiceStatus } from "@/types";
 import Link from "next/link";
+import { salesService } from "@/services/salesService";
+import { customerService } from "@/services/customerService";
+import { useToast } from "@/hooks/use-toast";
 
 export default function SalesPage() {
   const [searchQuery, setSearchQuery] = useState("");
-  
-  // Mock data - will be replaced with real data
-  const salesInvoices: Invoice[] = [
-    {
-      id: "1",
-      invoiceNumber: "INV-2026-00125",
-      type: "sales",
-      customerId: "1",
-      date: "2026-03-21",
-      dueDate: "2026-04-05",
-      items: [],
-      subtotal: 15000,
-      taxAmount: 2250,
-      discountAmount: 0,
-      total: 17250,
-      paid: 17250,
-      balance: 0,
-      status: "paid",
-      createdAt: "2026-03-21T10:00:00Z",
-      updatedAt: "2026-03-21T10:00:00Z",
-    },
-    {
-      id: "2",
-      invoiceNumber: "INV-2026-00124",
-      type: "sales",
-      customerId: "2",
-      date: "2026-03-20",
-      dueDate: "2026-04-04",
-      items: [],
-      subtotal: 8500,
-      taxAmount: 1275,
-      discountAmount: 0,
-      total: 9775,
-      paid: 0,
-      balance: 9775,
-      status: "pending",
-      createdAt: "2026-03-20T14:30:00Z",
-      updatedAt: "2026-03-20T14:30:00Z",
-    },
-    {
-      id: "3",
-      invoiceNumber: "INV-2026-00123",
-      type: "sales",
-      customerId: "3",
-      date: "2026-03-15",
-      dueDate: "2026-03-30",
-      items: [],
-      subtotal: 12000,
-      taxAmount: 1800,
-      discountAmount: 500,
-      total: 13300,
-      paid: 5000,
-      balance: 8300,
-      status: "overdue",
-      createdAt: "2026-03-15T09:15:00Z",
-      updatedAt: "2026-03-15T09:15:00Z",
-    },
-  ];
+  const [salesInvoices, setSalesInvoices] = useState<any[]>([]);
+  const [customers, setCustomers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      const [invoicesData, customersData] = await Promise.all([
+        salesService.getAllInvoices(),
+        customerService.getAll()
+      ]);
+      setSalesInvoices(invoicesData);
+      setCustomers(customersData);
+    } catch (error) {
+      console.error("Error loading data:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load sales data",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getCustomerName = (customerId: string) => {
+    const customer = customers.find(c => c.id === customerId);
+    return customer?.name || "Unknown Customer";
+  };
 
   const getStatusColor = (status: InvoiceStatus) => {
     switch (status) {
@@ -197,19 +176,19 @@ export default function SalesPage() {
                     <tbody>
                       {salesInvoices.map((invoice) => (
                         <tr key={invoice.id} className="border-t hover:bg-table-row-hover transition-colors">
-                          <td className="p-4 font-medium">{invoice.invoiceNumber}</td>
-                          <td className="p-4">Al-Rajhi Trading Co.</td>
-                          <td className="p-4 text-sm">{invoice.date}</td>
-                          <td className="p-4 text-sm">{invoice.dueDate}</td>
-                          <td className="p-4 text-right font-semibold">SAR {invoice.total.toLocaleString()}</td>
-                          <td className="p-4 text-right">SAR {invoice.paid.toLocaleString()}</td>
-                          <td className="p-4 text-right font-medium">SAR {invoice.balance.toLocaleString()}</td>
+                          <td className="p-4 font-medium">{invoice.invoice_number}</td>
+                          <td className="p-4">{getCustomerName(invoice.customer_id)}</td>
+                          <td className="p-4 text-sm">{invoice.invoice_date}</td>
+                          <td className="p-4 text-sm">{invoice.due_date}</td>
+                          <td className="p-4 text-right font-semibold">SAR {(invoice.total_amount || 0).toLocaleString()}</td>
+                          <td className="p-4 text-right">SAR {(invoice.paid_amount || 0).toLocaleString()}</td>
+                          <td className="p-4 text-right font-medium">SAR {((invoice.total_amount || 0) - (invoice.paid_amount || 0)).toLocaleString()}</td>
                           <td className="p-4 text-center">
                             <span className={cn(
                               "inline-block px-3 py-1 rounded-full text-xs font-medium",
-                              getStatusColor(invoice.status)
+                              getStatusColor(invoice.payment_status || "pending")
                             )}>
-                              {invoice.status}
+                              {invoice.payment_status || "pending"}
                             </span>
                           </td>
                           <td className="p-4">
