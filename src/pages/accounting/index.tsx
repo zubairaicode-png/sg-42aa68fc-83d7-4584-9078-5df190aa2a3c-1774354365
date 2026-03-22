@@ -275,7 +275,7 @@ export default function AccountingPage() {
             .lte("journal_entries.entry_date", profitLossEndDate);
 
           const balance = (lines || []).reduce((sum, line) => {
-            return sum + (parseFloat(line.credit || "0") - parseFloat(line.debit || "0"));
+            return sum + (Number(line.credit || 0) - Number(line.debit || 0));
           }, 0);
 
           return { ...account, balance };
@@ -293,7 +293,7 @@ export default function AccountingPage() {
             .lte("journal_entries.entry_date", profitLossEndDate);
 
           const balance = (lines || []).reduce((sum, line) => {
-            return sum + (parseFloat(line.debit || "0") - parseFloat(line.credit || "0"));
+            return sum + (Number(line.debit || 0) - Number(line.credit || 0));
           }, 0);
 
           return { ...account, balance };
@@ -354,7 +354,7 @@ export default function AccountingPage() {
             .lte("journal_entries.entry_date", accountingYear.fiscalYearEnd);
 
           totalRevenue += (lines || []).reduce((sum, line) => {
-            return sum + (parseFloat(line.credit || "0") - parseFloat(line.debit || "0"));
+            return sum + (Number(line.credit || 0) - Number(line.debit || 0));
           }, 0);
         }
       }
@@ -376,7 +376,7 @@ export default function AccountingPage() {
             .lte("journal_entries.entry_date", accountingYear.fiscalYearEnd);
 
           totalExpenses += (lines || []).reduce((sum, line) => {
-            return sum + (parseFloat(line.debit || "0") - parseFloat(line.credit || "0"));
+            return sum + (Number(line.debit || 0) - Number(line.credit || 0));
           }, 0);
         }
       }
@@ -397,7 +397,7 @@ export default function AccountingPage() {
             .lte("journal_entries.entry_date", accountingYear.fiscalYearEnd);
 
           totalAssets += (lines || []).reduce((sum, line) => {
-            return sum + (parseFloat(line.debit || "0") - parseFloat(line.credit || "0"));
+            return sum + (Number(line.debit || 0) - Number(line.credit || 0));
           }, 0);
         }
       }
@@ -418,7 +418,7 @@ export default function AccountingPage() {
             .lte("journal_entries.entry_date", accountingYear.fiscalYearEnd);
 
           totalLiabilities += (lines || []).reduce((sum, line) => {
-            return sum + (parseFloat(line.credit || "0") - parseFloat(line.debit || "0"));
+            return sum + (Number(line.credit || 0) - Number(line.debit || 0));
           }, 0);
         }
       }
@@ -439,7 +439,7 @@ export default function AccountingPage() {
             .lte("journal_entries.entry_date", accountingYear.fiscalYearEnd);
 
           totalEquity += (lines || []).reduce((sum, line) => {
-            return sum + (parseFloat(line.credit || "0") - parseFloat(line.debit || "0"));
+            return sum + (Number(line.credit || 0) - Number(line.debit || 0));
           }, 0);
         }
       }
