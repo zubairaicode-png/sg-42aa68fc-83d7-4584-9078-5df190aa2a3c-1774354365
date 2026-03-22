@@ -54,6 +54,7 @@ export interface Product {
   maxStock: number;
   taxable: boolean;
   barcode?: string;
+  serial_number?: string;
   image?: string;
   createdAt: string;
 }
@@ -61,6 +62,7 @@ export interface Product {
 export interface InvoiceItem {
   productId: string;
   productName: string;
+  serialNumber?: string;
   quantity: number;
   unitPrice: number;
   taxRate: number;
@@ -75,6 +77,8 @@ export interface Invoice {
   type: "sales" | "purchase";
   customerId?: string;
   supplierId?: string;
+  po_number?: string;
+  payment_type?: "cash" | "bank" | "cheque" | "card";
   date: string;
   dueDate?: string;
   items: InvoiceItem[];

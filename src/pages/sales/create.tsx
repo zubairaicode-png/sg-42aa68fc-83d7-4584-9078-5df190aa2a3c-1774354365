@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { SEO } from "@/components/SEO";
 import { DashboardLayout } from "@/components/layouts/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -8,14 +8,18 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
-import { Plus, Trash2, Save, ArrowLeft, UserPlus } from "lucide-react";
+import { Plus, Trash2, Save, ArrowLeft, UserPlus, Search } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { SAUDI_VAT_RATE } from "@/lib/constants";
-import type { InvoiceItem } from "@/types";
+import { productService } from "@/services/productService";
+import type { InvoiceItem, Product } from "@/types";
+import type { Database } from "@/integrations/supabase/types";
 
 interface InvoiceFormData {
   customerId: string;
+  po_number: string;
+  payment_type: "cash" | "bank" | "cheque" | "card";
   date: string;
   dueDate: string;
   items: InvoiceItem[];
@@ -25,6 +29,9 @@ interface InvoiceFormData {
 export default function CreateSalesInvoicePage() {
   const router = useRouter();
   const [isCustomerDialogOpen, setIsCustomerDialogOpen] = useState(false);
+  const [products, setProducts] = useState<Database["public"]["Tables"]["products"]["Row"][]>([]);
+  const [productSearchQuery, setProductSearchQuery] = useState("");
+  const [selectedItemIndex, setSelectedItemIndex] = useState<number | null>(null);
   const [newCustomer, setNewCustomer] = useState({
     name: "",
     email: "",
@@ -39,12 +46,15 @@ export default function CreateSalesInvoicePage() {
   });
   const [formData, setFormData] = useState<InvoiceFormData>({
     customerId: "",
+    po_number: "",
+    payment_type: "cash",
     date: new Date().toISOString().split("T")[0],
     dueDate: "",
     items: [
       {
         productId: "",
         productName: "",
+        serialNumber: "",
         quantity: 1,
         unitPrice: 0,
         taxRate: SAUDI_VAT_RATE,
@@ -57,16 +67,27 @@ export default function CreateSalesInvoicePage() {
   });
   const [isManualInvoice, setIsManualInvoice] = useState(false);
 
+  useEffect(() => {
+    loadProducts();
+  }, []);
+
+  const loadProducts = async () => {
+    try {
+      const data = await productService.getAll();
+      setProducts(data);
+    } catch (error) {
+      console.error("Error loading products:", error);
+    }
+  };
+
   const handleAddCustomer = () => {
     if (!newCustomer.name || !newCustomer.email || !newCustomer.phone) {
       alert("Please fill in all required customer fields");
       return;
     }
 
-    // Get existing customers
     const existingCustomers = JSON.parse(localStorage.getItem("customers") || "[]");
     
-    // Create new customer
     const customer = {
       id: (existingCustomers.length + 1).toString(),
       ...newCustomer,
@@ -81,14 +102,11 @@ export default function CreateSalesInvoicePage() {
       updatedAt: new Date().toISOString(),
     };
 
-    // Save to localStorage
     existingCustomers.push(customer);
     localStorage.setItem("customers", JSON.stringify(existingCustomers));
 
-    // Set as selected customer
     setFormData({ ...formData, customerId: customer.id });
 
-    // Reset form and close dialog
     setNewCustomer({ 
       name: "", 
       email: "", 
@@ -112,6 +130,7 @@ export default function CreateSalesInvoicePage() {
         {
           productId: "",
           productName: "",
+          serialNumber: "",
           quantity: 1,
           unitPrice: 0,
           taxRate: SAUDI_VAT_RATE,
@@ -132,7 +151,6 @@ export default function CreateSalesInvoicePage() {
     const newItems = [...formData.items];
     newItems[index] = { ...newItems[index], [field]: value };
     
-    // Calculate totals
     const item = newItems[index];
     const subtotal = item.quantity * item.unitPrice;
     const discountAmount = (subtotal * item.discount) / 100;
@@ -141,6 +159,27 @@ export default function CreateSalesInvoicePage() {
     item.total = taxableAmount + item.taxAmount;
     
     setFormData({ ...formData, items: newItems });
+  };
+
+  const selectProduct = (index: number, product: Database["public"]["Tables"]["products"]["Row"]) => {
+    updateItem(index, "productId", product.id);
+    updateItem(index, "productName", product.name);
+    updateItem(index, "serialNumber", product.serial_number || "");
+    updateItem(index, "unitPrice", product.selling_price);
+    setSelectedItemIndex(null);
+    setProductSearchQuery("");
+  };
+
+  const getFilteredProducts = () => {
+    if (!productSearchQuery) return products;
+    
+    const query = productSearchQuery.toLowerCase();
+    return products.filter(p => 
+      p.name.toLowerCase().includes(query) ||
+      p.sku.toLowerCase().includes(query) ||
+      (p.serial_number && p.serial_number.toLowerCase().includes(query)) ||
+      (p.description && p.description.toLowerCase().includes(query))
+    );
   };
 
   const calculateTotals = () => {
@@ -162,7 +201,6 @@ export default function CreateSalesInvoicePage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Here you would save the invoice
     console.log("Invoice data:", formData);
     router.push("/sales");
   };
@@ -175,7 +213,6 @@ export default function CreateSalesInvoicePage() {
       />
       <DashboardLayout>
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Header */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <Link href="/sales">
@@ -199,7 +236,6 @@ export default function CreateSalesInvoicePage() {
             </div>
           </div>
 
-          {/* Invoice Details */}
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -225,7 +261,7 @@ export default function CreateSalesInvoicePage() {
               )}
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 <div className="space-y-2">
                   <Label htmlFor="customer">Customer *</Label>
                   <div className="flex gap-2">
@@ -382,6 +418,36 @@ export default function CreateSalesInvoicePage() {
                 </div>
 
                 <div className="space-y-2">
+                  <Label htmlFor="poNumber">PO Number</Label>
+                  <Input
+                    id="poNumber"
+                    value={formData.po_number}
+                    onChange={(e) => setFormData({ ...formData, po_number: e.target.value })}
+                    placeholder="Enter PO number"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="paymentType">Payment Type *</Label>
+                  <Select
+                    value={formData.payment_type}
+                    onValueChange={(value: "cash" | "bank" | "cheque" | "card") => 
+                      setFormData({ ...formData, payment_type: value })
+                    }
+                  >
+                    <SelectTrigger id="paymentType">
+                      <SelectValue placeholder="Select payment type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cash">💵 Cash</SelectItem>
+                      <SelectItem value="bank">🏦 Bank Transfer</SelectItem>
+                      <SelectItem value="cheque">📝 Cheque</SelectItem>
+                      <SelectItem value="card">💳 Credit/Debit Card</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
                   <Label htmlFor="date">Invoice Date *</Label>
                   <Input
                     id="date"
@@ -406,7 +472,6 @@ export default function CreateSalesInvoicePage() {
             </CardContent>
           </Card>
 
-          {/* Invoice Items */}
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -436,45 +501,74 @@ export default function CreateSalesInvoicePage() {
                       )}
                     </div>
                     
-                    <div className="grid gap-4 md:grid-cols-7">
+                    <div className="grid gap-4 md:grid-cols-8">
                       {isManualInvoice ? (
-                        <>
-                          <div className="md:col-span-2 space-y-2">
-                            <Label>Item Description *</Label>
-                            <Input
-                              placeholder="Enter item description"
-                              value={item.productName}
-                              onChange={(e) => {
-                                updateItem(index, "productName", e.target.value);
-                                updateItem(index, "productId", `manual-${index}`);
-                              }}
-                            />
-                          </div>
-                        </>
+                        <div className="md:col-span-2 space-y-2">
+                          <Label>Item Description *</Label>
+                          <Input
+                            placeholder="Enter item description"
+                            value={item.productName}
+                            onChange={(e) => {
+                              updateItem(index, "productName", e.target.value);
+                              updateItem(index, "productId", `manual-${index}`);
+                            }}
+                          />
+                        </div>
                       ) : (
-                        <>
-                          <div className="md:col-span-2 space-y-2">
-                            <Label>Product/Service *</Label>
-                            <Select
-                              value={item.productId}
-                              onValueChange={(value) => {
-                                updateItem(index, "productId", value);
-                                updateItem(index, "productName", "HP LaserJet Printer");
-                                updateItem(index, "unitPrice", 1500);
-                              }}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select product" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="1">HP LaserJet Printer</SelectItem>
-                                <SelectItem value="2">Office Chair Executive</SelectItem>
-                                <SelectItem value="3">Whiteboard Markers</SelectItem>
-                                <SelectItem value="4">A4 Paper Ream</SelectItem>
-                              </SelectContent>
-                            </Select>
+                        <div className="md:col-span-2 space-y-2">
+                          <Label>Product/Service *</Label>
+                          <div className="relative">
+                            <div className="flex gap-2">
+                              <Input
+                                placeholder="Search product..."
+                                value={selectedItemIndex === index ? productSearchQuery : item.productName}
+                                onChange={(e) => {
+                                  setProductSearchQuery(e.target.value);
+                                  setSelectedItemIndex(index);
+                                }}
+                                onFocus={() => setSelectedItemIndex(index)}
+                              />
+                              <Button type="button" variant="outline" size="icon">
+                                <Search className="h-4 w-4" />
+                              </Button>
+                            </div>
+                            {selectedItemIndex === index && productSearchQuery && (
+                              <div className="absolute z-10 w-full mt-1 bg-background border rounded-md shadow-lg max-h-60 overflow-y-auto">
+                                {getFilteredProducts().length > 0 ? (
+                                  getFilteredProducts().map((product) => (
+                                    <button
+                                      key={product.id}
+                                      type="button"
+                                      className="w-full px-4 py-2 text-left hover:bg-accent text-sm"
+                                      onClick={() => selectProduct(index, product)}
+                                    >
+                                      <div className="font-medium">{product.name}</div>
+                                      <div className="text-xs text-muted-foreground">
+                                        SKU: {product.sku} | Stock: {product.stock_quantity}
+                                        {product.serial_number && ` | S/N: ${product.serial_number}`}
+                                      </div>
+                                    </button>
+                                  ))
+                                ) : (
+                                  <div className="px-4 py-2 text-sm text-muted-foreground">
+                                    No products found
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
-                        </>
+                        </div>
+                      )}
+
+                      {!isManualInvoice && item.serialNumber && (
+                        <div className="space-y-2">
+                          <Label>Serial Number</Label>
+                          <Input
+                            value={item.serialNumber}
+                            disabled
+                            className="bg-muted"
+                          />
+                        </div>
                       )}
                       
                       <div className="space-y-2">
@@ -547,7 +641,6 @@ export default function CreateSalesInvoicePage() {
                 ))}
               </div>
 
-              {/* Totals */}
               <div className="mt-6 pt-6 border-t">
                 <div className="max-w-md ml-auto space-y-3">
                   <div className="flex justify-between text-sm">
@@ -566,12 +659,15 @@ export default function CreateSalesInvoicePage() {
                     <span>Total Amount:</span>
                     <span className="text-primary">SAR {totals.total.toFixed(2)}</span>
                   </div>
+                  <div className="flex justify-between text-sm pt-2">
+                    <span className="text-muted-foreground">Payment Type:</span>
+                    <span className="font-medium capitalize">{formData.payment_type}</span>
+                  </div>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Notes */}
           <Card>
             <CardHeader>
               <CardTitle>Additional Notes</CardTitle>

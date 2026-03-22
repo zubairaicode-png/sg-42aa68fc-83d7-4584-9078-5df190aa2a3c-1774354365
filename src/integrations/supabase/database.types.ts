@@ -478,6 +478,7 @@ export type Database = {
           product_code: string
           reorder_level: number | null
           selling_price: number
+          serial_number: string | null
           status: string | null
           stock_quantity: number | null
           unit: string | null
@@ -497,6 +498,7 @@ export type Database = {
           product_code: string
           reorder_level?: number | null
           selling_price: number
+          serial_number?: string | null
           status?: string | null
           stock_quantity?: number | null
           unit?: string | null
@@ -516,6 +518,7 @@ export type Database = {
           product_code?: string
           reorder_level?: number | null
           selling_price?: number
+          serial_number?: string | null
           status?: string | null
           stock_quantity?: number | null
           unit?: string | null
@@ -1044,6 +1047,8 @@ export type Database = {
           paid_amount: number | null
           payment_method: string | null
           payment_status: string | null
+          payment_type: string | null
+          po_number: string | null
           subscription_id: string | null
           subtotal: number
           tax_amount: number
@@ -1070,6 +1075,8 @@ export type Database = {
           paid_amount?: number | null
           payment_method?: string | null
           payment_status?: string | null
+          payment_type?: string | null
+          po_number?: string | null
           subscription_id?: string | null
           subtotal: number
           tax_amount: number
@@ -1096,6 +1103,8 @@ export type Database = {
           paid_amount?: number | null
           payment_method?: string | null
           payment_status?: string | null
+          payment_type?: string | null
+          po_number?: string | null
           subscription_id?: string | null
           subtotal?: number
           tax_amount?: number
