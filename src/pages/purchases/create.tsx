@@ -254,6 +254,8 @@ export default function CreatePurchaseInvoicePage() {
     return { subtotal, discountAmount, taxAmount, total };
   };
 
+  const totals = calculateTotals();
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -345,7 +347,6 @@ export default function CreatePurchaseInvoicePage() {
     }
 
     // Validate payment amount
-    const totals = calculateTotals();
     if (formData.paid_amount > totals.total) {
       toast({
         title: "Validation Error",
