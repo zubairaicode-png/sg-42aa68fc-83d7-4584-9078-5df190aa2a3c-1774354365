@@ -40,6 +40,9 @@ export default function CreateSalesInvoicePage() {
   const [customers, setCustomers] = useState<Database["public"]["Tables"]["customers"]["Row"][]>([]);
   const [productSearchQuery, setProductSearchQuery] = useState("");
   const [selectedItemIndex, setSelectedItemIndex] = useState<number | null>(null);
+  const [isProductDialogOpen, setIsProductDialogOpen] = useState(false);
+  const [addingProductToIndex, setAddingProductToIndex] = useState<number | null>(null);
+  const [newProduct, setNewProduct] = useState({ name: "", price: 0, code: "" });
   const [newCustomer, setNewCustomer] = useState({
     name: "",
     email: "",
@@ -87,6 +90,36 @@ export default function CreateSalesInvoicePage() {
       setProducts(data);
     } catch (error) {
       console.error("Error loading products:", error);
+    }
+  };
+
+  const handleAddProduct = async () => {
+    if (!newProduct.name) {
+      toast({ title: "Validation Error", description: "Product name is required", variant: "destructive" });
+      return;
+    }
+    try {
+      const productData = {
+        name: newProduct.name,
+        product_code: newProduct.code || `PRD-${Date.now()}`,
+        cost_price: newProduct.price,
+        selling_price: newProduct.price,
+        stock_quantity: 0,
+        status: "active",
+      };
+      const createdProduct = await productService.create(productData);
+      await loadProducts();
+      
+      if (addingProductToIndex !== null && createdProduct) {
+        selectProduct(addingProductToIndex, createdProduct);
+      }
+      
+      setNewProduct({ name: "", price: 0, code: "" });
+      setIsProductDialogOpen(false);
+      setAddingProductToIndex(null);
+      toast({ title: "Success", description: "Product added successfully" });
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Failed to add product", variant: "destructive" });
     }
   };
 
@@ -753,60 +786,73 @@ export default function CreateSalesInvoicePage() {
                       ) : (
                         <div className="md:col-span-2 space-y-2">
                           <Label>Product/Service *</Label>
-                          <div className="relative">
-                            <Input
-                              value={selectedItemIndex === index ? productSearchQuery : (item.productName || "")}
-                              placeholder={item.productName || "Type to search products..."}
-                              onChange={(e) => {
-                                setProductSearchQuery(e.target.value);
-                                setSelectedItemIndex(index);
+                          <div className="flex gap-2">
+                            <div className="relative flex-1">
+                              <Input
+                                value={selectedItemIndex === index ? productSearchQuery : (item.productName || "")}
+                                placeholder={item.productName || "Type to search products..."}
+                                onChange={(e) => {
+                                  setProductSearchQuery(e.target.value);
+                                  setSelectedItemIndex(index);
+                                }}
+                                onFocus={() => {
+                                  setSelectedItemIndex(index);
+                                  setProductSearchQuery("");
+                                }}
+                                onBlur={() => {
+                                  setTimeout(() => setSelectedItemIndex(null), 200);
+                                }}
+                              />
+                              
+                              {selectedItemIndex === index && (
+                                <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-lg max-h-60 overflow-y-auto">
+                                  {getFilteredProducts().length > 0 ? (
+                                    getFilteredProducts().map((product) => (
+                                      <button
+                                        key={product.id}
+                                        type="button"
+                                        className="w-full px-4 py-2 hover:bg-accent text-left text-sm border-b last:border-b-0"
+                                        onMouseDown={(e) => {
+                                          e.preventDefault();
+                                          selectProduct(index, product);
+                                        }}
+                                      >
+                                        <div className="font-medium">{product.name}</div>
+                                        <div className="text-xs text-muted-foreground">
+                                          Code: {product.product_code} | Stock: {product.stock_quantity}
+                                          {product.serial_number && ` | S/N: ${product.serial_number}`}
+                                        </div>
+                                      </button>
+                                    ))
+                                  ) : productSearchQuery ? (
+                                    <div className="px-4 py-3 text-sm text-muted-foreground">
+                                      No products found for "{productSearchQuery}"
+                                    </div>
+                                  ) : (
+                                    <div className="px-4 py-3 text-sm text-muted-foreground">
+                                      <div className="font-medium mb-2">💡 Search Tips:</div>
+                                      <ul className="space-y-1 text-xs">
+                                        <li>• Type product name (e.g., "HP Laptop")</li>
+                                        <li>• Type product code (e.g., "PRN-001")</li>
+                                        <li>• Type serial number (e.g., "SN-HP-001")</li>
+                                        <li>• Type description keywords</li>
+                                      </ul>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              onClick={() => {
+                                setAddingProductToIndex(index);
+                                setIsProductDialogOpen(true);
                               }}
-                              onFocus={() => {
-                                setSelectedItemIndex(index);
-                                setProductSearchQuery("");
-                              }}
-                              onBlur={() => {
-                                setTimeout(() => setSelectedItemIndex(null), 200);
-                              }}
-                            />
-                            
-                            {selectedItemIndex === index && (
-                              <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-lg max-h-60 overflow-y-auto">
-                                {getFilteredProducts().length > 0 ? (
-                                  getFilteredProducts().map((product) => (
-                                    <button
-                                      key={product.id}
-                                      type="button"
-                                      className="w-full px-4 py-2 hover:bg-accent text-left text-sm border-b last:border-b-0"
-                                      onMouseDown={(e) => {
-                                        e.preventDefault();
-                                        selectProduct(index, product);
-                                      }}
-                                    >
-                                      <div className="font-medium">{product.name}</div>
-                                      <div className="text-xs text-muted-foreground">
-                                        Code: {product.product_code} | Stock: {product.stock_quantity}
-                                        {product.serial_number && ` | S/N: ${product.serial_number}`}
-                                      </div>
-                                    </button>
-                                  ))
-                                ) : productSearchQuery ? (
-                                  <div className="px-4 py-3 text-sm text-muted-foreground">
-                                    No products found for &quot;{productSearchQuery}&quot;
-                                  </div>
-                                ) : (
-                                  <div className="px-4 py-3 text-sm text-muted-foreground">
-                                    <div className="font-medium mb-2">💡 Search Tips:</div>
-                                    <ul className="space-y-1 text-xs">
-                                      <li>• Type product name (e.g., &quot;HP Laptop&quot;)</li>
-                                      <li>• Type product code (e.g., &quot;PRN-001&quot;)</li>
-                                      <li>• Type serial number (e.g., &quot;SN-HP-001&quot;)</li>
-                                      <li>• Type description keywords</li>
-                                    </ul>
-                                  </div>
-                                )}
-                              </div>
-                            )}
+                            >
+                              <Plus className="h-4 w-4" />
+                            </Button>
                           </div>
                         </div>
                       )}
@@ -952,6 +998,45 @@ export default function CreateSalesInvoicePage() {
             </CardContent>
           </Card>
         </form>
+
+        <Dialog open={isProductDialogOpen} onOpenChange={setIsProductDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Quick Add Product</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Product Name *</Label>
+                <Input 
+                  value={newProduct.name} 
+                  onChange={(e) => setNewProduct({...newProduct, name: e.target.value})} 
+                  placeholder="Enter product name" 
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Product Code</Label>
+                <Input 
+                  value={newProduct.code} 
+                  onChange={(e) => setNewProduct({...newProduct, code: e.target.value})} 
+                  placeholder="Optional (auto-generated if empty)" 
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Selling Price</Label>
+                <Input 
+                  type="number" 
+                  value={newProduct.price} 
+                  onChange={(e) => setNewProduct({...newProduct, price: parseFloat(e.target.value) || 0})} 
+                  placeholder="0.00" 
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsProductDialogOpen(false)}>Cancel</Button>
+              <Button type="button" onClick={handleAddProduct}>Add Product</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </DashboardLayout>
     </>
   );

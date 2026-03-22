@@ -616,6 +616,135 @@ export type Database = {
         }
         Relationships: []
       }
+      purchase_invoice_items: {
+        Row: {
+          created_at: string | null
+          discount_amount: number | null
+          discount_percentage: number | null
+          id: string
+          invoice_id: string | null
+          line_total: number
+          product_id: string | null
+          product_name: string
+          quantity: number
+          tax_amount: number
+          tax_rate: number
+          unit_price: number
+        }
+        Insert: {
+          created_at?: string | null
+          discount_amount?: number | null
+          discount_percentage?: number | null
+          id?: string
+          invoice_id?: string | null
+          line_total?: number
+          product_id?: string | null
+          product_name: string
+          quantity?: number
+          tax_amount?: number
+          tax_rate?: number
+          unit_price?: number
+        }
+        Update: {
+          created_at?: string | null
+          discount_amount?: number | null
+          discount_percentage?: number | null
+          id?: string
+          invoice_id?: string | null
+          line_total?: number
+          product_id?: string | null
+          product_name?: string
+          quantity?: number
+          tax_amount?: number
+          tax_rate?: number
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_invoice_items_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_invoice_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      purchase_invoices: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          due_date: string
+          id: string
+          invoice_date: string
+          invoice_number: string
+          notes: string | null
+          payment_status: string | null
+          subtotal: number
+          supplier_id: string | null
+          supplier_name: string
+          supplier_vat: string | null
+          tax_amount: number
+          total_amount: number
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          due_date: string
+          id?: string
+          invoice_date: string
+          invoice_number: string
+          notes?: string | null
+          payment_status?: string | null
+          subtotal?: number
+          supplier_id?: string | null
+          supplier_name: string
+          supplier_vat?: string | null
+          tax_amount?: number
+          total_amount?: number
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          due_date?: string
+          id?: string
+          invoice_date?: string
+          invoice_number?: string
+          notes?: string | null
+          payment_status?: string | null
+          subtotal?: number
+          supplier_id?: string | null
+          supplier_name?: string
+          supplier_vat?: string | null
+          tax_amount?: number
+          total_amount?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_invoices_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_invoices_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       purchase_items: {
         Row: {
           created_at: string | null

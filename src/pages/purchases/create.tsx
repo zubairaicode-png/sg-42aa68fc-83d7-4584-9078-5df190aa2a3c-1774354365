@@ -39,6 +39,8 @@ export default function CreatePurchaseInvoicePage() {
   const [supplierSearchQuery, setSupplierSearchQuery] = useState("");
   const [productSearchQuery, setProductSearchQuery] = useState("");
   const [selectedItemIndex, setSelectedItemIndex] = useState<number | null>(null);
+  const [addingProductToIndex, setAddingProductToIndex] = useState<number | null>(null);
+  const [newProduct, setNewProduct] = useState({ name: "", price: 0, code: "" });
   const [newSupplier, setNewSupplier] = useState({
     name: "",
     email: "",
@@ -93,6 +95,51 @@ export default function CreatePurchaseInvoicePage() {
     }
   };
 
+  const handleAddProduct = async () => {
+    if (!newProduct.name) {
+      toast({ title: "Validation Error", description: "Product name is required", variant: "destructive" });
+      return;
+    }
+    try {
+      const productData = {
+        name: newProduct.name,
+        product_code: newProduct.code || `PRD-${Date.now()}`,
+        cost_price: newProduct.price,
+        selling_price: newProduct.price,
+        stock_quantity: 0,
+        status: "active",
+      };
+      const createdProduct = await productService.create(productData);
+      await loadProducts();
+      
+      if (addingProductToIndex !== null && createdProduct) {
+        const newItems = [...formData.items];
+        const index = addingProductToIndex;
+        newItems[index] = {
+          ...newItems[index],
+          productId: createdProduct.id,
+          productName: createdProduct.name,
+          unitPrice: createdProduct.cost_price || 0,
+        };
+        const item = newItems[index];
+        const subtotal = item.quantity * item.unitPrice;
+        const discountAmount = (subtotal * item.discount) / 100;
+        const taxableAmount = subtotal - discountAmount;
+        item.taxAmount = (taxableAmount * item.taxRate) / 100;
+        item.total = taxableAmount + item.taxAmount;
+        
+        setFormData({ ...formData, items: newItems });
+      }
+      
+      setNewProduct({ name: "", price: 0, code: "" });
+      setIsProductDialogOpen(false);
+      setAddingProductToIndex(null);
+      toast({ title: "Success", description: "Product added successfully" });
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Failed to add product", variant: "destructive" });
+    }
+  };
+
   const handleAddSupplier = async () => {
     if (!newSupplier.name || !newSupplier.email || !newSupplier.phone) {
       toast({
@@ -109,12 +156,8 @@ export default function CreatePurchaseInvoicePage() {
         email: newSupplier.email,
         phone: newSupplier.phone,
         vat_number: newSupplier.vatNumber || null,
-        building_number: newSupplier.buildingNumber || null,
-        additional_number: newSupplier.additionalNumber || null,
-        street_name: newSupplier.streetName || null,
-        district: newSupplier.district || null,
+        address: [newSupplier.buildingNumber, newSupplier.streetName, newSupplier.district, newSupplier.postalCode].filter(Boolean).join(", ") || null,
         city: newSupplier.city || null,
-        postal_code: newSupplier.postalCode || null,
         country: "Saudi Arabia",
         status: "active",
       });
@@ -622,11 +665,77 @@ export default function CreatePurchaseInvoicePage() {
                     <div className="grid gap-4 md:grid-cols-6">
                       <div className="md:col-span-2 space-y-2">
                         <Label>Product/Service *</Label>
-                        <Input
-                          placeholder="Enter product name"
-                          value={item.productName}
-                          onChange={(e) => updateItem(index, "productName", e.target.value)}
-                        />
+                        <div className="flex gap-2">
+                          <div className="relative flex-1">
+                            <Input
+                              value={selectedItemIndex === index ? productSearchQuery : (item.productName || "")}
+                              placeholder={item.productName || "Type to search products..."}
+                              onChange={(e) => {
+                                setProductSearchQuery(e.target.value);
+                                setSelectedItemIndex(index);
+                              }}
+                              onFocus={() => {
+                                setSelectedItemIndex(index);
+                                setProductSearchQuery("");
+                              }}
+                              onBlur={() => {
+                                setTimeout(() => setSelectedItemIndex(null), 200);
+                              }}
+                            />
+                            {selectedItemIndex === index && (
+                              <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-lg max-h-60 overflow-y-auto">
+                                {products
+                                  .filter(p => p.name.toLowerCase().includes(productSearchQuery.toLowerCase()))
+                                  .map((product) => (
+                                    <button
+                                      key={product.id}
+                                      type="button"
+                                      className="w-full px-4 py-2 hover:bg-accent text-left text-sm border-b last:border-b-0"
+                                      onMouseDown={(e) => {
+                                        e.preventDefault();
+                                        const newItems = [...formData.items];
+                                        newItems[index] = {
+                                          ...newItems[index],
+                                          productId: product.id,
+                                          productName: product.name,
+                                          unitPrice: product.cost_price || 0,
+                                        };
+                                        const i = newItems[index];
+                                        const subtotal = i.quantity * i.unitPrice;
+                                        const discountAmount = (subtotal * i.discount) / 100;
+                                        const taxableAmount = subtotal - discountAmount;
+                                        i.taxAmount = (taxableAmount * i.taxRate) / 100;
+                                        i.total = taxableAmount + i.taxAmount;
+                                        setFormData({ ...formData, items: newItems });
+                                        setSelectedItemIndex(null);
+                                      }}
+                                    >
+                                      <div className="font-medium">{product.name}</div>
+                                      <div className="text-xs text-muted-foreground">
+                                        Code: {product.product_code} | Stock: {product.stock_quantity}
+                                      </div>
+                                    </button>
+                                  ))}
+                                {products.filter(p => p.name.toLowerCase().includes(productSearchQuery.toLowerCase())).length === 0 && (
+                                  <div className="px-4 py-3 text-sm text-muted-foreground">
+                                    No products found. Click + to add.
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            onClick={() => {
+                              setAddingProductToIndex(index);
+                              setIsProductDialogOpen(true);
+                            }}
+                          >
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
                       
                       <div className="space-y-2">
@@ -747,6 +856,45 @@ export default function CreatePurchaseInvoicePage() {
             </CardContent>
           </Card>
         </form>
+
+        <Dialog open={isProductDialogOpen} onOpenChange={setIsProductDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Quick Add Product</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Product Name *</Label>
+                <Input 
+                  value={newProduct.name} 
+                  onChange={(e) => setNewProduct({...newProduct, name: e.target.value})} 
+                  placeholder="Enter product name" 
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Product Code</Label>
+                <Input 
+                  value={newProduct.code} 
+                  onChange={(e) => setNewProduct({...newProduct, code: e.target.value})} 
+                  placeholder="Optional (auto-generated if empty)" 
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Cost Price</Label>
+                <Input 
+                  type="number" 
+                  value={newProduct.price} 
+                  onChange={(e) => setNewProduct({...newProduct, price: parseFloat(e.target.value) || 0})} 
+                  placeholder="0.00" 
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsProductDialogOpen(false)}>Cancel</Button>
+              <Button type="button" onClick={handleAddProduct}>Add Product</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </DashboardLayout>
     </>
   );
