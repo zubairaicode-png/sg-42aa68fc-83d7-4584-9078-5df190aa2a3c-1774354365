@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import { accountingService } from "./accountingService";
 
 export const salesService = {
   // Get all sales invoices
@@ -78,8 +79,14 @@ export const salesService = {
       // We should ideally rollback the invoice here if this fails
     }
     
-    // Note: Accounting journal entries are skipped for now
-    // until the journal_entries table is fully defined
+    // Create journal entry for the sale
+    try {
+      await accountingService.createJournalEntryFromSale(newInvoice);
+      console.log("Journal entry created for sale");
+    } catch (error) {
+      console.error("Error creating journal entry for sale:", error);
+      // Continue even if journal entry fails - user can manually create it
+    }
 
     return newInvoice;
   },

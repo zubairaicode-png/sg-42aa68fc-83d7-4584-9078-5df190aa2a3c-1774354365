@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import { accountingService } from "./accountingService";
 
 type PurchaseReturn = Database["public"]["Tables"]["purchase_returns"]["Row"];
 type PurchaseReturnItem = Database["public"]["Tables"]["purchase_return_items"]["Row"];
@@ -83,6 +84,15 @@ export const purchaseReturnService = {
       .insert(itemsToInsert);
 
     if (itemsError) throw itemsError;
+
+    // Create journal entry for the purchase return
+    try {
+      await accountingService.createJournalEntryFromPurchaseReturn(returnData);
+      console.log("Journal entry created for purchase return");
+    } catch (error) {
+      console.error("Error creating journal entry for purchase return:", error);
+      // Continue even if journal entry fails
+    }
 
     return returnData;
   },

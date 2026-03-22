@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import { accountingService } from "./accountingService";
 
 export const salesReturnService = {
   // Get all sales returns with customer and items
@@ -87,6 +88,16 @@ export const salesReturnService = {
       }
 
       console.log("Sales return items created:", returnItems);
+      
+      // Create journal entry for the sales return
+      try {
+        await accountingService.createJournalEntryFromSalesReturn(salesReturn);
+        console.log("Journal entry created for sales return");
+      } catch (error) {
+        console.error("Error creating journal entry for sales return:", error);
+        // Continue even if journal entry fails
+      }
+
       return salesReturn;
     } catch (error: any) {
       console.error("Error in create:", error);
