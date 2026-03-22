@@ -152,6 +152,20 @@ export default function SubscriptionsPage() {
     }
   };
 
+  const handleDownloadInvoice = async (invoiceId: string, invoiceNumber: string) => {
+    try {
+      // For now, redirect to sales invoice view which has PDF download
+      router.push(`/sales/invoice/${invoiceId}`);
+    } catch (error) {
+      console.error("Error downloading invoice:", error);
+      toast({
+        title: "Error",
+        description: "Failed to download invoice",
+        variant: "destructive",
+      });
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
       active: "default",
@@ -308,69 +322,85 @@ export default function SubscriptionsPage() {
                   </Button>
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {plans.map((plan) => (
-                    <Card key={plan.id} className="hover:shadow-lg transition-shadow">
-                      <CardHeader>
-                        <div className="flex justify-between items-start">
+                {loading ? (
+                  <Card>
+                    <CardContent className="py-8">
+                      <p className="text-center text-muted-foreground">Loading plans...</p>
+                    </CardContent>
+                  </Card>
+                ) : plans.length === 0 ? (
+                  <Card>
+                    <CardContent className="py-8">
+                      <p className="text-center text-muted-foreground">
+                        No subscription plans found. Create your first plan to get started.
+                      </p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    {plans.map((plan) => (
+                      <Card key={plan.id} className="hover:shadow-lg transition-shadow">
+                        <CardHeader>
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <CardTitle>{plan.name}</CardTitle>
+                              <CardDescription className="mt-2">
+                                {plan.description}
+                              </CardDescription>
+                            </div>
+                            {getBillingCycleBadge(plan.billing_cycle)}
+                          </div>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
                           <div>
-                            <CardTitle>{plan.name}</CardTitle>
-                            <CardDescription className="mt-2">
-                              {plan.description}
-                            </CardDescription>
-                          </div>
-                          {getBillingCycleBadge(plan.billing_cycle)}
-                        </div>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        <div>
-                          <div className="text-3xl font-bold">
-                            SAR {plan.price.toLocaleString("en-SA")}
-                          </div>
-                          <p className="text-sm text-muted-foreground">
-                            per {plan.billing_cycle === "monthly" ? "month" : plan.billing_cycle === "quarterly" ? "quarter" : "year"}
-                          </p>
-                          {plan.setup_fee && plan.setup_fee > 0 && (
-                            <p className="text-sm text-muted-foreground mt-1">
-                              + SAR {plan.setup_fee} setup fee
+                            <div className="text-3xl font-bold">
+                              SAR {plan.price.toLocaleString("en-SA")}
+                            </div>
+                            <p className="text-sm text-muted-foreground">
+                              per {plan.billing_cycle === "monthly" ? "month" : plan.billing_cycle === "quarterly" ? "quarter" : "year"}
                             </p>
-                          )}
-                          {plan.trial_days && plan.trial_days > 0 && (
-                            <Badge variant="secondary" className="mt-2">
-                              {plan.trial_days} days free trial
-                            </Badge>
-                          )}
-                        </div>
-
-                        {plan.features && plan.features.length > 0 && (
-                          <div className="space-y-2">
-                            <p className="text-sm font-semibold">Features:</p>
-                            <ul className="text-sm space-y-1">
-                              {plan.features.slice(0, 4).map((feature, index) => (
-                                <li key={index} className="flex items-center">
-                                  <span className="mr-2">✓</span>
-                                  {feature}
-                                </li>
-                              ))}
-                              {plan.features.length > 4 && (
-                                <li className="text-muted-foreground">
-                                  + {plan.features.length - 4} more features
-                                </li>
-                              )}
-                            </ul>
+                            {plan.setup_fee && plan.setup_fee > 0 && (
+                              <p className="text-sm text-muted-foreground mt-1">
+                                + SAR {plan.setup_fee} setup fee
+                              </p>
+                            )}
+                            {plan.trial_days && plan.trial_days > 0 && (
+                              <Badge variant="secondary" className="mt-2">
+                                {plan.trial_days} days free trial
+                              </Badge>
+                            )}
                           </div>
-                        )}
 
-                        <Button
-                          className="w-full"
-                          onClick={() => router.push(`/subscriptions/subscribe?plan=${plan.id}`)}
-                        >
-                          Subscribe Customer
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
+                          {plan.features && plan.features.length > 0 && (
+                            <div className="space-y-2">
+                              <p className="text-sm font-semibold">Features:</p>
+                              <ul className="text-sm space-y-1">
+                                {plan.features.slice(0, 4).map((feature, index) => (
+                                  <li key={index} className="flex items-center">
+                                    <span className="mr-2">✓</span>
+                                    {feature}
+                                  </li>
+                                ))}
+                                {plan.features.length > 4 && (
+                                  <li className="text-muted-foreground">
+                                    + {plan.features.length - 4} more features
+                                  </li>
+                                )}
+                              </ul>
+                            </div>
+                          )}
+
+                          <Button
+                            className="w-full"
+                            onClick={() => router.push(`/subscriptions/subscribe?plan=${plan.id}`)}
+                          >
+                            Subscribe Customer
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
               </TabsContent>
 
               {/* Active Subscriptions Tab */}
@@ -399,14 +429,21 @@ export default function SubscriptionsPage() {
                           <TableHead>Billing Cycle</TableHead>
                           <TableHead>Price</TableHead>
                           <TableHead>Next Billing</TableHead>
+                          <TableHead>Last Payment</TableHead>
                           <TableHead>Auto Renew</TableHead>
                           <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {subscriptions.length === 0 ? (
+                        {loading ? (
                           <TableRow>
-                            <TableCell colSpan={8} className="text-center text-muted-foreground">
+                            <TableCell colSpan={9} className="text-center text-muted-foreground">
+                              Loading subscriptions...
+                            </TableCell>
+                          </TableRow>
+                        ) : subscriptions.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={9} className="text-center text-muted-foreground">
                               No subscriptions found
                             </TableCell>
                           </TableRow>
@@ -444,6 +481,17 @@ export default function SubscriptionsPage() {
                                       "—"
                                     )}
                                   </div>
+                                </TableCell>
+                                <TableCell>
+                                  {sub.last_invoice_date ? (
+                                    <div>
+                                      <p className="text-sm">
+                                        {new Date(sub.last_invoice_date).toLocaleDateString()}
+                                      </p>
+                                    </div>
+                                  ) : (
+                                    "—"
+                                  )}
                                 </TableCell>
                                 <TableCell>
                                   <Badge variant={sub.auto_renew ? "default" : "outline"}>
@@ -522,23 +570,34 @@ export default function SubscriptionsPage() {
                   {invoiceHistory.map((invoice) => (
                     <TableRow key={invoice.id}>
                       <TableCell className="font-medium">{invoice.invoice_number}</TableCell>
-                      <TableCell>{new Date(invoice.date).toLocaleDateString()}</TableCell>
-                      <TableCell>{new Date(invoice.due_date).toLocaleDateString()}</TableCell>
                       <TableCell>
-                        SAR {invoice.total.toLocaleString("en-SA", { minimumFractionDigits: 2 })}
+                        {invoice.invoice_date ? new Date(invoice.invoice_date).toLocaleDateString() : "—"}
+                      </TableCell>
+                      <TableCell>
+                        {invoice.due_date ? new Date(invoice.due_date).toLocaleDateString() : "—"}
+                      </TableCell>
+                      <TableCell>
+                        SAR {invoice.total_amount.toLocaleString("en-SA", { minimumFractionDigits: 2 })}
                       </TableCell>
                       <TableCell>
                         <Badge variant={invoice.payment_status === "paid" ? "default" : "outline"}>
                           {invoice.payment_status}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right space-x-2">
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => router.push(`/sales/invoice/${invoice.id}`)}
                         >
                           View
+                        </Button>
+                        <Button
+                          variant="default"
+                          size="sm"
+                          onClick={() => handleDownloadInvoice(invoice.id, invoice.invoice_number)}
+                        >
+                          Download
                         </Button>
                       </TableCell>
                     </TableRow>
