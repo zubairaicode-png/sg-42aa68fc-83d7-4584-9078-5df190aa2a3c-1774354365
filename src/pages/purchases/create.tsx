@@ -7,10 +7,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Trash2, Save, ArrowLeft } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Plus, Trash2, Save, ArrowLeft, UserPlus } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { SAUDI_VAT_RATE } from "@/lib/constants";
+import { CurrencyDisplay } from "@/components/ui/currency-display";
+import { SaudiRiyalIcon } from "@/components/icons/SaudiRiyalIcon";
+import { useToast } from "@/hooks/use-toast";
 import type { InvoiceItem } from "@/types";
 
 interface PurchaseFormData {
@@ -23,10 +27,25 @@ interface PurchaseFormData {
 
 export default function CreatePurchaseInvoicePage() {
   const router = useRouter();
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(false);
+  const [isSupplierDialogOpen, setIsSupplierDialogOpen] = useState(false);
+  const [newSupplier, setNewSupplier] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    vatNumber: "",
+    buildingNumber: "",
+    additionalNumber: "",
+    streetName: "",
+    district: "",
+    city: "",
+    postalCode: "",
+  });
   const [formData, setFormData] = useState<PurchaseFormData>({
     supplierId: "",
     date: new Date().toISOString().split("T")[0],
-    dueDate: "",
+    dueDate: new Date().toISOString().split("T")[0],
     items: [
       {
         productId: "",
@@ -41,6 +60,57 @@ export default function CreatePurchaseInvoicePage() {
     ],
     notes: "",
   });
+
+  const handleAddSupplier = () => {
+    if (!newSupplier.name || !newSupplier.email || !newSupplier.phone) {
+      toast({
+        title: "Validation Error",
+        description: "Please fill in all required supplier fields",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const existingSuppliers = JSON.parse(localStorage.getItem("suppliers") || "[]");
+    
+    const supplier = {
+      id: (existingSuppliers.length + 1).toString(),
+      ...newSupplier,
+      type: "business",
+      address: "",
+      country: "Saudi Arabia",
+      taxNumber: newSupplier.vatNumber,
+      paymentTerms: 30,
+      creditLimit: 0,
+      balance: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    existingSuppliers.push(supplier);
+    localStorage.setItem("suppliers", JSON.stringify(existingSuppliers));
+
+    setFormData({ ...formData, supplierId: supplier.id });
+
+    setNewSupplier({ 
+      name: "", 
+      email: "", 
+      phone: "", 
+      vatNumber: "",
+      buildingNumber: "",
+      additionalNumber: "",
+      streetName: "",
+      district: "",
+      city: "",
+      postalCode: "",
+    });
+    setIsSupplierDialogOpen(false);
+
+    toast({
+      title: "Success",
+      description: "Supplier added successfully",
+    });
+  };
 
   const addItem = () => {
     setFormData({
@@ -97,10 +167,115 @@ export default function CreatePurchaseInvoicePage() {
 
   const totals = calculateTotals();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Purchase invoice data:", formData);
-    router.push("/purchases");
+    
+    // Validation
+    if (!formData.supplierId) {
+      toast({
+        title: "Validation Error",
+        description: "Please select a supplier",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!formData.date || !formData.dueDate) {
+      toast({
+        title: "Validation Error",
+        description: "Please fill in invoice date and due date",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (formData.items.length === 0) {
+      toast({
+        title: "Validation Error",
+        description: "Please add at least one item",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate all items
+    for (let i = 0; i < formData.items.length; i++) {
+      const item = formData.items[i];
+      if (!item.productName.trim()) {
+        toast({
+          title: "Validation Error",
+          description: `Please enter product name for item ${i + 1}`,
+          variant: "destructive",
+        });
+        return;
+      }
+      if (item.quantity <= 0) {
+        toast({
+          title: "Validation Error",
+          description: `Please enter valid quantity for item ${i + 1}`,
+          variant: "destructive",
+        });
+        return;
+      }
+      if (item.unitPrice <= 0) {
+        toast({
+          title: "Validation Error",
+          description: `Please enter valid unit price for item ${i + 1}`,
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
+    try {
+      setLoading(true);
+
+      // Get supplier name
+      const suppliers = JSON.parse(localStorage.getItem("suppliers") || "[]");
+      const supplier = suppliers.find((s: any) => s.id === formData.supplierId);
+      const supplierName = supplier?.name || "Unknown Supplier";
+
+      // Generate invoice number
+      const invoiceNumber = `PINV-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 100000)).padStart(5, '0')}`;
+
+      // Save to localStorage (temporary until database integration)
+      const purchases = JSON.parse(localStorage.getItem("purchases") || "[]");
+      const newPurchase = {
+        id: (purchases.length + 1).toString(),
+        supplierId: formData.supplierId,
+        supplierName: supplierName,
+        invoiceNumber: invoiceNumber,
+        date: formData.date,
+        dueDate: formData.dueDate,
+        items: formData.items,
+        subtotal: totals.subtotal,
+        discount: totals.discountAmount,
+        tax: totals.taxAmount,
+        total: totals.total,
+        status: "unpaid",
+        notes: formData.notes,
+        createdAt: new Date().toISOString(),
+      };
+
+      purchases.push(newPurchase);
+      localStorage.setItem("purchases", JSON.stringify(purchases));
+
+      toast({
+        title: "Success",
+        description: "Purchase invoice created successfully",
+      });
+
+      router.push("/purchases");
+    } catch (error: any) {
+      console.error("Error saving purchase invoice:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to save purchase invoice",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -127,9 +302,9 @@ export default function CreatePurchaseInvoicePage() {
               <Link href="/purchases">
                 <Button type="button" variant="outline">Cancel</Button>
               </Link>
-              <Button type="submit">
+              <Button type="submit" disabled={loading}>
                 <Save className="h-4 w-4 mr-2" />
-                Save Invoice
+                {loading ? "Saving..." : "Save Invoice"}
               </Button>
             </div>
           </div>
@@ -142,20 +317,147 @@ export default function CreatePurchaseInvoicePage() {
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="supplier">Supplier *</Label>
-                  <Select
-                    value={formData.supplierId}
-                    onValueChange={(value) => setFormData({ ...formData, supplierId: value })}
-                  >
-                    <SelectTrigger id="supplier">
-                      <SelectValue placeholder="Select supplier" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="1">Tech Supplies Co.</SelectItem>
-                      <SelectItem value="2">Office Equipment Ltd.</SelectItem>
-                      <SelectItem value="3">Global Distributors</SelectItem>
-                      <SelectItem value="4">Saudi Hardware Trading</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <div className="flex gap-2">
+                    <Select
+                      value={formData.supplierId}
+                      onValueChange={(value) => setFormData({ ...formData, supplierId: value })}
+                    >
+                      <SelectTrigger id="supplier" className="flex-1">
+                        <SelectValue placeholder="Select supplier" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1">Tech Supplies Co.</SelectItem>
+                        <SelectItem value="2">Office Equipment Ltd.</SelectItem>
+                        <SelectItem value="3">Global Distributors</SelectItem>
+                        <SelectItem value="4">Saudi Hardware Trading</SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                    <Dialog open={isSupplierDialogOpen} onOpenChange={setIsSupplierDialogOpen}>
+                      <DialogTrigger asChild>
+                        <Button type="button" variant="outline" size="icon">
+                          <UserPlus className="h-4 w-4" />
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                        <DialogHeader>
+                          <DialogTitle>Add New Supplier</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4 py-4">
+                          <div className="grid gap-4 md:grid-cols-2">
+                            <div className="space-y-2">
+                              <Label htmlFor="supplierName">Supplier Name *</Label>
+                              <Input
+                                id="supplierName"
+                                value={newSupplier.name}
+                                onChange={(e) => setNewSupplier({ ...newSupplier, name: e.target.value })}
+                                placeholder="Enter supplier name"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="supplierEmail">Email *</Label>
+                              <Input
+                                id="supplierEmail"
+                                type="email"
+                                value={newSupplier.email}
+                                onChange={(e) => setNewSupplier({ ...newSupplier, email: e.target.value })}
+                                placeholder="supplier@example.com"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="supplierPhone">Phone *</Label>
+                              <Input
+                                id="supplierPhone"
+                                value={newSupplier.phone}
+                                onChange={(e) => setNewSupplier({ ...newSupplier, phone: e.target.value })}
+                                placeholder="+966 XX XXX XXXX"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="supplierVat">VAT Number</Label>
+                              <Input
+                                id="supplierVat"
+                                value={newSupplier.vatNumber}
+                                onChange={(e) => setNewSupplier({ ...newSupplier, vatNumber: e.target.value })}
+                                placeholder="3XXXXXXXXXX003"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="pt-4 border-t">
+                            <h4 className="font-medium mb-3">Saudi National Address</h4>
+                            <div className="grid gap-4 md:grid-cols-3">
+                              <div className="space-y-2">
+                                <Label htmlFor="buildingNumber">Building Number *</Label>
+                                <Input
+                                  id="buildingNumber"
+                                  value={newSupplier.buildingNumber}
+                                  onChange={(e) => setNewSupplier({ ...newSupplier, buildingNumber: e.target.value })}
+                                  placeholder="1234"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="additionalNumber">Additional Number</Label>
+                                <Input
+                                  id="additionalNumber"
+                                  value={newSupplier.additionalNumber}
+                                  onChange={(e) => setNewSupplier({ ...newSupplier, additionalNumber: e.target.value })}
+                                  placeholder="5678"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="postalCode">Postal Code *</Label>
+                                <Input
+                                  id="postalCode"
+                                  value={newSupplier.postalCode}
+                                  onChange={(e) => setNewSupplier({ ...newSupplier, postalCode: e.target.value })}
+                                  placeholder="12345"
+                                  maxLength={5}
+                                />
+                              </div>
+                            </div>
+                            <div className="grid gap-4 md:grid-cols-2 mt-4">
+                              <div className="space-y-2">
+                                <Label htmlFor="streetName">Street Name *</Label>
+                                <Input
+                                  id="streetName"
+                                  value={newSupplier.streetName}
+                                  onChange={(e) => setNewSupplier({ ...newSupplier, streetName: e.target.value })}
+                                  placeholder="King Fahd Road"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="district">District *</Label>
+                                <Input
+                                  id="district"
+                                  value={newSupplier.district}
+                                  onChange={(e) => setNewSupplier({ ...newSupplier, district: e.target.value })}
+                                  placeholder="Al Olaya"
+                                />
+                              </div>
+                            </div>
+                            <div className="space-y-2 mt-4">
+                              <Label htmlFor="city">City *</Label>
+                              <Input
+                                id="city"
+                                value={newSupplier.city}
+                                onChange={(e) => setNewSupplier({ ...newSupplier, city: e.target.value })}
+                                placeholder="Riyadh"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                        <DialogFooter>
+                          <Button type="button" variant="outline" onClick={() => setIsSupplierDialogOpen(false)}>
+                            Cancel
+                          </Button>
+                          <Button type="button" onClick={handleAddSupplier}>
+                            Add Supplier
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
                 </div>
                 
                 <div className="space-y-2">
@@ -174,7 +476,11 @@ export default function CreatePurchaseInvoicePage() {
                     id="date"
                     type="date"
                     value={formData.date}
-                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                    onChange={(e) => setFormData({ 
+                      ...formData, 
+                      date: e.target.value,
+                      dueDate: e.target.value // Set due date same as invoice date
+                    })}
                     required
                   />
                 </div>
@@ -267,26 +573,34 @@ export default function CreatePurchaseInvoicePage() {
                       
                       <div className="space-y-2">
                         <Label>Total</Label>
-                        <Input
-                          value={`SAR ${item.total.toFixed(2)}`}
-                          disabled
-                          className="bg-muted font-semibold"
-                        />
+                        <div className="h-10 px-3 py-2 bg-muted rounded-md flex items-center gap-1 font-semibold">
+                          <SaudiRiyalIcon size={14} />
+                          <span>{item.total.toFixed(2)}</span>
+                        </div>
                       </div>
                     </div>
                     
                     <div className="grid gap-4 md:grid-cols-3 text-sm">
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Subtotal:</span>
-                        <span className="font-medium">SAR {(item.quantity * item.unitPrice).toFixed(2)}</span>
+                        <span className="font-medium flex items-center gap-1">
+                          <SaudiRiyalIcon size={12} />
+                          {(item.quantity * item.unitPrice).toFixed(2)}
+                        </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Tax ({item.taxRate}%):</span>
-                        <span className="font-medium">SAR {item.taxAmount.toFixed(2)}</span>
+                        <span className="font-medium flex items-center gap-1">
+                          <SaudiRiyalIcon size={12} />
+                          {item.taxAmount.toFixed(2)}
+                        </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Discount:</span>
-                        <span className="font-medium">SAR {((item.quantity * item.unitPrice * item.discount) / 100).toFixed(2)}</span>
+                        <span className="font-medium flex items-center gap-1">
+                          <SaudiRiyalIcon size={12} />
+                          {((item.quantity * item.unitPrice * item.discount) / 100).toFixed(2)}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -297,19 +611,31 @@ export default function CreatePurchaseInvoicePage() {
                 <div className="max-w-md ml-auto space-y-3">
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Subtotal:</span>
-                    <span className="font-medium">SAR {totals.subtotal.toFixed(2)}</span>
+                    <span className="font-medium flex items-center gap-1">
+                      <SaudiRiyalIcon size={14} />
+                      {totals.subtotal.toFixed(2)}
+                    </span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Discount:</span>
-                    <span className="font-medium text-destructive">-SAR {totals.discountAmount.toFixed(2)}</span>
+                    <span className="font-medium text-destructive flex items-center gap-1">
+                      -<SaudiRiyalIcon size={14} />
+                      {totals.discountAmount.toFixed(2)}
+                    </span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Tax (VAT {SAUDI_VAT_RATE}%):</span>
-                    <span className="font-medium">SAR {totals.taxAmount.toFixed(2)}</span>
+                    <span className="font-medium flex items-center gap-1">
+                      <SaudiRiyalIcon size={14} />
+                      {totals.taxAmount.toFixed(2)}
+                    </span>
                   </div>
                   <div className="flex justify-between text-lg font-bold pt-3 border-t">
                     <span>Total Amount:</span>
-                    <span className="text-primary">SAR {totals.total.toFixed(2)}</span>
+                    <span className="text-primary flex items-center gap-1.5">
+                      <SaudiRiyalIcon size={18} />
+                      {totals.total.toFixed(2)}
+                    </span>
                   </div>
                 </div>
               </div>

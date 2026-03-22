@@ -15,6 +15,8 @@ import { SAUDI_VAT_RATE, formatSAR } from "@/lib/constants";
 import { CurrencyDisplay } from "@/components/ui/currency-display";
 import { SaudiRiyalIcon } from "@/components/icons/SaudiRiyalIcon";
 import { productService } from "@/services/productService";
+import { salesService } from "@/services/salesService";
+import { useToast } from "@/hooks/use-toast";
 import type { InvoiceItem } from "@/types";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -30,6 +32,8 @@ interface InvoiceFormData {
 
 export default function CreateSalesInvoicePage() {
   const router = useRouter();
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(false);
   const [isCustomerDialogOpen, setIsCustomerDialogOpen] = useState(false);
   const [products, setProducts] = useState<Database["public"]["Tables"]["products"]["Row"][]>([]);
   const [productSearchQuery, setProductSearchQuery] = useState("");
@@ -51,7 +55,7 @@ export default function CreateSalesInvoicePage() {
     po_number: "",
     payment_type: "cash",
     date: new Date().toISOString().split("T")[0],
-    dueDate: "",
+    dueDate: new Date().toISOString().split("T")[0],
     items: [
       {
         productId: "",
@@ -68,6 +72,7 @@ export default function CreateSalesInvoicePage() {
     notes: "",
   });
   const [isManualInvoice, setIsManualInvoice] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     loadProducts();
@@ -216,10 +221,140 @@ export default function CreateSalesInvoicePage() {
 
   const totals = calculateTotals();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Invoice data:", formData);
-    router.push("/sales");
+    
+    // Validation
+    if (!formData.customerId) {
+      toast({
+        title: "Validation Error",
+        description: "Please select a customer",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!formData.date || !formData.dueDate) {
+      toast({
+        title: "Validation Error",
+        description: "Please fill in invoice date and due date",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (formData.items.length === 0) {
+      toast({
+        title: "Validation Error",
+        description: "Please add at least one item",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate all items have required fields
+    for (let i = 0; i < formData.items.length; i++) {
+      const item = formData.items[i];
+      if (!isManualInvoice && !item.productId) {
+        toast({
+          title: "Validation Error",
+          description: `Please select a product for item ${i + 1}`,
+          variant: "destructive",
+        });
+        return;
+      }
+      if (isManualInvoice && !item.productName.trim()) {
+        toast({
+          title: "Validation Error",
+          description: `Please enter description for item ${i + 1}`,
+          variant: "destructive",
+        });
+        return;
+      }
+      if (item.quantity <= 0) {
+        toast({
+          title: "Validation Error",
+          description: `Please enter valid quantity for item ${i + 1}`,
+          variant: "destructive",
+        });
+        return;
+      }
+      if (item.unitPrice <= 0) {
+        toast({
+          title: "Validation Error",
+          description: `Please enter valid unit price for item ${i + 1}`,
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
+    try {
+      setLoading(true);
+
+      // Get customer name
+      const customers = JSON.parse(localStorage.getItem("customers") || "[]");
+      const customer = customers.find((c: any) => c.id === formData.customerId);
+      const customerName = customer?.name || "Unknown Customer";
+      const customerVat = customer?.vatNumber || "";
+
+      // Generate invoice number (in production, this should come from backend)
+      const invoiceNumber = `INV-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 100000)).padStart(5, '0')}`;
+
+      // Calculate totals
+      const totals = calculateTotals();
+
+      // Prepare invoice data
+      const invoiceData = {
+        customer_id: formData.customerId,
+        customer_name: customerName,
+        customer_vat: customerVat,
+        invoice_number: invoiceNumber,
+        invoice_date: formData.date,
+        due_date: formData.dueDate,
+        subtotal: totals.subtotal,
+        total_amount: totals.total,
+        tax_amount: totals.taxAmount,
+        status: "unpaid",
+        po_number: formData.po_number,
+        payment_type: formData.payment_type,
+        notes: formData.notes,
+        created_by: null, // Will be set by backend if auth is implemented
+      };
+
+      // Prepare items data
+      const itemsData = formData.items.map(item => ({
+        product_id: item.productId && !item.productId.startsWith('manual') ? item.productId : null,
+        product_name: item.productName,
+        product_code: null,
+        quantity: item.quantity,
+        unit_price: item.unitPrice,
+        tax_rate: item.taxRate,
+        tax_amount: item.taxAmount,
+        total_amount: item.total,
+        discount_amount: (item.quantity * item.unitPrice * item.discount) / 100,
+        discount_percentage: item.discount,
+      }));
+
+      // Save to database
+      await salesService.createInvoice(invoiceData, itemsData);
+
+      toast({
+        title: "Success",
+        description: "Sales invoice created successfully",
+      });
+
+      router.push("/sales");
+    } catch (error: any) {
+      console.error("Error saving invoice:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to save invoice",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -246,9 +381,9 @@ export default function CreateSalesInvoicePage() {
               <Link href="/sales">
                 <Button type="button" variant="outline">Cancel</Button>
               </Link>
-              <Button type="submit">
+              <Button type="submit" disabled={loading}>
                 <Save className="h-4 w-4 mr-2" />
-                Save Invoice
+                {loading ? "Saving..." : "Save Invoice"}
               </Button>
             </div>
           </div>
@@ -470,7 +605,11 @@ export default function CreateSalesInvoicePage() {
                     id="date"
                     type="date"
                     value={formData.date}
-                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                    onChange={(e) => setFormData({ 
+                      ...formData, 
+                      date: e.target.value,
+                      dueDate: e.target.value // Set due date same as invoice date
+                    })}
                     required
                   />
                 </div>
