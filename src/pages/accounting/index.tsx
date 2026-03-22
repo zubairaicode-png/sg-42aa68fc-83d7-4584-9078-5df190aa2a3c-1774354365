@@ -1,290 +1,312 @@
 import { useState, useEffect } from "react";
-import { SEO } from "@/components/SEO";
+import Head from "next/head";
 import { DashboardLayout } from "@/components/layouts/DashboardLayout";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Input } from "@/components/ui/input";
-import { Plus, Search, Filter, Download, TrendingUp, TrendingDown } from "lucide-react";
-import { AccountType } from "@/types";
+import { Plus, TrendingUp, TrendingDown, DollarSign, PieChart } from "lucide-react";
 import Link from "next/link";
+import { accountingService, type AccountWithBalance, type JournalEntryWithLines } from "@/services/accountingService";
+import { useToast } from "@/hooks/use-toast";
 
 export default function AccountingPage() {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [journalEntries, setJournalEntries] = useState<any[]>([]);
+  const [accounts, setAccounts] = useState<AccountWithBalance[]>([]);
+  const [journalEntries, setJournalEntries] = useState<JournalEntryWithLines[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [summary, setSummary] = useState({
+    totalAssets: 0,
+    totalLiabilities: 0,
+    totalEquity: 0,
+    netIncome: 0
+  });
+  const { toast } = useToast();
 
-  // Load journal entries from localStorage
   useEffect(() => {
-    const storedEntries = JSON.parse(localStorage.getItem("journalEntries") || "[]");
-    setJournalEntries(storedEntries);
+    loadData();
   }, []);
 
-  const accounts = [
-    { id: "1", code: "1100", name: "Cash", type: "asset" as AccountType, balance: 150000, debit: 150000, credit: 0 },
-    { id: "2", code: "1200", name: "Accounts Receivable", type: "asset" as AccountType, balance: 45250, debit: 45250, credit: 0 },
-    { id: "3", code: "1300", name: "Inventory", type: "asset" as AccountType, balance: 82000, debit: 82000, credit: 0 },
-    { id: "4", code: "2100", name: "Accounts Payable", type: "liability" as AccountType, balance: 25500, debit: 0, credit: 25500 },
-    { id: "5", code: "2200", name: "VAT Payable", type: "liability" as AccountType, balance: 8750, debit: 0, credit: 8750 },
-    { id: "6", code: "3100", name: "Owner's Equity", type: "equity" as AccountType, balance: 200000, debit: 0, credit: 200000 },
-    { id: "7", code: "4100", name: "Sales Revenue", type: "revenue" as AccountType, balance: 125000, debit: 0, credit: 125000 },
-    { id: "8", code: "5100", name: "Cost of Goods Sold", type: "expense" as AccountType, balance: 65000, debit: 65000, credit: 0 },
-    { id: "9", code: "5200", name: "Operating Expenses", type: "expense" as AccountType, balance: 18500, debit: 18500, credit: 0 },
-  ];
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      
+      // Load accounts with balances
+      const accountsData = await accountingService.getAccountsWithBalances();
+      setAccounts(accountsData);
 
-  const getAccountTypeColor = (type: AccountType) => {
-    switch (type) {
-      case "asset": return "text-blue-600 bg-blue-50";
-      case "liability": return "text-red-600 bg-red-50";
-      case "equity": return "text-purple-600 bg-purple-50";
-      case "revenue": return "text-green-600 bg-green-50";
-      case "expense": return "text-orange-600 bg-orange-50";
+      // Load journal entries
+      const entriesData = await accountingService.getAllJournalEntries();
+      setJournalEntries(entriesData);
+
+      // Load financial summary
+      const summaryData = await accountingService.getFinancialSummary();
+      setSummary(summaryData);
+    } catch (error) {
+      console.error("Error loading accounting data:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load accounting data",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
-  const totalAssets = accounts.filter(a => a.type === "asset").reduce((sum, a) => sum + a.balance, 0);
-  const totalLiabilities = accounts.filter(a => a.type === "liability").reduce((sum, a) => sum + a.balance, 0);
-  const totalEquity = accounts.filter(a => a.type === "equity").reduce((sum, a) => sum + a.balance, 0);
-  const totalRevenue = accounts.filter(a => a.type === "revenue").reduce((sum, a) => sum + a.balance, 0);
-  const totalExpenses = accounts.filter(a => a.type === "expense").reduce((sum, a) => sum + a.balance, 0);
-  const netIncome = totalRevenue - totalExpenses;
-
-  // Safe number formatting helper
   const formatCurrency = (value: number | undefined | null): string => {
-    return (value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return (value || 0).toLocaleString("en-US", { 
+      minimumFractionDigits: 2, 
+      maximumFractionDigits: 2 
+    });
   };
 
   return (
     <>
-      <SEO 
-        title="Accounting - Saudi ERP System"
-        description="Manage accounts, journal entries, and financial reports"
-      />
+      <Head>
+        <title>Accounting - ZATCA Accounting System</title>
+      </Head>
       <DashboardLayout>
         <div className="space-y-6">
-          <div className="flex items-center justify-between">
+          <div className="flex justify-between items-center">
             <div>
-              <h1 className="text-3xl font-bold font-heading">Accounting</h1>
-              <p className="text-muted-foreground mt-1">Chart of accounts and financial management</p>
+              <h1 className="text-3xl font-bold">Accounting</h1>
+              <p className="text-muted-foreground">Manage your chart of accounts and journal entries</p>
             </div>
             <Link href="/accounting/journal/create">
-              <Button size="lg">
-                <Plus className="h-5 w-5 mr-2" />
+              <Button>
+                <Plus className="mr-2 h-4 w-4" />
                 New Journal Entry
               </Button>
             </Link>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Total Assets</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold font-heading text-blue-600">SAR {formatCurrency(totalAssets)}</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Total Liabilities</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold font-heading text-red-600">SAR {formatCurrency(totalLiabilities)}</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Total Equity</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold font-heading text-purple-600">SAR {formatCurrency(totalEquity)}</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Net Income</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-2">
-                  <div className={`text-2xl font-bold font-heading ${netIncome >= 0 ? 'text-success' : 'text-destructive'}`}>
-                    SAR {formatCurrency(netIncome)}
-                  </div>
-                  {netIncome >= 0 ? (
-                    <TrendingUp className="h-5 w-5 text-success" />
-                  ) : (
-                    <TrendingDown className="h-5 w-5 text-destructive" />
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <Tabs defaultValue="accounts" className="space-y-4">
-            <TabsList>
-              <TabsTrigger value="accounts">Chart of Accounts</TabsTrigger>
-              <TabsTrigger value="journal">Journal Entries</TabsTrigger>
-              <TabsTrigger value="trial-balance">Trial Balance</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="accounts">
-              <Card>
-                <CardHeader>
-                  <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-                    <CardTitle>Chart of Accounts</CardTitle>
-                    <div className="flex gap-2 w-full sm:w-auto">
-                      <div className="relative flex-1 sm:w-64">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          placeholder="Search accounts..."
-                          value={searchQuery}
-                          onChange={(e) => setSearchQuery(e.target.value)}
-                          className="pl-9"
-                        />
-                      </div>
-                      <Button variant="outline" size="icon">
-                        <Filter className="h-4 w-4" />
-                      </Button>
-                      <Button variant="outline" size="icon">
-                        <Download className="h-4 w-4" />
-                      </Button>
+          {loading ? (
+            <div className="text-center py-12">Loading...</div>
+          ) : (
+            <>
+              {/* Summary Cards */}
+              <div className="grid gap-4 md:grid-cols-4">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">Total Assets</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">SAR {formatCurrency(summary.totalAssets)}</div>
+                    <div className="flex items-center text-xs text-muted-foreground mt-1">
+                      <TrendingUp className="mr-1 h-3 w-3 text-green-500" />
                     </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="rounded-md border">
-                    <div className="overflow-x-auto">
-                      <table className="w-full">
-                        <thead className="bg-table-header">
-                          <tr>
-                            <th className="text-left p-4 font-semibold text-sm">Account Code</th>
-                            <th className="text-left p-4 font-semibold text-sm">Account Name</th>
-                            <th className="text-center p-4 font-semibold text-sm">Type</th>
-                            <th className="text-right p-4 font-semibold text-sm">Debit</th>
-                            <th className="text-right p-4 font-semibold text-sm">Credit</th>
-                            <th className="text-right p-4 font-semibold text-sm">Balance</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {accounts.map((account) => (
-                            <tr key={account.id} className="border-t hover:bg-table-row-hover transition-colors">
-                              <td className="p-4 font-mono font-semibold">{account.code}</td>
-                              <td className="p-4 font-medium">{account.name}</td>
-                              <td className="p-4 text-center">
-                                <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium capitalize ${getAccountTypeColor(account.type)}`}>
-                                  {account.type}
-                                </span>
-                              </td>
-                              <td className="p-4 text-right">{account.debit > 0 ? `SAR ${formatCurrency(account.debit)}` : '-'}</td>
-                              <td className="p-4 text-right">{account.credit > 0 ? `SAR ${formatCurrency(account.credit)}` : '-'}</td>
-                              <td className="p-4 text-right font-semibold">SAR {formatCurrency(account.balance)}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
+                  </CardContent>
+                </Card>
 
-            <TabsContent value="journal">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Recent Journal Entries</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {journalEntries.length === 0 ? (
-                    <div className="text-center py-12">
-                      <p className="text-muted-foreground mb-4">No journal entries yet</p>
-                      <Link href="/accounting/journal/create">
-                        <Button>
-                          <Plus className="h-4 w-4 mr-2" />
-                          Create First Entry
-                        </Button>
-                      </Link>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">Total Liabilities</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">SAR {formatCurrency(summary.totalLiabilities)}</div>
+                    <div className="flex items-center text-xs text-muted-foreground mt-1">
+                      <TrendingDown className="mr-1 h-3 w-3 text-red-500" />
                     </div>
-                  ) : (
-                    <div className="rounded-md border">
-                      <div className="overflow-x-auto">
-                        <table className="w-full">
-                          <thead className="bg-table-header">
-                            <tr>
-                              <th className="text-left p-4 font-semibold text-sm">Entry #</th>
-                              <th className="text-left p-4 font-semibold text-sm">Date</th>
-                              <th className="text-left p-4 font-semibold text-sm">Description</th>
-                              <th className="text-left p-4 font-semibold text-sm">Reference</th>
-                              <th className="text-right p-4 font-semibold text-sm">Amount</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {journalEntries.map((entry) => (
-                              <tr key={entry.id} className="border-t hover:bg-table-row-hover transition-colors">
-                                <td className="p-4 font-medium">{entry.entryNumber}</td>
-                                <td className="p-4 text-sm">{entry.date}</td>
-                                <td className="p-4 text-sm">{entry.description}</td>
-                                <td className="p-4 text-sm">{entry.reference || '-'}</td>
-                                <td className="p-4 text-right font-semibold">SAR {formatCurrency(entry.totalDebit)}</td>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">Total Equity</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">SAR {formatCurrency(summary.totalEquity)}</div>
+                    <div className="flex items-center text-xs text-muted-foreground mt-1">
+                      <PieChart className="mr-1 h-3 w-3" />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">Net Income</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className={`text-2xl font-bold ${summary.netIncome >= 0 ? "text-green-600" : "text-red-600"}`}>
+                      SAR {formatCurrency(summary.netIncome)}
+                    </div>
+                    <div className="flex items-center text-xs text-muted-foreground mt-1">
+                      {summary.netIncome >= 0 ? (
+                        <TrendingUp className="mr-1 h-3 w-3 text-green-500" />
+                      ) : (
+                        <TrendingDown className="mr-1 h-3 w-3 text-red-500" />
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Tabs */}
+              <Tabs defaultValue="accounts" className="space-y-4">
+                <TabsList>
+                  <TabsTrigger value="accounts">Chart of Accounts</TabsTrigger>
+                  <TabsTrigger value="journal">Journal Entries</TabsTrigger>
+                  <TabsTrigger value="trial">Trial Balance</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="accounts" className="space-y-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Chart of Accounts</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {accounts.length === 0 ? (
+                        <div className="text-center py-8 text-muted-foreground">
+                          No accounts found. The chart of accounts will be automatically populated.
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="w-full">
+                            <thead>
+                              <tr className="border-b bg-table-header">
+                                <th className="p-4 text-left font-semibold">Account Code</th>
+                                <th className="p-4 text-left font-semibold">Account Name</th>
+                                <th className="p-4 text-left font-semibold">Type</th>
+                                <th className="p-4 text-right font-semibold">Debit</th>
+                                <th className="p-4 text-right font-semibold">Credit</th>
+                                <th className="p-4 text-right font-semibold">Balance</th>
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
+                            </thead>
+                            <tbody>
+                              {accounts.map((account) => (
+                                <tr key={account.id} className="border-b hover:bg-muted/50">
+                                  <td className="p-4 font-mono">{account.account_code}</td>
+                                  <td className="p-4">{account.account_name}</td>
+                                  <td className="p-4 capitalize">{account.account_type}</td>
+                                  <td className="p-4 text-right">
+                                    {(account.debit || 0) > 0 
+                                      ? `SAR ${formatCurrency(account.debit)}` 
+                                      : "-"
+                                    }
+                                  </td>
+                                  <td className="p-4 text-right">
+                                    {(account.credit || 0) > 0 
+                                      ? `SAR ${formatCurrency(account.credit)}` 
+                                      : "-"
+                                    }
+                                  </td>
+                                  <td className="p-4 text-right font-semibold">
+                                    SAR {formatCurrency(account.current_balance)}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
 
-            <TabsContent value="trial-balance">
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle>Trial Balance</CardTitle>
-                    <Button variant="outline">
-                      <Download className="h-4 w-4 mr-2" />
-                      Export PDF
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="rounded-md border">
-                    <div className="overflow-x-auto">
-                      <table className="w-full">
-                        <thead className="bg-table-header">
-                          <tr>
-                            <th className="text-left p-4 font-semibold text-sm">Account Code</th>
-                            <th className="text-left p-4 font-semibold text-sm">Account Name</th>
-                            <th className="text-right p-4 font-semibold text-sm">Debit</th>
-                            <th className="text-right p-4 font-semibold text-sm">Credit</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {accounts.map((account) => (
-                            <tr key={account.id} className="border-t hover:bg-table-row-hover transition-colors">
-                              <td className="p-4 font-mono font-semibold">{account.code}</td>
-                              <td className="p-4 font-medium">{account.name}</td>
-                              <td className="p-4 text-center">
-                                <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium capitalize ${getAccountTypeColor(account.type)}`}>
-                                  {account.type}
-                                </span>
-                              </td>
-                              <td className="p-4 text-right">{account.debit > 0 ? `SAR ${formatCurrency(account.debit)}` : '-'}</td>
-                              <td className="p-4 text-right">{account.credit > 0 ? `SAR ${formatCurrency(account.credit)}` : '-'}</td>
-                              <td className="p-4 text-right font-semibold">SAR {formatCurrency(account.balance)}</td>
-                            </tr>
-                          ))}
-                          <tr className="border-t-2 border-primary font-bold bg-table-header">
-                            <td className="p-4" colSpan={2}>Total</td>
-                            <td className="p-4 text-right">SAR {formatCurrency(accounts.reduce((sum, a) => sum + (a.debit || 0), 0))}</td>
-                            <td className="p-4 text-right">SAR {formatCurrency(accounts.reduce((sum, a) => sum + (a.credit || 0), 0))}</td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
+                <TabsContent value="journal" className="space-y-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Journal Entries</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {journalEntries.length === 0 ? (
+                        <div className="text-center py-8 text-muted-foreground">
+                          No journal entries found. Create your first journal entry to get started.
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="w-full">
+                            <thead>
+                              <tr className="border-b bg-table-header">
+                                <th className="p-4 text-left font-semibold">Entry Number</th>
+                                <th className="p-4 text-left font-semibold">Date</th>
+                                <th className="p-4 text-left font-semibold">Description</th>
+                                <th className="p-4 text-right font-semibold">Amount</th>
+                                <th className="p-4 text-left font-semibold">Status</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {journalEntries.map((entry) => (
+                                <tr key={entry.id} className="border-b hover:bg-muted/50">
+                                  <td className="p-4 font-mono">{entry.entry_number}</td>
+                                  <td className="p-4">{new Date(entry.entry_date).toLocaleDateString()}</td>
+                                  <td className="p-4">{entry.description}</td>
+                                  <td className="p-4 text-right font-semibold">
+                                    SAR {formatCurrency(entry.totalDebit)}
+                                  </td>
+                                  <td className="p-4">
+                                    <span className={`px-2 py-1 rounded text-xs ${
+                                      entry.status === "posted" ? "bg-green-100 text-green-800" :
+                                      entry.status === "draft" ? "bg-yellow-100 text-yellow-800" :
+                                      "bg-gray-100 text-gray-800"
+                                    }`}>
+                                      {entry.status}
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                <TabsContent value="trial" className="space-y-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Trial Balance</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {accounts.length === 0 ? (
+                        <div className="text-center py-8 text-muted-foreground">
+                          No accounts found. The trial balance will appear once you have accounts with transactions.
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="w-full">
+                            <thead>
+                              <tr className="border-b bg-table-header">
+                                <th className="p-4 text-left font-semibold">Account Name</th>
+                                <th className="p-4 text-right font-semibold">Debit</th>
+                                <th className="p-4 text-right font-semibold">Credit</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {accounts.map((account) => (
+                                <tr key={account.id} className="border-b hover:bg-muted/50">
+                                  <td className="p-4">{account.account_name}</td>
+                                  <td className="p-4 text-right">
+                                    {(account.debit || 0) > 0 
+                                      ? `SAR ${formatCurrency(account.debit)}` 
+                                      : "-"
+                                    }
+                                  </td>
+                                  <td className="p-4 text-right">
+                                    {(account.credit || 0) > 0 
+                                      ? `SAR ${formatCurrency(account.credit)}` 
+                                      : "-"
+                                    }
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                            <tfoot>
+                              <tr className="border-t-2 border-primary font-bold bg-table-header">
+                                <td className="p-4">Total</td>
+                                <td className="p-4 text-right">SAR {formatCurrency(accounts.reduce((sum, a) => sum + (a.debit || 0), 0))}</td>
+                                <td className="p-4 text-right">SAR {formatCurrency(accounts.reduce((sum, a) => sum + (a.credit || 0), 0))}</td>
+                              </tr>
+                            </tfoot>
+                          </table>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+              </Tabs>
+            </>
+          )}
         </div>
       </DashboardLayout>
     </>
