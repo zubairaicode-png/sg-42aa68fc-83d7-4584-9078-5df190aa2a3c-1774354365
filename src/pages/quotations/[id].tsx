@@ -17,12 +17,19 @@ export default function QuotationDetailPage() {
   const { id } = router.query;
   const { toast } = useToast();
   const [quotation, setQuotation] = useState<QuotationWithItems | null>(null);
+  const [invoiceDesign, setInvoiceDesign] = useState<any>({ primary_color: "#2980B9", footer_text: "Thank you for your business!" });
   const [loading, setLoading] = useState(true);
   const [converting, setConverting] = useState(false);
 
   useEffect(() => {
     if (id) {
       loadQuotation();
+    }
+
+    // Load invoice design settings
+    const savedInvoiceDesign = localStorage.getItem("invoiceDesign");
+    if (savedInvoiceDesign) {
+      setInvoiceDesign(JSON.parse(savedInvoiceDesign));
     }
   }, [id]);
 
@@ -160,7 +167,7 @@ export default function QuotationDetailPage() {
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div className="space-y-1">
-                    <CardTitle className="text-2xl font-heading">{quotation.quotation_number}</CardTitle>
+                    <CardTitle className="text-2xl font-heading" style={{ color: invoiceDesign.primary_color || "#2980B9" }}>{quotation.quotation_number}</CardTitle>
                     <div className="flex gap-4 text-sm text-muted-foreground">
                       <span>Date: {formatDate(quotation.quotation_date)}</span>
                       <Separator orientation="vertical" className="h-4" />
@@ -249,9 +256,9 @@ export default function QuotationDetailPage() {
                         <span className="font-medium">SAR {quotation.vat_amount.toLocaleString()}</span>
                       </div>
                       <Separator />
-                      <div className="flex justify-between">
-                        <span className="font-semibold">Total Amount:</span>
-                        <span className="font-bold text-lg text-primary">SAR {quotation.total_amount.toLocaleString()}</span>
+                      <div className="flex justify-between text-lg font-bold pt-2">
+                        <span>Total Amount:</span>
+                        <span style={{ color: invoiceDesign.primary_color || "#2980B9" }}>SAR {quotation.total_amount.toLocaleString()}</span>
                       </div>
                     </div>
                   </div>
@@ -326,7 +333,7 @@ export default function QuotationDetailPage() {
                     <Separator />
                     <div className="flex justify-between text-lg font-bold pt-2">
                       <span>Total Amount:</span>
-                      <span className="text-primary">SAR {quotation.total_amount.toLocaleString()}</span>
+                      <span style={{ color: invoiceDesign.primary_color || "#2980B9" }}>SAR {quotation.total_amount.toLocaleString()}</span>
                     </div>
                   </div>
                 </div>
@@ -341,6 +348,15 @@ export default function QuotationDetailPage() {
                 </CardHeader>
                 <CardContent>
                   <p className="text-sm text-muted-foreground whitespace-pre-wrap">{quotation.notes}</p>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Custom Footer Text */}
+            {invoiceDesign.footer_text && (
+              <Card>
+                <CardContent className="pt-6">
+                  <p className="text-center text-sm text-muted-foreground">{invoiceDesign.footer_text}</p>
                 </CardContent>
               </Card>
             )}

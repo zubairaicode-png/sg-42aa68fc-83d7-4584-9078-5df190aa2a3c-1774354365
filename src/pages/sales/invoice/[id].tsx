@@ -53,6 +53,7 @@ export default function InvoiceViewPage() {
   const { id } = router.query;
   const [invoice, setInvoice] = useState<InvoiceData | null>(null);
   const [companyInfo, setCompanyInfo] = useState<any>(null);
+  const [invoiceDesign, setInvoiceDesign] = useState<any>({ primary_color: "#2980B9", footer_text: "Thank you for your business!" });
   const [qrCode, setQrCode] = useState("");
   const [loading, setLoading] = useState(true);
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
@@ -81,6 +82,12 @@ export default function InvoiceViewPage() {
         phone: "+966 50 000 0000",
         logo: ""
       });
+    }
+
+    // Load invoice design settings
+    const savedInvoiceDesign = localStorage.getItem("invoiceDesign");
+    if (savedInvoiceDesign) {
+      setInvoiceDesign(JSON.parse(savedInvoiceDesign));
     }
 
     // Load invoice data from database
@@ -356,7 +363,7 @@ export default function InvoiceViewPage() {
                   {companyInfo.logo && (
                     <img src={companyInfo.logo} alt="Company Logo" className="h-16 mb-4" />
                   )}
-                  <h1 className="text-3xl font-bold text-primary">{companyInfo.nameEn}</h1>
+                  <h1 className="text-3xl font-bold" style={{ color: invoiceDesign.primary_color || "#2980B9" }}>{companyInfo.nameEn}</h1>
                   <p className="text-xl text-muted-foreground" dir="rtl">{companyInfo.nameAr}</p>
                   <div className="text-sm text-muted-foreground space-y-1">
                     <p>{companyInfo.buildingNumber} {companyInfo.streetName}, {companyInfo.additionalNumber}</p>
@@ -366,7 +373,7 @@ export default function InvoiceViewPage() {
                 </div>
                 <div className="space-y-2">
                   <h2 className="text-4xl font-bold">INVOICE</h2>
-                  <p className="text-2xl font-semibold text-primary" dir="rtl">فاتورة ضريبية</p>
+                  <p className="text-2xl font-semibold" style={{ color: invoiceDesign.primary_color || "#2980B9" }} dir="rtl">فاتورة ضريبية</p>
                   <div className="text-sm space-y-1 mt-4">
                     <p><span className="font-semibold">Invoice No:</span> {invoice.invoice_number}</p>
                     <p><span className="font-semibold">Date:</span> {new Date(invoice.invoice_date).toLocaleDateString()}</p>
@@ -414,7 +421,7 @@ export default function InvoiceViewPage() {
               {/* Invoice Items */}
               <div>
                 <table className="w-full">
-                  <thead className="bg-primary text-primary-foreground">
+                  <thead style={{ backgroundColor: invoiceDesign.primary_color || "#2980B9", color: "white" }}>
                     <tr>
                       <th className="text-left p-3">#</th>
                       <th className="text-left p-3">Item Code<br/><span className="text-xs font-normal">رمز الصنف</span></th>
@@ -476,7 +483,7 @@ export default function InvoiceViewPage() {
                     <span>VAT 15% (ضريبة القيمة المضافة):</span>
                     <span className="font-semibold">{parseFloat(invoice.tax_amount as any || 0).toFixed(2)} SAR</span>
                   </div>
-                  <div className="flex justify-between py-3 bg-primary text-primary-foreground px-4 rounded text-lg">
+                  <div className="flex justify-between py-3 px-4 rounded text-lg" style={{ backgroundColor: invoiceDesign.primary_color || "#2980B9", color: "white" }}>
                     <span className="font-bold">Total (الإجمالي):</span>
                     <span className="font-bold">{parseFloat(invoice.total_amount as any).toFixed(2)} SAR</span>
                   </div>
@@ -501,6 +508,13 @@ export default function InvoiceViewPage() {
               {invoice.notes && (
                 <div className="border-t pt-6">
                   <p className="text-sm text-muted-foreground"><span className="font-semibold">Notes:</span> {invoice.notes}</p>
+                </div>
+              )}
+
+              {/* Custom Footer Text */}
+              {invoiceDesign.footer_text && (
+                <div className="text-center pt-4">
+                  <p className="text-sm text-muted-foreground">{invoiceDesign.footer_text}</p>
                 </div>
               )}
 

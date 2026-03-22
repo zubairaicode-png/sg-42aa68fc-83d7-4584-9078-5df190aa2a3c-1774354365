@@ -256,26 +256,7 @@ export const subscriptionService = {
     if (!plan) throw new Error("Subscription plan not found");
 
     const today = new Date();
-    const invoiceNumber = `INV-${today.getFullYear()}-${String(Math.floor(Math.random() * 100000)).padStart(5, "0")}`;
-
-    // Create invoice items from subscription plan
-    const items = [
-      {
-        product_id: null, // No product for subscription invoices
-        description: `${plan.name} - ${plan.billing_cycle.charAt(0).toUpperCase() + plan.billing_cycle.slice(1)} Subscription`,
-        quantity: 1,
-        unit_price: subscription.price,
-        discount_percent: subscription.discount_percent || 0,
-        vat_percent: 15, // Saudi VAT
-      }
-    ];
-
-    // Calculate totals
-    const subtotal = subscription.price;
-    const discountAmount = (subtotal * (subscription.discount_percent || 0)) / 100;
-    const taxableAmount = subtotal - discountAmount;
-    const vatAmount = (taxableAmount * 15) / 100;
-    const totalAmount = taxableAmount + vatAmount;
+    const invoiceNumber = `SUB-${today.getFullYear()}-${String(Math.floor(Math.random() * 100000)).padStart(5, "0")}`;
 
     // Calculate due date based on billing cycle
     const dueDate = new Date(today);
@@ -291,27 +272,31 @@ export const subscriptionService = {
       nextBillingDate.setFullYear(nextBillingDate.getFullYear() + 1);
     }
 
-    // Create invoice
+    // Calculate totals
+    const unitPrice = subscription.price;
+    const discountPercent = subscription.discount_percent || 0;
+    const discountAmount = (unitPrice * discountPercent) / 100;
+    const subtotal = unitPrice - discountAmount;
+    const taxRate = 15; // Saudi VAT
+    const taxAmount = (subtotal * taxRate) / 100;
+    const totalAmount = subtotal + taxAmount;
+
+    // Create invoice with items
     const { data: invoice, error: invoiceError } = await supabase
       .from("sales_invoices")
-      .insert([
-        {
-          invoice_number: invoiceNumber,
-          customer_id: subscription.customer_id,
-          subscription_id: subscriptionId,
-          date: today.toISOString().split("T")[0],
-          due_date: dueDate.toISOString().split("T")[0],
-          items: items,
-          subtotal: subtotal,
-          discount: discountAmount,
-          vat: vatAmount,
-          total: totalAmount,
-          payment_status: "pending",
-          payment_method: null,
-          notes: `Auto-generated invoice for ${plan.name} subscription`,
-          created_by: user.id,
-        } as any,
-      ])
+      .insert({
+        invoice_number: invoiceNumber,
+        customer_id: subscription.customer_id,
+        invoice_date: today.toISOString().split("T")[0],
+        due_date: dueDate.toISOString().split("T")[0],
+        subtotal: subtotal,
+        tax_amount: taxAmount,
+        total_amount: totalAmount,
+        payment_status: "unpaid",
+        paid_amount: 0,
+        notes: `Auto-generated invoice for ${plan.name} subscription (${plan.billing_cycle})`,
+        created_by: user.id,
+      } as any)
       .select()
       .single();
 
@@ -320,12 +305,30 @@ export const subscriptionService = {
       throw invoiceError;
     }
 
+    // Create invoice items
+    const { error: itemsError } = await supabase
+      .from("sales_invoice_items")
+      .insert({
+        invoice_id: invoice.id,
+        product_name: `${plan.name} - ${plan.billing_cycle.charAt(0).toUpperCase() + plan.billing_cycle.slice(1)} Subscription`,
+        quantity: 1,
+        unit_price: unitPrice,
+        discount_amount: discountAmount,
+        tax_rate: taxRate,
+        line_total: totalAmount,
+      } as any);
+
+    if (itemsError) {
+      console.error("Error creating invoice items:", itemsError);
+      // Rollback invoice creation
+      await supabase.from("sales_invoices").delete().eq("id", invoice.id);
+      throw itemsError;
+    }
+
     // Update subscription with last invoice info and next billing date
     const { error: updateError } = await supabase
       .from("customer_subscriptions")
       .update({
-        last_invoice_date: today.toISOString().split("T")[0],
-        last_invoice_id: invoice.id,
         next_billing_date: nextBillingDate.toISOString().split("T")[0],
       } as any)
       .eq("id", subscriptionId);

@@ -412,7 +412,7 @@ export default function SettingsPage() {
 
         try {
           const { data, error } = await supabase
-            .from(table)
+            .from(table as any)
             .select('*');
 
           if (error) {
@@ -498,13 +498,13 @@ export default function SettingsPage() {
 
             try {
               // Delete existing data
-              await supabase.from(table).delete().neq('id', '00000000-0000-0000-0000-000000000000');
+              await supabase.from(table as any).delete().neq('id', '00000000-0000-0000-0000-000000000000');
 
               // Insert backup data in batches
               const batchSize = 100;
               for (let j = 0; j < data.length; j += batchSize) {
                 const batch = data.slice(j, j + batchSize);
-                const { error } = await supabase.from(table).insert(batch);
+                const { error } = await supabase.from(table as any).insert(batch);
                 
                 if (error) {
                   console.warn(`Warning restoring ${table}:`, error);
