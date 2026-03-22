@@ -31,16 +31,16 @@ interface InvoiceData {
   supplier_phone?: string;
   supplier_email?: string;
   items: Array<{
-    item_code?: string;
-    description: string;
+    product_code?: string;
+    product_name: string;
     quantity: number;
     unit_price: number;
-    discount?: number;
-    vat_rate: number;
+    discount_amount?: number;
+    tax_rate: number;
     total_amount: number;
   }>;
-  subtotal_amount: number;
-  vat_amount: number;
+  subtotal: number;
+  tax_amount: number;
   total_amount: number;
   notes?: string;
   payment_status: string;
@@ -143,7 +143,7 @@ export default function PurchaseInvoiceViewPage() {
       { tag: 2, value: company.vatNumber }, // Seller VAT
       { tag: 3, value: invoice.invoice_date }, // Invoice date
       { tag: 4, value: parseFloat(invoice.total_amount as any).toFixed(2) }, // Total with VAT
-      { tag: 5, value: parseFloat(invoice.vat_amount as any).toFixed(2) } // VAT amount
+      { tag: 5, value: parseFloat(invoice.tax_amount as any).toFixed(2) } // VAT amount
     ];
 
     return tlv.map(item => `${item.tag}:${item.value}`).join("|");
@@ -397,19 +397,19 @@ export default function PurchaseInvoiceViewPage() {
                   </thead>
                   <tbody>
                     {invoice.items.map((item, index) => {
-                      const unitPrice = parseFloat(item.unit_price as any);
-                      const quantity = parseFloat(item.quantity as any);
-                      const discount = parseFloat(item.discount as any || 0);
+                      const unitPrice = parseFloat(item.unit_price as any || 0);
+                      const quantity = parseFloat(item.quantity as any || 0);
+                      const discount = parseFloat(item.discount_amount as any || 0);
                       const subtotal = (quantity * unitPrice) - discount;
-                      const vatRate = parseFloat(item.vat_rate as any);
+                      const vatRate = parseFloat(item.tax_rate as any || 0);
                       const taxAmount = subtotal * (vatRate / 100);
-                      const totalAmount = parseFloat(item.total_amount as any);
+                      const totalAmount = parseFloat(item.total_amount as any || 0);
                       
                       return (
                         <tr key={index} className="border-b">
                           <td className="p-3">{index + 1}</td>
-                          <td className="p-3">{item.item_code || '-'}</td>
-                          <td className="p-3">{item.description}</td>
+                          <td className="p-3">{item.product_code || '-'}</td>
+                          <td className="p-3">{item.product_name || '-'}</td>
                           <td className="text-center p-3">{quantity}</td>
                           <td className="text-right p-3">{unitPrice.toFixed(2)} SAR</td>
                           <td className="text-right p-3">{discount ? `${discount.toFixed(2)} SAR` : '-'}</td>
@@ -437,11 +437,11 @@ export default function PurchaseInvoiceViewPage() {
                 <div className="w-80 space-y-2">
                   <div className="flex justify-between py-2 border-b">
                     <span>Subtotal (المجموع الفرعي):</span>
-                    <span className="font-semibold">{parseFloat(invoice.subtotal_amount as any).toFixed(2)} SAR</span>
+                    <span className="font-semibold">{parseFloat(invoice.subtotal as any || 0).toFixed(2)} SAR</span>
                   </div>
                   <div className="flex justify-between py-2 border-b">
                     <span>VAT 15% (ضريبة القيمة المضافة):</span>
-                    <span className="font-semibold">{parseFloat(invoice.vat_amount as any).toFixed(2)} SAR</span>
+                    <span className="font-semibold">{parseFloat(invoice.tax_amount as any || 0).toFixed(2)} SAR</span>
                   </div>
                   <div className="flex justify-between py-3 bg-primary text-primary-foreground px-4 rounded text-lg">
                     <span className="font-bold">Total (الإجمالي):</span>
