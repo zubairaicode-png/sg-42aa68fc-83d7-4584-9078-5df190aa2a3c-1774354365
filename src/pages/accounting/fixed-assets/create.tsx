@@ -71,28 +71,64 @@ export default function CreateFixedAssetPage() {
   const calculateDepreciation = () => {
     const { purchase_cost, salvage_value, useful_life_years, depreciation_method } = formData;
     
-    if (!purchase_cost || !useful_life_years) {
+    if (!purchase_cost || purchase_cost <= 0) {
       toast({
         title: "Missing Information",
-        description: "Please enter purchase cost and useful life years",
+        description: "Please enter a valid purchase cost greater than 0",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!useful_life_years || useful_life_years <= 0) {
+      toast({
+        title: "Missing Information",
+        description: "Please enter a valid useful life in years (greater than 0)",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (salvage_value >= purchase_cost) {
+      toast({
+        title: "Invalid Values",
+        description: "Salvage value must be less than purchase cost",
         variant: "destructive",
       });
       return;
     }
 
     let annualDepreciation = 0;
+    let methodDescription = "";
     
     if (depreciation_method === "straight_line") {
-      annualDepreciation = (purchase_cost - salvage_value) / useful_life_years;
+      // Straight Line: (Cost - Salvage) / Useful Life
+      const depreciableAmount = purchase_cost - salvage_value;
+      annualDepreciation = depreciableAmount / useful_life_years;
+      methodDescription = `Straight Line Method: (${purchase_cost.toFixed(2)} - ${salvage_value.toFixed(2)}) / ${useful_life_years} years`;
     } else if (depreciation_method === "declining_balance") {
+      // Declining Balance (Double Declining): Cost × (2 / Useful Life)
       const rate = 2 / useful_life_years;
       annualDepreciation = purchase_cost * rate;
+      methodDescription = `Declining Balance Method (Year 1): ${purchase_cost.toFixed(2)} × (2 / ${useful_life_years})`;
+    } else if (depreciation_method === "units_of_production") {
+      // Units of Production requires additional data, so we'll show a message
+      toast({
+        title: "Units of Production Method",
+        description: "This method requires actual usage data. Annual depreciation will be calculated based on: (Cost - Salvage) × (Units Used / Total Lifetime Units)",
+      });
+      return;
     }
 
     toast({
       title: "Depreciation Calculated",
       description: `Annual depreciation: SAR ${annualDepreciation.toFixed(2)}`,
     });
+
+    // Also show detailed calculation in console for user reference
+    console.log("Depreciation Calculation:");
+    console.log(methodDescription);
+    console.log(`Annual Depreciation: SAR ${annualDepreciation.toFixed(2)}`);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -439,24 +475,64 @@ export default function CreateFixedAssetPage() {
                             </span>
                           </div>
                         )}
+                        {formData.depreciation_method === "declining_balance" && formData.purchase_cost > 0 && formData.useful_life_years > 0 && (
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">Annual Depreciation (Year 1):</span>
+                            <span className="font-medium text-orange-600">
+                              SAR {(formData.purchase_cost * (2 / formData.useful_life_years)).toFixed(2)}
+                            </span>
+                          </div>
+                        )}
+                        {formData.depreciation_method === "units_of_production" && (
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">Depreciation Method:</span>
+                            <span className="font-medium text-orange-600 text-xs">
+                              Based on usage
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
 
                   <Card>
                     <CardHeader>
-                      <CardTitle>Depreciation Info</CardTitle>
+                      <CardTitle>Depreciation Methods Explained</CardTitle>
                     </CardHeader>
-                    <CardContent className="space-y-2 text-sm text-muted-foreground">
-                      <p>
-                        <strong>Straight Line:</strong> Equal depreciation each year
-                      </p>
-                      <p>
-                        <strong>Declining Balance:</strong> Higher depreciation in early years
-                      </p>
-                      <p>
-                        <strong>Units of Production:</strong> Based on usage/output
-                      </p>
+                    <CardContent className="space-y-3 text-sm text-muted-foreground">
+                      <div>
+                        <p className="font-semibold text-foreground mb-1">Straight Line:</p>
+                        <p>Equal depreciation each year</p>
+                        <p className="text-xs mt-1 font-mono bg-muted p-2 rounded">
+                          Annual Dep = (Cost - Salvage) / Useful Life
+                        </p>
+                        <p className="text-xs mt-1">
+                          Example: (15,000 - 1,000) / 5 = SAR 2,800/year
+                        </p>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-foreground mb-1">Declining Balance:</p>
+                        <p>Higher depreciation in early years (Double-Declining)</p>
+                        <p className="text-xs mt-1 font-mono bg-muted p-2 rounded">
+                          Year 1 Dep = Cost × (2 / Useful Life)
+                        </p>
+                        <p className="text-xs mt-1">
+                          Example Year 1: 15,000 × (2 / 5) = SAR 6,000
+                        </p>
+                        <p className="text-xs">
+                          Example Year 2: 9,000 × (2 / 5) = SAR 3,600
+                        </p>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-foreground mb-1">Units of Production:</p>
+                        <p>Based on actual usage/output</p>
+                        <p className="text-xs mt-1 font-mono bg-muted p-2 rounded">
+                          Annual Dep = (Cost - Salvage) × (Units Used / Total Units)
+                        </p>
+                        <p className="text-xs mt-1">
+                          Best for: Machinery, vehicles, equipment with measurable usage
+                        </p>
+                      </div>
                     </CardContent>
                   </Card>
 
