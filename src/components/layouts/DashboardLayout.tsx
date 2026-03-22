@@ -22,6 +22,7 @@ import {
   Landmark,
   TrendingUp,
   Building,
+  Repeat,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -50,6 +51,7 @@ const navItems = [
   { href: "/customers", icon: Users, label: "Customers" },
   { href: "/suppliers", icon: Building2, label: "Suppliers" },
   { href: "/expenses", icon: Receipt, label: "Expenses" },
+  { href: "/subscriptions", icon: Repeat, label: "Subscriptions" },
   { href: "/accounting", icon: Calculator, label: "Accounting" },
   { href: "/accounting/bank-reconciliation", icon: Landmark, label: "Bank Reconciliation" },
   { href: "/accounting/fixed-assets", icon: Building, label: "Fixed Assets" },
