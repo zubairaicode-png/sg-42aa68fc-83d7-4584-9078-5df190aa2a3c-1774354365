@@ -152,8 +152,16 @@ export default function CreateUserPage() {
       if (!authData.user) throw new Error("Failed to create user");
 
       const userId = authData.user.id;
+      console.log("User created successfully with ID:", userId);
 
       // Create profile record
+      console.log("Creating profile record with data:", {
+        id: userId,
+        email: formData.email,
+        full_name: formData.fullName,
+        role: formData.role,
+      });
+
       const { error: profileError } = await supabase
         .from("profiles")
         .insert({
@@ -163,13 +171,22 @@ export default function CreateUserPage() {
           role: formData.role,
         });
 
-      if (profileError) throw profileError;
+      if (profileError) {
+        console.error("Profile creation error:", profileError);
+        throw profileError;
+      }
+
+      console.log("Profile created successfully");
 
       // Assign locations
       const locationIds = selectedLocations.map((sl) => sl.locationId);
       const primaryLocationId = selectedLocations.find((sl) => sl.isPrimary)?.locationId || locationIds[0];
 
+      console.log("Assigning locations:", { userId, locationIds, primaryLocationId });
+
       await userService.assignLocations(userId, locationIds, primaryLocationId);
+
+      console.log("Locations assigned successfully");
 
       toast({
         title: "Success",
