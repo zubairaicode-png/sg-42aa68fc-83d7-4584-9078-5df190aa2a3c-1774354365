@@ -5,26 +5,22 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Save, User, Lock, Shield } from "lucide-react";
 import { useRouter } from "next/router";
-import { supabase } from "@/integrations/supabase/client";
-import type { Database } from "@/integrations/supabase/types";
-
-type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 
 export default function ProfilePage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [profile, setProfile] = useState<Profile | null>(null);
   const [profileData, setProfileData] = useState({
+    id: "",
     fullName: "",
     email: "",
-    role: "employee" as "admin" | "manager" | "employee",
+    role: "",
+    createdAt: "",
   });
   const [passwordData, setPasswordData] = useState({
     currentPassword: "",
@@ -38,31 +34,24 @@ export default function ProfilePage() {
 
   const loadProfile = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const response = await fetch("/api/auth/me");
       
-      if (!user) {
+      if (!response.ok) {
         router.push("/auth/login");
         return;
       }
 
-      const { data: profileData, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", user.id)
-        .single();
-
-      if (error) throw error;
-
-      if (profileData) {
-        setProfile(profileData);
-        setProfileData({
-          fullName: profileData.full_name || "",
-          email: profileData.email || "",
-          role: (profileData.role as "admin" | "manager" | "employee") || "employee",
-        });
-      }
+      const data = await response.json();
+      setProfileData({
+        id: data.id || "",
+        fullName: data.full_name || "",
+        email: data.email || "",
+        role: data.role || "employee",
+        createdAt: data.created_at ? new Date(data.created_at).toLocaleDateString() : "",
+      });
     } catch (error) {
       console.error("Error loading profile:", error);
+      router.push("/auth/login");
     }
   };
 
@@ -78,30 +67,23 @@ export default function ProfilePage() {
 
     try {
       setLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) throw new Error("No user found");
 
-      // Update email if changed
-      if (profileData.email !== profile?.email) {
-        const { error: emailError } = await supabase.auth.updateUser({
+      const response = await fetch("/api/users/update-profile", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          fullName: profileData.fullName,
           email: profileData.email,
-        });
-        if (emailError) throw emailError;
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to update profile");
       }
-
-      // Update profile
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .update({
-          full_name: profileData.fullName,
-          email: profileData.email,
-          role: profileData.role,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", user.id);
-
-      if (profileError) throw profileError;
 
       setSuccess("Profile updated successfully!");
       await loadProfile();
@@ -136,23 +118,22 @@ export default function ProfilePage() {
     try {
       setLoading(true);
 
-      // Verify current password by trying to sign in
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user?.email) throw new Error("No user email found");
-
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: user.email,
-        password: passwordData.currentPassword,
+      const response = await fetch("/api/users/change-password", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          currentPassword: passwordData.currentPassword,
+          newPassword: passwordData.newPassword,
+        }),
       });
 
-      if (signInError) throw new Error("Current password is incorrect");
+      const data = await response.json();
 
-      // Update password
-      const { error: updateError } = await supabase.auth.updateUser({
-        password: passwordData.newPassword,
-      });
-
-      if (updateError) throw updateError;
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to change password");
+      }
 
       setSuccess("Password changed successfully!");
       setPasswordData({
@@ -165,6 +146,18 @@ export default function ProfilePage() {
       setError(error.message || "Failed to change password");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const getRoleBadgeColor = (role: string) => {
+    switch (role) {
+      case "super_admin":
+      case "admin":
+        return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200";
+      case "manager":
+        return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200";
+      default:
+        return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200";
     }
   };
 
@@ -212,7 +205,7 @@ export default function ProfilePage() {
                     )}
 
                     {success && (
-                      <Alert className="bg-success/10 text-success border-success/20">
+                      <Alert className="bg-green-50 text-green-800 border-green-200">
                         <AlertDescription>{success}</AlertDescription>
                       </Alert>
                     )}
@@ -243,26 +236,30 @@ export default function ProfilePage() {
 
                       <div className="space-y-2">
                         <Label htmlFor="role">Role</Label>
-                        <Select
-                          value={profileData.role}
-                          onValueChange={(value: "admin" | "manager" | "employee") => 
-                            setProfileData({ ...profileData, role: value })
-                          }
-                        >
-                          <SelectTrigger id="role">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="admin">Admin</SelectItem>
-                            <SelectItem value="manager">Manager</SelectItem>
-                            <SelectItem value="employee">Employee</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <div className="flex items-center gap-2">
+                          <Input 
+                            id="role" 
+                            value={profileData.role} 
+                            disabled 
+                            className="capitalize"
+                          />
+                          <span className={`text-xs px-3 py-1.5 rounded-full capitalize whitespace-nowrap ${getRoleBadgeColor(profileData.role)}`}>
+                            {profileData.role.replace(/_/g, " ")}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Contact an administrator to change your role
+                        </p>
                       </div>
 
                       <div className="space-y-2">
                         <Label>User ID</Label>
-                        <Input value={profile?.id || ""} disabled />
+                        <Input value={profileData.id} disabled className="font-mono text-xs" />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Member Since</Label>
+                        <Input value={profileData.createdAt} disabled />
                       </div>
                     </div>
 
@@ -292,7 +289,7 @@ export default function ProfilePage() {
                     )}
 
                     {success && (
-                      <Alert className="bg-success/10 text-success border-success/20">
+                      <Alert className="bg-green-50 text-green-800 border-green-200">
                         <AlertDescription>{success}</AlertDescription>
                       </Alert>
                     )}
