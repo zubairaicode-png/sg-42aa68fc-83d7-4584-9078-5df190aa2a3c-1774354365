@@ -526,8 +526,13 @@ export default function CreateSalesInvoicePage() {
                             placeholder="Enter item description"
                             value={item.productName}
                             onChange={(e) => {
-                              updateItem(index, "productName", e.target.value);
-                              updateItem(index, "productId", `manual-${index}`);
+                              const newItems = [...formData.items];
+                              newItems[index] = {
+                                ...newItems[index],
+                                productName: e.target.value,
+                                productId: `manual-${index}`,
+                              };
+                              setFormData({ ...formData, items: newItems });
                             }}
                           />
                         </div>
