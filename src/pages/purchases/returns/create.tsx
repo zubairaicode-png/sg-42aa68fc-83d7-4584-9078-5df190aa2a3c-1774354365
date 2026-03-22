@@ -25,6 +25,10 @@ export default function CreatePurchaseReturn() {
     return_date: new Date().toISOString().split('T')[0],
     reason: "",
     status: "draft",
+    payment_date: new Date().toISOString().split('T')[0],
+    payment_method: "",
+    payment_reference: "",
+    payment_notes: "",
   });
   
   const [items, setItems] = useState<any[]>([
@@ -184,6 +188,41 @@ export default function CreatePurchaseReturn() {
                     placeholder="E.g., Damaged goods, wrong items..." 
                     value={formData.reason} 
                     onChange={e => setFormData({...formData, reason: e.target.value})} 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Payment Method</Label>
+                  <Select value={formData.payment_method} onValueChange={v => setFormData({...formData, payment_method: v})}>
+                    <SelectTrigger><SelectValue placeholder="Select method" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cash">Cash</SelectItem>
+                      <SelectItem value="bank">Bank Transfer</SelectItem>
+                      <SelectItem value="credit">Credit to Account</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Payment Date</Label>
+                  <Input 
+                    type="date" 
+                    value={formData.payment_date} 
+                    onChange={e => setFormData({...formData, payment_date: e.target.value})} 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Payment Reference</Label>
+                  <Input 
+                    placeholder="e.g., Check #, Transfer ID" 
+                    value={formData.payment_reference} 
+                    onChange={e => setFormData({...formData, payment_reference: e.target.value})} 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Payment Notes</Label>
+                  <Input 
+                    placeholder="Additional payment details" 
+                    value={formData.payment_notes} 
+                    onChange={e => setFormData({...formData, payment_notes: e.target.value})} 
                   />
                 </div>
               </CardContent>

@@ -33,6 +33,9 @@ interface ReturnFormData {
   reason: string;
   notes: string;
   refundMethod: "cash" | "credit" | "bank";
+  paymentDate: string;
+  paymentReference: string;
+  paymentNotes: string;
 }
 
 export default function CreateSalesReturnPage() {
@@ -47,6 +50,9 @@ export default function CreateSalesReturnPage() {
     reason: "",
     notes: "",
     refundMethod: "cash",
+    paymentDate: new Date().toISOString().split("T")[0],
+    paymentReference: "",
+    paymentNotes: "",
   });
 
   const loadInvoice = (invoiceNumber: string) => {
@@ -353,21 +359,54 @@ export default function CreateSalesReturnPage() {
               <CardTitle>Refund Details</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="refundMethod">Refund Method *</Label>
-                <Select
-                  value={formData.refundMethod}
-                  onValueChange={(value: "cash" | "credit" | "bank") => setFormData({ ...formData, refundMethod: value })}
-                >
-                  <SelectTrigger id="refundMethod">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="cash">Cash Refund</SelectItem>
-                    <SelectItem value="credit">Store Credit</SelectItem>
-                    <SelectItem value="bank">Bank Transfer</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="refundMethod">Refund Method *</Label>
+                  <Select
+                    value={formData.refundMethod}
+                    onValueChange={(value: "cash" | "credit" | "bank") => setFormData({ ...formData, refundMethod: value })}
+                  >
+                    <SelectTrigger id="refundMethod">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cash">Cash Refund</SelectItem>
+                      <SelectItem value="credit">Store Credit</SelectItem>
+                      <SelectItem value="bank">Bank Transfer</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="paymentDate">Payment Date *</Label>
+                  <Input
+                    id="paymentDate"
+                    type="date"
+                    value={formData.paymentDate}
+                    onChange={(e) => setFormData({ ...formData, paymentDate: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="paymentReference">Payment Reference</Label>
+                  <Input
+                    id="paymentReference"
+                    placeholder="e.g., Check #1234, Transfer ID"
+                    value={formData.paymentReference}
+                    onChange={(e) => setFormData({ ...formData, paymentReference: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="paymentNotes">Payment Notes</Label>
+                  <Input
+                    id="paymentNotes"
+                    placeholder="Additional payment information"
+                    value={formData.paymentNotes}
+                    onChange={(e) => setFormData({ ...formData, paymentNotes: e.target.value })}
+                  />
+                </div>
               </div>
 
               <div className="space-y-2">

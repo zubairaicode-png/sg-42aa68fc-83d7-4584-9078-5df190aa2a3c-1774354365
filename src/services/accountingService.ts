@@ -507,5 +507,122 @@ export const accountingService = {
       console.error("Error creating journal entry from purchase return:", error);
       throw error;
     }
+  },
+
+  // Sync all existing transactions to create missing journal entries
+  async syncAllTransactions(): Promise<{
+    salesSynced: number;
+    purchasesSynced: number;
+    salesReturnsSynced: number;
+    purchaseReturnsSynced: number;
+    errors: string[];
+  }> {
+    const errors: string[] = [];
+    let salesSynced = 0;
+    let purchasesSynced = 0;
+    let salesReturnsSynced = 0;
+    let purchaseReturnsSynced = 0;
+
+    try {
+      // Get all existing journal entries to check which transactions already have entries
+      const { data: existingEntries } = await supabase
+        .from("journal_entries")
+        .select("reference_type, reference_id");
+
+      const existingRefs = new Set(
+        existingEntries?.map(e => `${e.reference_type}-${e.reference_id}`) || []
+      );
+
+      // Sync Sales Invoices
+      const { data: sales } = await supabase
+        .from("sales_invoices")
+        .select("*")
+        .order("created_at");
+
+      if (sales) {
+        for (const invoice of sales) {
+          const refKey = `sale-${invoice.id}`;
+          if (!existingRefs.has(refKey)) {
+            try {
+              await this.createJournalEntryFromSale(invoice);
+              salesSynced++;
+            } catch (error) {
+              errors.push(`Sales Invoice ${invoice.invoice_number}: ${error}`);
+            }
+          }
+        }
+      }
+
+      // Sync Purchases
+      const { data: purchases } = await supabase
+        .from("purchase_invoices")
+        .select("*")
+        .order("created_at");
+
+      if (purchases) {
+        for (const purchase of purchases) {
+          const refKey = `purchase-${purchase.id}`;
+          if (!existingRefs.has(refKey)) {
+            try {
+              await this.createJournalEntryFromPurchase(purchase);
+              purchasesSynced++;
+            } catch (error) {
+              errors.push(`Purchase ${purchase.invoice_number}: ${error}`);
+            }
+          }
+        }
+      }
+
+      // Sync Sales Returns
+      const { data: salesReturns } = await supabase
+        .from("sales_returns")
+        .select("*")
+        .order("created_at");
+
+      if (salesReturns) {
+        for (const salesReturn of salesReturns) {
+          const refKey = `sales_return-${salesReturn.id}`;
+          if (!existingRefs.has(refKey)) {
+            try {
+              await this.createJournalEntryFromSalesReturn(salesReturn);
+              salesReturnsSynced++;
+            } catch (error) {
+              errors.push(`Sales Return ${salesReturn.return_number}: ${error}`);
+            }
+          }
+        }
+      }
+
+      // Sync Purchase Returns
+      const { data: purchaseReturns } = await supabase
+        .from("purchase_returns")
+        .select("*")
+        .order("created_at");
+
+      if (purchaseReturns) {
+        for (const purchaseReturn of purchaseReturns) {
+          const refKey = `purchase_return-${purchaseReturn.id}`;
+          if (!existingRefs.has(refKey)) {
+            try {
+              await this.createJournalEntryFromPurchaseReturn(purchaseReturn);
+              purchaseReturnsSynced++;
+            } catch (error) {
+              errors.push(`Purchase Return ${purchaseReturn.return_number}: ${error}`);
+            }
+          }
+        }
+      }
+
+      return {
+        salesSynced,
+        purchasesSynced,
+        salesReturnsSynced,
+        purchaseReturnsSynced,
+        errors
+      };
+    } catch (error) {
+      console.error("Error syncing transactions:", error);
+      throw error;
+    }
   }
 };

@@ -1012,6 +1012,10 @@ export type Database = {
           notes: string | null
           original_purchase_id: string | null
           original_purchase_number: string
+          payment_date: string | null
+          payment_method: string | null
+          payment_notes: string | null
+          payment_reference: string | null
           reason: string
           refund_amount: number | null
           refund_method: string | null
@@ -1032,6 +1036,10 @@ export type Database = {
           notes?: string | null
           original_purchase_id?: string | null
           original_purchase_number: string
+          payment_date?: string | null
+          payment_method?: string | null
+          payment_notes?: string | null
+          payment_reference?: string | null
           reason: string
           refund_amount?: number | null
           refund_method?: string | null
@@ -1052,6 +1060,10 @@ export type Database = {
           notes?: string | null
           original_purchase_id?: string | null
           original_purchase_number?: string
+          payment_date?: string | null
+          payment_method?: string | null
+          payment_notes?: string | null
+          payment_reference?: string | null
           reason?: string
           refund_amount?: number | null
           refund_method?: string | null
@@ -1527,6 +1539,10 @@ export type Database = {
           notes: string | null
           original_invoice_id: string | null
           original_invoice_number: string
+          payment_date: string | null
+          payment_method: string | null
+          payment_notes: string | null
+          payment_reference: string | null
           reason: string
           refund_amount: number | null
           refund_method: string | null
@@ -1549,6 +1565,10 @@ export type Database = {
           notes?: string | null
           original_invoice_id?: string | null
           original_invoice_number: string
+          payment_date?: string | null
+          payment_method?: string | null
+          payment_notes?: string | null
+          payment_reference?: string | null
           reason: string
           refund_amount?: number | null
           refund_method?: string | null
@@ -1571,6 +1591,10 @@ export type Database = {
           notes?: string | null
           original_invoice_id?: string | null
           original_invoice_number?: string
+          payment_date?: string | null
+          payment_method?: string | null
+          payment_notes?: string | null
+          payment_reference?: string | null
           reason?: string
           refund_amount?: number | null
           refund_method?: string | null

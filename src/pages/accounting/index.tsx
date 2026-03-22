@@ -4,7 +4,7 @@ import { DashboardLayout } from "@/components/layouts/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, TrendingUp, TrendingDown, DollarSign, PieChart } from "lucide-react";
+import { Plus, TrendingUp, TrendingDown, DollarSign, PieChart, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { accountingService, type AccountWithBalance, type JournalEntryWithLines } from "@/services/accountingService";
 import { useToast } from "@/hooks/use-toast";
@@ -13,6 +13,7 @@ export default function AccountingPage() {
   const [accounts, setAccounts] = useState<AccountWithBalance[]>([]);
   const [journalEntries, setJournalEntries] = useState<JournalEntryWithLines[]>([]);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [summary, setSummary] = useState({
     totalAssets: 0,
     totalLiabilities: 0,
@@ -52,6 +53,35 @@ export default function AccountingPage() {
     }
   };
 
+  const syncTransactions = async () => {
+    try {
+      setSyncing(true);
+      toast({
+        title: "Syncing...",
+        description: "Creating journal entries for existing transactions...",
+      });
+
+      const result = await accountingService.syncAllTransactions();
+
+      toast({
+        title: "Sync Complete!",
+        description: `Synced: ${result.salesSynced} sales, ${result.purchasesSynced} purchases, ${result.salesReturnsSynced} sales returns, ${result.purchaseReturnsSynced} purchase returns${result.errors.length > 0 ? `. ${result.errors.length} errors occurred.` : ""}`,
+      });
+
+      // Reload data to show new entries
+      await loadData();
+    } catch (error) {
+      console.error("Error syncing transactions:", error);
+      toast({
+        title: "Sync Failed",
+        description: "Failed to sync transactions. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const formatCurrency = (value: number | undefined | null): string => {
     return (value || 0).toLocaleString("en-US", { 
       minimumFractionDigits: 2, 
@@ -71,12 +101,22 @@ export default function AccountingPage() {
               <h1 className="text-3xl font-bold">Accounting</h1>
               <p className="text-muted-foreground">Manage your chart of accounts and journal entries</p>
             </div>
-            <Link href="/accounting/journal/create">
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                New Journal Entry
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={syncTransactions}
+                disabled={syncing}
+              >
+                <RefreshCw className={`mr-2 h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
+                {syncing ? "Syncing..." : "Sync Transactions"}
               </Button>
-            </Link>
+              <Link href="/accounting/journal/create">
+                <Button>
+                  <Plus className="mr-2 h-4 w-4" />
+                  New Journal Entry
+                </Button>
+              </Link>
+            </div>
           </div>
 
           {loading ? (
