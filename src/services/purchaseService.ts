@@ -7,146 +7,142 @@ type PurchaseInvoiceItem = Database["public"]["Tables"]["purchase_invoice_items"
 type PurchaseInvoiceItemInsert = Database["public"]["Tables"]["purchase_invoice_items"]["Insert"];
 
 export const purchaseService = {
-  // Create new purchase invoice with items
-  async createInvoice(
-    invoiceData: Omit<PurchaseInvoiceInsert, "id" | "created_at" | "updated_at">,
-    items: Omit<PurchaseInvoiceItemInsert, "id" | "invoice_id" | "created_at">[]
-  ) {
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (!user) {
-      throw new Error("User not authenticated");
-    }
+  // Create purchase invoice with items
+  async createInvoice(purchaseData: any, itemsData: any[]) {
+    try {
+      console.log("Creating purchase invoice with data:", purchaseData);
 
-    // Insert invoice
-    const { data: invoice, error: invoiceError } = await supabase
-      .from("purchase_invoices")
-      .insert({
-        ...invoiceData,
-        created_by: user.id,
-      })
-      .select()
-      .single();
+      // Insert the invoice
+      const { data: invoice, error: invoiceError } = await supabase
+        .from("purchase_invoices")
+        .insert([purchaseData])
+        .select()
+        .single();
 
-    if (invoiceError) {
-      console.error("Error creating purchase invoice:", invoiceError);
-      throw new Error(invoiceError.message);
-    }
+      if (invoiceError) {
+        console.error("Error creating invoice:", invoiceError);
+        throw new Error(`Failed to create invoice: ${invoiceError.message}`);
+      }
 
-    // Insert items
-    if (items.length > 0) {
-      const itemsWithInvoiceId = items.map(item => ({
+      if (!invoice) {
+        throw new Error("Invoice creation returned no data");
+      }
+
+      console.log("Invoice created:", invoice);
+
+      // Prepare items with invoice ID
+      const itemsWithInvoiceId = itemsData.map(item => ({
         ...item,
         invoice_id: invoice.id,
       }));
 
-      const { error: itemsError } = await supabase
+      console.log("Creating invoice items:", itemsWithInvoiceId);
+
+      // Insert the items
+      const { data: items, error: itemsError } = await supabase
         .from("purchase_invoice_items")
-        .insert(itemsWithInvoiceId);
+        .insert(itemsWithInvoiceId)
+        .select();
 
       if (itemsError) {
-        console.error("Error creating purchase invoice items:", itemsError);
-        throw new Error(itemsError.message);
+        console.error("Error creating invoice items:", itemsError);
+        // Try to delete the invoice if items failed
+        await supabase.from("purchase_invoices").delete().eq("id", invoice.id);
+        throw new Error(`Failed to create invoice items: ${itemsError.message}`);
       }
-    }
 
-    return invoice;
+      console.log("Invoice items created:", items);
+
+      return invoice;
+    } catch (error: any) {
+      console.error("Error in createInvoice:", error);
+      throw error;
+    }
   },
 
   // Get all purchase invoices
   async getAll() {
-    const { data, error } = await supabase
-      .from("purchase_invoices")
-      .select(`
-        *,
-        purchase_invoice_items(*)
-      `)
-      .order("created_at", { ascending: false });
+    try {
+      const { data, error } = await supabase
+        .from("purchase_invoices")
+        .select(`
+          *,
+          purchase_invoice_items (*)
+        `)
+        .order("created_at", { ascending: false });
 
-    if (error) {
-      console.error("Error fetching purchase invoices:", error);
-      throw new Error(error.message);
-    }
-
-    return data || [];
-  },
-
-  // Get purchase invoice by ID
-  async getById(id: string) {
-    const { data, error } = await supabase
-      .from("purchase_invoices")
-      .select(`
-        *,
-        purchase_invoice_items(*)
-      `)
-      .eq("id", id)
-      .single();
-
-    if (error) {
-      console.error("Error fetching purchase invoice:", error);
-      throw new Error(error.message);
-    }
-
-    return data;
-  },
-
-  // Update purchase invoice
-  async updateInvoice(
-    id: string,
-    invoiceData: Partial<PurchaseInvoiceInsert>,
-    items?: Omit<PurchaseInvoiceItemInsert, "id" | "invoice_id" | "created_at">[]
-  ) {
-    // Update invoice
-    const { error: invoiceError } = await supabase
-      .from("purchase_invoices")
-      .update({
-        ...invoiceData,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", id);
-
-    if (invoiceError) {
-      console.error("Error updating purchase invoice:", invoiceError);
-      throw new Error(invoiceError.message);
-    }
-
-    // Update items if provided
-    if (items) {
-      // Delete existing items
-      await supabase
-        .from("purchase_invoice_items")
-        .delete()
-        .eq("invoice_id", id);
-
-      // Insert new items
-      if (items.length > 0) {
-        const itemsWithInvoiceId = items.map(item => ({
-          ...item,
-          invoice_id: id,
-        }));
-
-        const { error: itemsError } = await supabase
-          .from("purchase_invoice_items")
-          .insert(itemsWithInvoiceId);
-
-        if (itemsError) {
-          console.error("Error updating purchase invoice items:", itemsError);
-          throw new Error(itemsError.message);
-        }
+      if (error) {
+        console.error("Error fetching purchase invoices:", error);
+        throw new Error(error.message);
       }
+
+      return data || [];
+    } catch (error: any) {
+      console.error("Error in getAll:", error);
+      throw error;
     }
   },
 
-  // Delete purchase invoice
-  async delete(id: string) {
-    const { error } = await supabase
-      .from("purchase_invoices")
-      .delete()
-      .eq("id", id);
+  // Get invoice by ID
+  async getById(id: string) {
+    try {
+      const { data, error } = await supabase
+        .from("purchase_invoices")
+        .select(`
+          *,
+          purchase_invoice_items (*)
+        `)
+        .eq("id", id)
+        .single();
 
-    if (error) {
-      console.error("Error deleting purchase invoice:", error);
-      throw new Error(error.message);
+      if (error) {
+        console.error("Error fetching purchase invoice:", error);
+        throw new Error(error.message);
+      }
+
+      return data;
+    } catch (error: any) {
+      console.error("Error in getById:", error);
+      throw error;
+    }
+  },
+
+  // Update invoice
+  async update(id: string, updates: any) {
+    try {
+      const { error } = await supabase
+        .from("purchase_invoices")
+        .update({
+          ...updates,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id);
+
+      if (error) {
+        console.error("Error updating purchase invoice:", error);
+        throw new Error(error.message);
+      }
+    } catch (error: any) {
+      console.error("Error in update:", error);
+      throw error;
+    }
+  },
+
+  // Delete invoice
+  async delete(id: string) {
+    try {
+      const { error } = await supabase
+        .from("purchase_invoices")
+        .delete()
+        .eq("id", id);
+
+      if (error) {
+        console.error("Error deleting purchase invoice:", error);
+        throw new Error(error.message);
+      }
+    } catch (error: any) {
+      console.error("Error in delete:", error);
+      throw error;
     }
   },
 };

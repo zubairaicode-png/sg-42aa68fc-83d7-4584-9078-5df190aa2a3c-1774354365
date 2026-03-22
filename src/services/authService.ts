@@ -50,7 +50,7 @@ export const authService = {
       },
     });
 
-    if (error) throw error;
+    if (error) return { data: null, error };
 
     // Create profile record
     if (data.user) {
@@ -60,15 +60,16 @@ export const authService = {
           id: data.user.id,
           email,
           full_name: fullName,
-          role: "employee",
+          role: "viewer",
         });
 
       if (profileError) {
         console.error("Error creating profile:", profileError);
+        return { data: null, error: profileError };
       }
     }
 
-    return data;
+    return { data, error: null };
   },
 
   // Sign out

@@ -314,8 +314,13 @@ export default function CreatePurchaseInvoicePage() {
 
       // Get supplier info from loaded suppliers
       const supplier = suppliers.find(s => s.id === formData.supplierId);
-      const supplierName = supplier?.name || "Unknown Supplier";
-      const supplierVat = supplier?.vat_number || "";
+      
+      if (!supplier) {
+        throw new Error("Supplier not found");
+      }
+
+      const supplierName = supplier.name;
+      const supplierVat = supplier.vat_number || "";
 
       // Generate invoice number (in production, this should come from backend)
       const invoiceNumber = `PINV-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 100000)).padStart(5, '0')}`;
@@ -347,6 +352,8 @@ export default function CreatePurchaseInvoicePage() {
         discount_amount: (item.quantity * item.unitPrice * item.discount) / 100,
         discount_percentage: item.discount,
       }));
+
+      console.log("Purchase invoice data to save:", { purchaseData, itemsData });
 
       // Save to database using Supabase
       await purchaseService.createInvoice(purchaseData, itemsData);
