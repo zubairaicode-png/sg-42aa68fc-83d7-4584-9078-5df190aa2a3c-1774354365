@@ -18,6 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 import { purchaseService } from "@/services/purchaseService";
 import { supplierService } from "@/services/supplierService";
 import { productService } from "@/services/productService";
+import { supabase } from "@/integrations/supabase/client";
 import type { InvoiceItem } from "@/types";
 
 interface PurchaseFormData {
@@ -254,6 +255,23 @@ export default function CreatePurchaseInvoicePage() {
     
     console.log("=== PURCHASE INVOICE SAVE STARTED ===");
     console.log("Form Data:", formData);
+    
+    // Check if user is authenticated
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    console.log("Current user:", user);
+    console.log("Auth error:", authError);
+    
+    if (!user) {
+      console.log("ERROR: User not authenticated");
+      toast({
+        title: "Authentication Error",
+        description: "You must be logged in to create purchase invoices",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    console.log("User authenticated:", user.email);
     console.log("Suppliers Array:", suppliers);
     console.log("Selected Supplier ID:", formData.supplierId);
     
