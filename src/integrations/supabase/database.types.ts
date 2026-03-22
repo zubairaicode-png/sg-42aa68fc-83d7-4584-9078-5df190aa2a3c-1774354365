@@ -1,4 +1,4 @@
- 
+/* eslint-disable @typescript-eslint/no-empty-object-type */
 export type Json =
   | string
   | number
@@ -2026,6 +2026,63 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      users: {
+        Row: {
+          business_location_id: string | null
+          created_at: string | null
+          created_by: string | null
+          email: string
+          full_name: string
+          id: string
+          last_login_at: string | null
+          password_hash: string
+          role: string
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          business_location_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          email: string
+          full_name: string
+          id?: string
+          last_login_at?: string | null
+          password_hash: string
+          role: string
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          business_location_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          email?: string
+          full_name?: string
+          id?: string
+          last_login_at?: string | null
+          password_hash?: string
+          role?: string
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "users_business_location_id_fkey"
+            columns: ["business_location_id"]
+            isOneToOne: false
+            referencedRelation: "business_locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "users_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
         ]
