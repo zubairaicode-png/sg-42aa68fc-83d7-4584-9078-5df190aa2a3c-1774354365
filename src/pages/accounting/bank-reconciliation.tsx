@@ -206,12 +206,12 @@ export default function BankReconciliationPage() {
 
   const loadJournalEntries = async () => {
     try {
-      const { data, error } = await supabase
-        .from("journal_entries")
+      const { data, error } = await (supabase
+        .from("journal_entries" as any)
         .select("*")
         .eq("status", "posted")
         .order("entry_date", { ascending: false })
-        .limit(100);
+        .limit(100)) as any;
 
       if (error) throw error;
       setJournalEntries(data || []);
