@@ -519,43 +519,80 @@ export default function CreateSalesInvoicePage() {
                           <Label>Product/Service *</Label>
                           <div className="relative">
                             <div className="flex gap-2">
-                              <Input
-                                placeholder="Search product..."
-                                value={selectedItemIndex === index ? productSearchQuery : item.productName}
-                                onChange={(e) => {
-                                  setProductSearchQuery(e.target.value);
-                                  setSelectedItemIndex(index);
-                                }}
-                                onFocus={() => setSelectedItemIndex(index)}
-                              />
-                              <Button type="button" variant="outline" size="icon">
-                                <Search className="h-4 w-4" />
-                              </Button>
-                            </div>
-                            {selectedItemIndex === index && productSearchQuery && (
-                              <div className="absolute z-10 w-full mt-1 bg-background border rounded-md shadow-lg max-h-60 overflow-y-auto">
-                                {getFilteredProducts().length > 0 ? (
-                                  getFilteredProducts().map((product) => (
-                                    <button
-                                      key={product.id}
-                                      type="button"
-                                      className="w-full px-4 py-2 text-left hover:bg-accent text-sm"
-                                      onClick={() => selectProduct(index, product)}
-                                    >
-                                      <div className="font-medium">{product.name}</div>
-                                      <div className="text-xs text-muted-foreground">
-                                        Code: {product.product_code} | Stock: {product.stock_quantity}
-                                        {product.serial_number && ` | S/N: ${product.serial_number}`}
+                              <div className="flex-1 relative">
+                                <Input
+                                  placeholder="Search product..."
+                                  value={selectedItemIndex === index ? productSearchQuery : item.productName}
+                                  onChange={(e) => {
+                                    setProductSearchQuery(e.target.value);
+                                    setSelectedItemIndex(index);
+                                  }}
+                                  onFocus={() => {
+                                    setSelectedItemIndex(index);
+                                    setProductSearchQuery("");
+                                  }}
+                                  onBlur={() => {
+                                    // Delay closing to allow clicking on results
+                                    setTimeout(() => {
+                                      if (selectedItemIndex === index && !item.productId) {
+                                        setSelectedItemIndex(null);
+                                        setProductSearchQuery("");
+                                      }
+                                    }, 200);
+                                  }}
+                                />
+                                {selectedItemIndex === index && (
+                                  <div className="absolute z-10 w-full mt-1 bg-background border rounded-md shadow-lg max-h-60 overflow-y-auto">
+                                    {productSearchQuery ? (
+                                      getFilteredProducts().length > 0 ? (
+                                        getFilteredProducts().map((product) => (
+                                          <button
+                                            key={product.id}
+                                            type="button"
+                                            className="w-full px-4 py-2 text-left hover:bg-accent text-sm"
+                                            onMouseDown={(e) => {
+                                              e.preventDefault();
+                                              selectProduct(index, product);
+                                            }}
+                                          >
+                                            <div className="font-medium">{product.name}</div>
+                                            <div className="text-xs text-muted-foreground">
+                                              Code: {product.product_code} | Stock: {product.stock_quantity}
+                                              {product.serial_number && ` | S/N: ${product.serial_number}`}
+                                            </div>
+                                          </button>
+                                        ))
+                                      ) : (
+                                        <div className="px-4 py-2 text-sm text-muted-foreground">
+                                          No products found
+                                        </div>
+                                      )
+                                    ) : (
+                                      <div className="px-4 py-3 text-sm text-muted-foreground">
+                                        <div className="font-medium mb-2">💡 Search Tips:</div>
+                                        <ul className="space-y-1 text-xs">
+                                          <li>• Type product name (e.g., "HP Laptop")</li>
+                                          <li>• Type product code (e.g., "PRN-001")</li>
+                                          <li>• Type serial number (e.g., "SN-HP-001")</li>
+                                          <li>• Type description keywords</li>
+                                        </ul>
                                       </div>
-                                    </button>
-                                  ))
-                                ) : (
-                                  <div className="px-4 py-2 text-sm text-muted-foreground">
-                                    No products found
+                                    )}
                                   </div>
                                 )}
                               </div>
-                            )}
+                              <Button 
+                                type="button" 
+                                variant="outline" 
+                                size="icon"
+                                onClick={() => {
+                                  setSelectedItemIndex(index);
+                                  setProductSearchQuery("");
+                                }}
+                              >
+                                <Search className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </div>
                         </div>
                       )}
