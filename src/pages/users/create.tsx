@@ -9,8 +9,6 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { authService } from "@/services/authService";
-import { locationService } from "@/services/locationService";
 import { userService } from "@/services/userService";
 import { ArrowLeft, Save } from "lucide-react";
 import Link from "next/link";
@@ -41,24 +39,14 @@ export default function CreateUserPage() {
 
   const loadLocations = async () => {
     try {
-      console.log("Starting to load business locations...");
-      
       const { data, error } = await supabase
         .from("business_locations")
         .select("*")
         .eq("status", "active")
         .order("location_name", { ascending: true });
 
-      console.log("Business locations query result:", { data, error });
-
       if (error) throw error;
-      
-      console.log("Loaded business locations:", data);
       setLocations(data || []);
-      
-      if (!data || data.length === 0) {
-        console.warn("No business locations found in database");
-      }
     } catch (error: any) {
       console.error("Error loading locations:", error);
       toast({
@@ -89,13 +77,9 @@ export default function CreateUserPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("=== FORM SUBMISSION STARTED ===");
-    console.log("Form data:", formData);
-    console.log("Selected locations:", selectedLocations);
 
     // Validation
     if (!formData.fullName || !formData.email || !formData.password) {
-      console.log("Validation failed: Missing required fields");
       toast({
         title: "Validation Error",
         description: "Please fill in all required fields",
@@ -105,7 +89,6 @@ export default function CreateUserPage() {
     }
 
     if (formData.password !== formData.confirmPassword) {
-      console.log("Validation failed: Passwords don't match");
       toast({
         title: "Validation Error",
         description: "Passwords do not match",
@@ -115,7 +98,6 @@ export default function CreateUserPage() {
     }
 
     if (formData.password.length < 6) {
-      console.log("Validation failed: Password too short");
       toast({
         title: "Validation Error",
         description: "Password must be at least 6 characters",
@@ -125,7 +107,6 @@ export default function CreateUserPage() {
     }
 
     if (selectedLocations.length === 0) {
-      console.log("Validation failed: No locations selected");
       toast({
         title: "Validation Error",
         description: "Please assign at least one business location",
@@ -136,7 +117,6 @@ export default function CreateUserPage() {
 
     const hasPrimary = selectedLocations.some((sl) => sl.isPrimary);
     if (!hasPrimary) {
-      console.log("Validation failed: No primary location set");
       toast({
         title: "Validation Error",
         description: "Please set one location as primary",
@@ -147,55 +127,40 @@ export default function CreateUserPage() {
 
     try {
       setLoading(true);
-      console.log("=== CALLING API ENDPOINT ===");
-      console.log("API URL: /api/admin/create-user");
-      console.log("Request payload:", {
+
+      // Create user using direct Supabase signup (no API endpoint needed)
+      const { data: authData, error: signUpError } = await supabase.auth.signUp({
         email: formData.email,
-        password: "***hidden***",
-        fullName: formData.fullName,
-        role: formData.role,
-      });
-
-      // Create user via secure API endpoint
-      const response = await fetch("/api/admin/create-user", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+        password: formData.password,
+        options: {
+          data: {
+            full_name: formData.fullName,
+          },
         },
-        body: JSON.stringify({
-          email: formData.email,
-          password: formData.password,
-          fullName: formData.fullName,
-          role: formData.role,
-        }),
       });
 
-      console.log("API Response status:", response.status);
-      console.log("API Response headers:", response.headers);
+      if (signUpError) throw signUpError;
+      if (!authData.user) throw new Error("Failed to create user");
 
-      const result = await response.json();
-      console.log("API Response body:", result);
+      const userId = authData.user.id;
 
-      if (!response.ok || !result.success) {
-        console.error("API returned error:", result.error);
-        throw new Error(result.error || "Failed to create user");
-      }
+      // Create profile record
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .insert({
+          id: userId,
+          email: formData.email,
+          full_name: formData.fullName,
+          role: formData.role,
+        });
 
-      const userId = result.userId;
-      console.log("User created successfully with ID:", userId);
+      if (profileError) throw profileError;
 
       // Assign locations
       const locationIds = selectedLocations.map((sl) => sl.locationId);
       const primaryLocationId = selectedLocations.find((sl) => sl.isPrimary)?.locationId || locationIds[0];
 
-      console.log("=== ASSIGNING LOCATIONS ===");
-      console.log("Location IDs:", locationIds);
-      console.log("Primary location ID:", primaryLocationId);
-
       await userService.assignLocations(userId, locationIds, primaryLocationId);
-
-      console.log("=== USER CREATION COMPLETE ===");
-      console.log("Success! Redirecting to users page...");
 
       toast({
         title: "Success",
@@ -204,20 +169,14 @@ export default function CreateUserPage() {
 
       router.push("/users");
     } catch (error: any) {
-      console.error("=== ERROR OCCURRED ===");
-      console.error("Error type:", error.name);
-      console.error("Error message:", error.message);
-      console.error("Full error:", error);
-      console.error("Stack trace:", error.stack);
-      
+      console.error("Error creating user:", error);
       toast({
         title: "Error",
-        description: error.message || "Failed to create user. Please check console for details.",
+        description: error.message || "Failed to create user",
         variant: "destructive",
       });
     } finally {
       setLoading(false);
-      console.log("=== FORM SUBMISSION ENDED ===");
     }
   };
 
