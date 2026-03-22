@@ -24,12 +24,15 @@ export const salesService = {
       .from("sales_invoices")
       .insert({
         customer_id: invoice.customer_id,
+        customer_name: invoice.customer_name || "Unknown Customer",
+        customer_vat: invoice.customer_vat,
         invoice_number: invoice.invoice_number,
         invoice_date: invoice.invoice_date,
         due_date: invoice.due_date,
+        subtotal: invoice.subtotal || invoice.total_amount - invoice.tax_amount,
         total_amount: invoice.total_amount,
         tax_amount: invoice.tax_amount,
-        status: invoice.status || "pending",
+        payment_status: invoice.status === "paid" ? "paid" : "unpaid",
         po_number: invoice.po_number,
         payment_type: invoice.payment_type || "cash",
         notes: invoice.notes,
@@ -71,10 +74,10 @@ export const salesService = {
   },
 
   // Update invoice status
-  async updateStatus(id: string, status: string) {
+  async updateStatus(id: string, status: "unpaid" | "partial" | "paid") {
     const { data, error } = await supabase
       .from("sales_invoices")
-      .update({ status })
+      .update({ payment_status: status })
       .eq("id", id)
       .select()
       .single();
