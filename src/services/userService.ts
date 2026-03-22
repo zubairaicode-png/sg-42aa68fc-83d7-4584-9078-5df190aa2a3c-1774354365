@@ -1,12 +1,12 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 
-type User = Database["public"]["Tables"]["profiles"]["Row"];
+type User = Database["public"]["Tables"]["users"]["Row"];
 
 export const userService = {
   async getAll() {
     const { data, error } = await supabase
-      .from("profiles")
+      .from("users")
       .select(`
         *,
         user_locations (
@@ -23,6 +23,8 @@ export const userService = {
       `)
       .order("created_at", { ascending: false });
 
+    console.log("User service getAll:", { data, error });
+
     if (error) {
       console.error("Error fetching users:", error);
       throw error;
@@ -33,7 +35,7 @@ export const userService = {
 
   async getById(id: string) {
     const { data, error } = await supabase
-      .from("profiles")
+      .from("users")
       .select(`
         *,
         user_locations (
@@ -51,6 +53,8 @@ export const userService = {
       .eq("id", id)
       .single();
 
+    console.log("User service getById:", { data, error });
+
     if (error) {
       console.error("Error fetching user:", error);
       throw error;
@@ -61,11 +65,13 @@ export const userService = {
 
   async update(id: string, updates: Partial<User>) {
     const { data, error } = await supabase
-      .from("profiles")
+      .from("users")
       .update(updates)
       .eq("id", id)
       .select()
       .single();
+
+    console.log("User service update:", { data, error });
 
     if (error) {
       console.error("Error updating user:", error);
@@ -101,7 +107,7 @@ export const userService = {
 
   async delete(id: string) {
     const { error } = await supabase
-      .from("profiles")
+      .from("users")
       .delete()
       .eq("id", id);
 
