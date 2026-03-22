@@ -26,8 +26,7 @@ interface ProductFormData {
   selling_price: number;
   stock_quantity: number;
   reorder_level: number;
-  max_stock_level: number;
-  taxable: boolean;
+  vat_rate: number;
   barcode: string;
 }
 
@@ -48,8 +47,7 @@ export default function CreateProductPage() {
     selling_price: 0,
     stock_quantity: 0,
     reorder_level: 0,
-    max_stock_level: 0,
-    taxable: true,
+    vat_rate: 15,
     barcode: "",
   });
 
@@ -75,8 +73,7 @@ export default function CreateProductPage() {
           selling_price: product.selling_price || 0,
           stock_quantity: product.stock_quantity || 0,
           reorder_level: product.reorder_level || 0,
-          max_stock_level: product.max_stock_level || 0,
-          taxable: product.taxable ?? true,
+          vat_rate: product.vat_rate || 0,
           barcode: product.barcode || "",
         });
       }
@@ -126,16 +123,26 @@ export default function CreateProductPage() {
     try {
       setLoading(true);
       
+      const submitData = {
+        ...formData,
+        // Ensure numbers are properly formatted
+        cost_price: Number(formData.cost_price),
+        selling_price: Number(formData.selling_price),
+        stock_quantity: Number(formData.stock_quantity),
+        reorder_level: Number(formData.reorder_level),
+        vat_rate: Number(formData.vat_rate),
+      };
+      
       if (isEditMode && typeof id === "string") {
         // Update existing product
-        await productService.update(id, formData);
+        await productService.update(id, submitData);
         toast({
           title: "Success",
           description: "Product updated successfully",
         });
       } else {
         // Create new product
-        await productService.create(formData);
+        await productService.create(submitData);
         toast({
           title: "Success",
           description: "Product created successfully",
@@ -348,11 +355,11 @@ export default function CreateProductPage() {
               <div className="flex items-center gap-2 pt-2">
                 <Switch
                   id="taxable"
-                  checked={formData.taxable}
-                  onCheckedChange={(checked) => setFormData({ ...formData, taxable: checked })}
+                  checked={formData.vat_rate > 0}
+                  onCheckedChange={(checked) => setFormData({ ...formData, vat_rate: checked ? 15 : 0 })}
                 />
                 <Label htmlFor="taxable" className="cursor-pointer">
-                  Subject to VAT (15%)
+                  Subject to VAT ({formData.vat_rate}%)
                 </Label>
               </div>
             </CardContent>
@@ -363,7 +370,7 @@ export default function CreateProductPage() {
               <CardTitle>Stock Management</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-3">
+              <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="stock_quantity">Current Stock *</Label>
                   <Input
@@ -387,19 +394,6 @@ export default function CreateProductPage() {
                     required
                   />
                   <p className="text-xs text-muted-foreground">Alert when stock falls below this level</p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="max_stock_level">Maximum Stock Level *</Label>
-                  <Input
-                    id="max_stock_level"
-                    type="number"
-                    min="0"
-                    value={formData.max_stock_level}
-                    onChange={(e) => setFormData({ ...formData, max_stock_level: parseFloat(e.target.value) || 0 })}
-                    required
-                  />
-                  <p className="text-xs text-muted-foreground">Maximum inventory capacity</p>
                 </div>
               </div>
             </CardContent>

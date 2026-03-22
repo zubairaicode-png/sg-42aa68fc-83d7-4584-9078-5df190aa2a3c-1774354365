@@ -74,11 +74,9 @@ export default function InventoryPage() {
   const getStockStatus = (product: any) => {
     const stock = product.stock_quantity || 0;
     const min = product.reorder_level || 0;
-    const max = product.max_stock_level || 0;
     
     if (stock === 0) return { label: "Out of Stock", color: "text-destructive bg-destructive/10" };
     if (stock <= min) return { label: "Low Stock", color: "text-warning bg-warning/10" };
-    if (stock >= max) return { label: "Overstock", color: "text-muted-foreground bg-muted" };
     return { label: "In Stock", color: "text-success bg-success/10" };
   };
 
@@ -293,7 +291,7 @@ export default function InventoryPage() {
                           <th className="text-left p-4 font-semibold text-sm">Product Name</th>
                           <th className="text-left p-4 font-semibold text-sm">Category</th>
                           <th className="text-right p-4 font-semibold text-sm">Stock</th>
-                          <th className="text-right p-4 font-semibold text-sm">Min/Max</th>
+                          <th className="text-right p-4 font-semibold text-sm">Min Stock</th>
                           <th className="text-right p-4 font-semibold text-sm">Cost Price</th>
                           <th className="text-right p-4 font-semibold text-sm">Selling Price</th>
                           <th className="text-center p-4 font-semibold text-sm">Status</th>
@@ -318,7 +316,7 @@ export default function InventoryPage() {
                                 </div>
                               </td>
                               <td className="p-4 text-right text-sm text-muted-foreground">
-                                {product.reorder_level || 0} / {product.max_stock_level || 0}
+                                {product.reorder_level || 0}
                               </td>
                               <td className="p-4 text-right">SAR {(product.cost_price || 0).toLocaleString()}</td>
                               <td className="p-4 text-right font-semibold">SAR {(product.selling_price || 0).toLocaleString()}</td>
