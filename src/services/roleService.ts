@@ -1,97 +1,86 @@
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 
-export interface UserRole {
-  id: string;
-  role_name: string;
-  role_code: string;
-  description: string | null;
-  permissions: Record<string, any>;
-  is_system_role: boolean;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}
+type Role = Database["public"]["Tables"]["roles"]["Row"];
+type RoleInsert = Database["public"]["Tables"]["roles"]["Insert"];
+type RoleUpdate = Database["public"]["Tables"]["roles"]["Update"];
 
 export const roleService = {
   async getAll() {
     const { data, error } = await supabase
-      .from("user_roles")
+      .from("roles")
       .select("*")
-      .eq("is_active", true)
-      .order("role_name");
+      .order("created_at", { ascending: false });
+
+    console.log("Role service getAll:", { data, error });
 
     if (error) {
       console.error("Error fetching roles:", error);
       throw error;
     }
 
-    return data as UserRole[];
+    return data || [];
   },
 
   async getById(id: string) {
     const { data, error } = await supabase
-      .from("user_roles")
+      .from("roles")
       .select("*")
       .eq("id", id)
       .single();
+
+    console.log("Role service getById:", { data, error });
 
     if (error) {
       console.error("Error fetching role:", error);
       throw error;
     }
 
-    return data as UserRole;
+    return data;
   },
 
-  async create(role: Partial<UserRole>) {
+  async create(role: RoleInsert) {
     const { data, error } = await supabase
-      .from("user_roles")
-      .insert({
-        role_name: role.role_name,
-        role_code: role.role_code,
-        description: role.description,
-        permissions: role.permissions || {},
-        is_system_role: false,
-        is_active: true
-      })
+      .from("roles")
+      .insert(role)
       .select()
       .single();
+
+    console.log("Role service create:", { data, error });
 
     if (error) {
       console.error("Error creating role:", error);
       throw error;
     }
 
-    return data as UserRole;
+    return data;
   },
 
-  async update(id: string, updates: Partial<UserRole>) {
+  async update(id: string, updates: RoleUpdate) {
     const { data, error } = await supabase
-      .from("user_roles")
-      .update({
-        role_name: updates.role_name,
-        description: updates.description,
-        permissions: updates.permissions,
-        updated_at: new Date().toISOString()
-      })
+      .from("roles")
+      .update(updates)
       .eq("id", id)
       .select()
       .single();
+
+    console.log("Role service update:", { data, error });
 
     if (error) {
       console.error("Error updating role:", error);
       throw error;
     }
 
-    return data as UserRole;
+    return data;
   },
 
   async delete(id: string) {
-    // Soft delete by setting is_active to false
     const { error } = await supabase
-      .from("user_roles")
-      .update({ is_active: false })
+      .from("roles")
+      .delete()
       .eq("id", id);
+
+    console.log("Role service delete:", { error });
 
     if (error) {
       console.error("Error deleting role:", error);
