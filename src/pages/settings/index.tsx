@@ -1629,7 +1629,7 @@ export default function SettingsPage() {
                                   </p>
                                   <p className="text-xs text-muted-foreground">
                                     Tables: {Object.keys(backup.data.tables).length} | 
-                                    Total Records: {Object.values(backup.data.tables).reduce((sum: number, table: any) => sum + (Array.isArray(table) ? table.length : 0), 0)}
+                                    Total Records: {String(Object.values(backup.data.tables).reduce((sum: number, table: any) => sum + (Array.isArray(table) ? table.length : 0), 0))}
                                   </p>
                                 </div>
                                 <div className="flex gap-2">
