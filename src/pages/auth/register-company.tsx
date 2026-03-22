@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { SEO } from "@/components/SEO";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,8 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Building2, FileText, Shield, User, Mail, Lock, Phone, MapPin, ArrowRight, CheckCircle2, AlertCircle } from "lucide-react";
+import { Building2, FileText, Shield, User, Mail, Lock, Phone, MapPin, ArrowRight, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useToast } from "@/hooks/use-toast";
@@ -18,7 +17,6 @@ export default function RegisterCompanyPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [currentStep, setCurrentStep] = useState(1);
-  const [registrationAllowed, setRegistrationAllowed] = useState(true);
 
   const [companyData, setCompanyData] = useState({
     // Company Information
@@ -42,26 +40,6 @@ export default function RegisterCompanyPage() {
     adminPassword: "",
     adminPasswordConfirm: "",
   });
-
-  useEffect(() => {
-    // Check if new company registration is allowed
-    // Default to true (allow registration) if setting is not found
-    const savedSystemSettings = localStorage.getItem("systemSettings");
-    if (savedSystemSettings) {
-      try {
-        const settings = JSON.parse(savedSystemSettings);
-        // Only disable if explicitly set to false
-        if (settings.allowNewCompanyRegistration === false) {
-          setRegistrationAllowed(false);
-        }
-      } catch (error) {
-        console.error("Error parsing system settings:", error);
-        // If parsing fails, allow registration by default
-        setRegistrationAllowed(true);
-      }
-    }
-    // If no settings found, registrationAllowed stays true (default state)
-  }, []);
 
   const validateStep1 = () => {
     if (!companyData.companyName || !companyData.email || !companyData.phone) {
@@ -149,40 +127,6 @@ export default function RegisterCompanyPage() {
       setLoading(false);
     }
   };
-
-  if (!registrationAllowed) {
-    return (
-      <>
-        <SEO 
-          title="Company Registration - Saudi ERP System"
-          description="Register your company"
-        />
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 via-background to-secondary/5 p-4">
-          <Card className="w-full max-w-md">
-            <CardHeader className="text-center">
-              <AlertCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
-              <CardTitle>Registration Disabled</CardTitle>
-              <CardDescription>
-                New company registration is currently disabled
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Alert variant="destructive">
-                <AlertDescription>
-                  New company registration is currently disabled. Please contact your system administrator for access.
-                </AlertDescription>
-              </Alert>
-              <div className="mt-6 text-center">
-                <Link href="/auth/login" className="text-sm text-primary hover:underline">
-                  Back to Login
-                </Link>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </>
-    );
-  }
 
   return (
     <>
