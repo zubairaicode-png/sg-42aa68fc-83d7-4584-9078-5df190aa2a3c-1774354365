@@ -48,6 +48,11 @@ export default function AccountingPage() {
   const totalExpenses = accounts.filter(a => a.type === "expense").reduce((sum, a) => sum + a.balance, 0);
   const netIncome = totalRevenue - totalExpenses;
 
+  // Safe number formatting helper
+  const formatCurrency = (value: number | undefined | null): string => {
+    return (value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
+
   return (
     <>
       <SEO 
@@ -75,7 +80,7 @@ export default function AccountingPage() {
                 <CardTitle className="text-sm font-medium text-muted-foreground">Total Assets</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold font-heading text-blue-600">SAR {totalAssets.toLocaleString()}</div>
+                <div className="text-2xl font-bold font-heading text-blue-600">SAR {formatCurrency(totalAssets)}</div>
               </CardContent>
             </Card>
             <Card>
@@ -83,7 +88,7 @@ export default function AccountingPage() {
                 <CardTitle className="text-sm font-medium text-muted-foreground">Total Liabilities</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold font-heading text-red-600">SAR {totalLiabilities.toLocaleString()}</div>
+                <div className="text-2xl font-bold font-heading text-red-600">SAR {formatCurrency(totalLiabilities)}</div>
               </CardContent>
             </Card>
             <Card>
@@ -91,7 +96,7 @@ export default function AccountingPage() {
                 <CardTitle className="text-sm font-medium text-muted-foreground">Total Equity</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold font-heading text-purple-600">SAR {totalEquity.toLocaleString()}</div>
+                <div className="text-2xl font-bold font-heading text-purple-600">SAR {formatCurrency(totalEquity)}</div>
               </CardContent>
             </Card>
             <Card>
@@ -101,7 +106,7 @@ export default function AccountingPage() {
               <CardContent>
                 <div className="flex items-center gap-2">
                   <div className={`text-2xl font-bold font-heading ${netIncome >= 0 ? 'text-success' : 'text-destructive'}`}>
-                    SAR {netIncome.toLocaleString()}
+                    SAR {formatCurrency(netIncome)}
                   </div>
                   {netIncome >= 0 ? (
                     <TrendingUp className="h-5 w-5 text-success" />
@@ -168,9 +173,9 @@ export default function AccountingPage() {
                                   {account.type}
                                 </span>
                               </td>
-                              <td className="p-4 text-right">{account.debit > 0 ? `SAR ${account.debit.toLocaleString()}` : '-'}</td>
-                              <td className="p-4 text-right">{account.credit > 0 ? `SAR ${account.credit.toLocaleString()}` : '-'}</td>
-                              <td className="p-4 text-right font-semibold">SAR {account.balance.toLocaleString()}</td>
+                              <td className="p-4 text-right">{account.debit > 0 ? `SAR ${formatCurrency(account.debit)}` : '-'}</td>
+                              <td className="p-4 text-right">{account.credit > 0 ? `SAR ${formatCurrency(account.credit)}` : '-'}</td>
+                              <td className="p-4 text-right font-semibold">SAR {formatCurrency(account.balance)}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -217,7 +222,7 @@ export default function AccountingPage() {
                                 <td className="p-4 text-sm">{entry.date}</td>
                                 <td className="p-4 text-sm">{entry.description}</td>
                                 <td className="p-4 text-sm">{entry.reference || '-'}</td>
-                                <td className="p-4 text-right font-semibold">SAR {entry.totalDebit.toLocaleString()}</td>
+                                <td className="p-4 text-right font-semibold">SAR {formatCurrency(entry.totalDebit)}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -255,16 +260,22 @@ export default function AccountingPage() {
                         <tbody>
                           {accounts.map((account) => (
                             <tr key={account.id} className="border-t hover:bg-table-row-hover transition-colors">
-                              <td className="p-4 font-mono">{account.code}</td>
-                              <td className="p-4">{account.name}</td>
-                              <td className="p-4 text-right">{account.debit > 0 ? `SAR ${account.debit.toLocaleString()}` : '-'}</td>
-                              <td className="p-4 text-right">{account.credit > 0 ? `SAR ${account.credit.toLocaleString()}` : '-'}</td>
+                              <td className="p-4 font-mono font-semibold">{account.code}</td>
+                              <td className="p-4 font-medium">{account.name}</td>
+                              <td className="p-4 text-center">
+                                <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium capitalize ${getAccountTypeColor(account.type)}`}>
+                                  {account.type}
+                                </span>
+                              </td>
+                              <td className="p-4 text-right">{account.debit > 0 ? `SAR ${formatCurrency(account.debit)}` : '-'}</td>
+                              <td className="p-4 text-right">{account.credit > 0 ? `SAR ${formatCurrency(account.credit)}` : '-'}</td>
+                              <td className="p-4 text-right font-semibold">SAR {formatCurrency(account.balance)}</td>
                             </tr>
                           ))}
                           <tr className="border-t-2 border-primary font-bold bg-table-header">
                             <td className="p-4" colSpan={2}>Total</td>
-                            <td className="p-4 text-right">SAR {accounts.reduce((sum, a) => sum + a.debit, 0).toLocaleString()}</td>
-                            <td className="p-4 text-right">SAR {accounts.reduce((sum, a) => sum + a.credit, 0).toLocaleString()}</td>
+                            <td className="p-4 text-right">SAR {formatCurrency(accounts.reduce((sum, a) => sum + (a.debit || 0), 0))}</td>
+                            <td className="p-4 text-right">SAR {formatCurrency(accounts.reduce((sum, a) => sum + (a.credit || 0), 0))}</td>
                           </tr>
                         </tbody>
                       </table>
