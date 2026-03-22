@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { supabase } from "@/integrations/supabase/client";
-import { verifyPassword, createToken } from "@/lib/auth";
+import bcrypt from "bcryptjs";
+import { createToken } from "@/lib/auth";
 
 export default async function handler(
   req: NextApiRequest,
@@ -13,9 +14,12 @@ export default async function handler(
   try {
     const { email, password } = req.body;
 
-    console.log("Login attempt for email:", email);
+    console.log("=== LOGIN ATTEMPT ===");
+    console.log("Email:", email);
+    console.log("Password length:", password?.length);
 
     if (!email || !password) {
+      console.log("Missing email or password");
       return res.status(400).json({ error: "Email and password are required" });
     }
 
@@ -26,14 +30,18 @@ export default async function handler(
       .eq("email", email.toLowerCase())
       .single();
 
-    console.log("Database query result:", { 
-      found: !!user, 
-      error: error?.message,
-      userStatus: user?.status 
-    });
+    console.log("Database query result:");
+    console.log("- User found:", !!user);
+    console.log("- Error:", error?.message);
+    
+    if (user) {
+      console.log("- User ID:", user.id);
+      console.log("- User status:", user.status);
+      console.log("- Hash starts with:", user.password_hash?.substring(0, 20));
+    }
 
     if (error || !user) {
-      console.log("User not found or error:", error);
+      console.log("User not found in database");
       return res.status(401).json({ error: "Invalid email or password" });
     }
 
@@ -43,19 +51,22 @@ export default async function handler(
       return res.status(403).json({ error: "Account is inactive" });
     }
 
-    console.log("Attempting password verification...");
+    console.log("Verifying password with bcrypt...");
     
-    // Verify password
-    const isValidPassword = await verifyPassword(password, user.password_hash);
+    // Direct bcrypt comparison
+    const isValidPassword = await bcrypt.compare(password, user.password_hash);
 
     console.log("Password verification result:", isValidPassword);
 
     if (!isValidPassword) {
-      console.log("Password verification failed");
+      console.log("❌ Password verification FAILED");
+      console.log("Expected password: admin123");
+      console.log("Received password:", password);
       return res.status(401).json({ error: "Invalid email or password" });
     }
 
-    console.log("Login successful, updating last login...");
+    console.log("✅ Password verification SUCCESS");
+    console.log("Updating last login...");
 
     // Update last login
     await supabase
@@ -72,7 +83,7 @@ export default async function handler(
       business_location_id: user.business_location_id,
     });
 
-    console.log("Token created, setting cookie...");
+    console.log("Setting auth cookie...");
 
     // Set HTTP-only cookie
     res.setHeader(
@@ -82,7 +93,7 @@ export default async function handler(
       }`
     );
 
-    console.log("Login completed successfully");
+    console.log("✅ LOGIN SUCCESSFUL");
 
     return res.status(200).json({
       user: {
@@ -94,7 +105,7 @@ export default async function handler(
       },
     });
   } catch (error) {
-    console.error("Login error:", error);
+    console.error("❌ LOGIN ERROR:", error);
     return res.status(500).json({ error: "Internal server error" });
   }
 }
