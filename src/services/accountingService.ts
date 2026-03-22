@@ -23,6 +23,42 @@ export interface JournalEntryWithLines extends JournalEntry {
 }
 
 export const accountingService = {
+  // Initialize required accounts for transactions
+  async initializeRequiredAccounts(): Promise<void> {
+    const requiredAccounts = [
+      { code: "1100", name: "Cash", type: "asset" },
+      { code: "1200", name: "Accounts Receivable", type: "asset" },
+      { code: "1300", name: "Inventory", type: "asset" },
+      { code: "2100", name: "Accounts Payable", type: "liability" },
+      { code: "2200", name: "VAT Payable", type: "liability" },
+      { code: "4100", name: "Sales Revenue", type: "revenue" },
+      { code: "4300", name: "Sales Returns", type: "revenue" },
+      { code: "5100", name: "Cost of Goods Sold", type: "expense" }
+    ];
+
+    for (const account of requiredAccounts) {
+      // Check if account exists
+      const { data: existing } = await supabase
+        .from("chart_of_accounts")
+        .select("id")
+        .eq("account_code", account.code)
+        .single();
+
+      // Create if doesn't exist
+      if (!existing) {
+        await supabase.from("chart_of_accounts").insert({
+          account_code: account.code,
+          account_name: account.name,
+          account_type: account.type,
+          is_active: true,
+          opening_balance: 0,
+          current_balance: 0
+        });
+        console.log(`Created account: ${account.code} - ${account.name}`);
+      }
+    }
+  },
+
   // Get all accounts
   async getAllAccounts(): Promise<ChartOfAccount[]> {
     const { data, error } = await supabase
@@ -524,6 +560,11 @@ export const accountingService = {
     let purchaseReturnsSynced = 0;
 
     try {
+      // First, ensure all required accounts exist
+      console.log("Initializing required accounts...");
+      await this.initializeRequiredAccounts();
+      console.log("Required accounts initialized successfully");
+
       // Get all existing journal entries to check which transactions already have entries
       const { data: existingEntries } = await supabase
         .from("journal_entries")
@@ -534,6 +575,7 @@ export const accountingService = {
       );
 
       // Sync Sales Invoices
+      console.log("Syncing sales invoices...");
       const { data: sales } = await supabase
         .from("sales_invoices")
         .select("*")
@@ -546,14 +588,18 @@ export const accountingService = {
             try {
               await this.createJournalEntryFromSale(invoice);
               salesSynced++;
-            } catch (error) {
-              errors.push(`Sales Invoice ${invoice.invoice_number}: ${error}`);
+              console.log(`Synced sales invoice: ${invoice.invoice_number}`);
+            } catch (error: any) {
+              const errorMsg = `Sales Invoice ${invoice.invoice_number}: ${error.message || error}`;
+              console.error(errorMsg);
+              errors.push(errorMsg);
             }
           }
         }
       }
 
       // Sync Purchases
+      console.log("Syncing purchase invoices...");
       const { data: purchases } = await supabase
         .from("purchase_invoices")
         .select("*")
@@ -566,14 +612,18 @@ export const accountingService = {
             try {
               await this.createJournalEntryFromPurchase(purchase);
               purchasesSynced++;
-            } catch (error) {
-              errors.push(`Purchase ${purchase.invoice_number}: ${error}`);
+              console.log(`Synced purchase invoice: ${purchase.invoice_number}`);
+            } catch (error: any) {
+              const errorMsg = `Purchase ${purchase.invoice_number}: ${error.message || error}`;
+              console.error(errorMsg);
+              errors.push(errorMsg);
             }
           }
         }
       }
 
       // Sync Sales Returns
+      console.log("Syncing sales returns...");
       const { data: salesReturns } = await supabase
         .from("sales_returns")
         .select("*")
@@ -586,14 +636,18 @@ export const accountingService = {
             try {
               await this.createJournalEntryFromSalesReturn(salesReturn);
               salesReturnsSynced++;
-            } catch (error) {
-              errors.push(`Sales Return ${salesReturn.return_number}: ${error}`);
+              console.log(`Synced sales return: ${salesReturn.return_number}`);
+            } catch (error: any) {
+              const errorMsg = `Sales Return ${salesReturn.return_number}: ${error.message || error}`;
+              console.error(errorMsg);
+              errors.push(errorMsg);
             }
           }
         }
       }
 
       // Sync Purchase Returns
+      console.log("Syncing purchase returns...");
       const { data: purchaseReturns } = await supabase
         .from("purchase_returns")
         .select("*")
@@ -606,13 +660,17 @@ export const accountingService = {
             try {
               await this.createJournalEntryFromPurchaseReturn(purchaseReturn);
               purchaseReturnsSynced++;
-            } catch (error) {
-              errors.push(`Purchase Return ${purchaseReturn.return_number}: ${error}`);
+              console.log(`Synced purchase return: ${purchaseReturn.return_number}`);
+            } catch (error: any) {
+              const errorMsg = `Purchase Return ${purchaseReturn.return_number}: ${error.message || error}`;
+              console.error(errorMsg);
+              errors.push(errorMsg);
             }
           }
         }
       }
 
+      console.log("Sync completed successfully");
       return {
         salesSynced,
         purchasesSynced,
