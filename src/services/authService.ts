@@ -1,138 +1,84 @@
-import { supabase } from "@/integrations/supabase/client";
-import type { Database } from "@/integrations/supabase/types";
-
-type Profile = Database["public"]["Tables"]["profiles"]["Row"];
-
 export const authService = {
-  // Get current user
+  // Get current user from session
   async getCurrentUser() {
-    const { data: { user }, error } = await supabase.auth.getUser();
-    if (error) throw error;
-    return user;
-  },
-
-  // Get user profile
-  async getUserProfile(userId: string): Promise<Profile | null> {
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", userId)
-      .single();
-
-    if (error) {
-      console.error("Error fetching profile:", error);
+    try {
+      const response = await fetch("/api/auth/me");
+      if (!response.ok) {
+        throw new Error("Not authenticated");
+      }
+      const data = await response.json();
+      return data.user;
+    } catch (error) {
+      console.error("Error getting current user:", error);
       return null;
     }
-
-    return data;
   },
 
   // Sign in with email and password
   async signIn(email: string, password: string) {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
+    const response = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
     });
 
-    if (error) throw error;
-    return data;
-  },
-
-  // Sign up new user
-  async signUp(email: string, password: string, fullName: string) {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          full_name: fullName,
-        },
-      },
-    });
-
-    if (error) return { data: null, error };
-
-    // Create profile record
-    if (data.user) {
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .insert({
-          id: data.user.id,
-          email,
-          full_name: fullName,
-          role: "viewer",
-        });
-
-      if (profileError) {
-        console.error("Error creating profile:", profileError);
-        return { data: null, error: profileError };
-      }
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Login failed");
     }
 
-    return { data, error: null };
+    return await response.json();
   },
 
   // Sign out
   async signOut() {
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
-  },
-
-  // Request password reset
-  async resetPassword(email: string) {
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/auth/reset-password`,
+    const response = await fetch("/api/auth/logout", {
+      method: "POST",
     });
 
-    if (error) throw error;
-  },
+    if (!response.ok) {
+      throw new Error("Logout failed");
+    }
 
-  // Update password
-  async updatePassword(newPassword: string) {
-    const { error } = await supabase.auth.updateUser({
-      password: newPassword,
-    });
-
-    if (error) throw error;
-  },
-
-  // Update user email
-  async updateEmail(newEmail: string) {
-    const { error } = await supabase.auth.updateUser({
-      email: newEmail,
-    });
-
-    if (error) throw error;
-  },
-
-  // Update profile
-  async updateProfile(userId: string, updates: Partial<Profile>) {
-    const { error } = await supabase
-      .from("profiles")
-      .update({
-        ...updates,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", userId);
-
-    if (error) throw error;
+    // Redirect to login page
+    window.location.href = "/auth/login";
   },
 
   // Check if user is authenticated
   async isAuthenticated(): Promise<boolean> {
-    const { data: { session } } = await supabase.auth.getSession();
-    return !!session;
+    try {
+      const response = await fetch("/api/auth/me");
+      return response.ok;
+    } catch {
+      return false;
+    }
   },
 
   // Get user role
-  async getUserRole(userId: string): Promise<string> {
-    const profile = await this.getUserProfile(userId);
-    return profile?.role || "employee";
+  async getUserRole(): Promise<string> {
+    const user = await this.getCurrentUser();
+    return user?.role || "viewer";
   },
 
-  // Helper to get redirect URL dynamically
-  getRedirectUrl(path: string): string {
-    if (typeof window === "undefined") return "";
-    return `${window.location.origin}${path}`;
+  // Create new user (admin only)
+  async createUser(userData: {
+    email: string;
+    password: string;
+    full_name: string;
+    role: string;
+    business_location_id: string;
+  }) {
+    const response = await fetch("/api/users/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(userData),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Failed to create user");
+    }
+
+    return await response.json();
   },
 };

@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
-import { supabase } from "@/integrations/supabase/client";
 
 interface AuthGuardProps {
   children: React.ReactNode;
@@ -9,39 +8,41 @@ interface AuthGuardProps {
 export function AuthGuard({ children }: AuthGuardProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [authenticated, setAuthenticated] = useState(false);
 
   useEffect(() => {
     const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      const publicPaths = ["/auth/login", "/auth/signup", "/auth/forgot-password", "/auth/reset-password"];
-      const isPublicPath = publicPaths.includes(router.pathname);
+      try {
+        const response = await fetch("/api/auth/me");
+        const publicPaths = ["/auth/login", "/auth/signup", "/auth/forgot-password", "/auth/reset-password"];
+        const isPublicPath = publicPaths.includes(router.pathname);
 
-      if (!session && !isPublicPath) {
-        router.push("/auth/login");
-      } else if (session && isPublicPath) {
-        router.push("/");
+        if (response.ok) {
+          setAuthenticated(true);
+          if (isPublicPath) {
+            router.push("/");
+          }
+        } else {
+          setAuthenticated(false);
+          if (!isPublicPath) {
+            router.push("/auth/login");
+          }
+        }
+      } catch (error) {
+        console.error("Auth check error:", error);
+        const publicPaths = ["/auth/login", "/auth/signup", "/auth/forgot-password", "/auth/reset-password"];
+        const isPublicPath = publicPaths.includes(router.pathname);
+        
+        setAuthenticated(false);
+        if (!isPublicPath) {
+          router.push("/auth/login");
+        }
+      } finally {
+        setLoading(false);
       }
-
-      setLoading(false);
     };
 
     checkAuth();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      const publicPaths = ["/auth/login", "/auth/signup", "/auth/forgot-password", "/auth/reset-password"];
-      const isPublicPath = publicPaths.includes(router.pathname);
-
-      if (event === "SIGNED_OUT" && !isPublicPath) {
-        router.push("/auth/login");
-      } else if (event === "SIGNED_IN" && isPublicPath) {
-        router.push("/");
-      }
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
   }, [router.pathname]);
 
   if (loading) {

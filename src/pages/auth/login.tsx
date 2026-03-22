@@ -8,7 +8,6 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Shield, Mail, Lock, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { supabase } from "@/integrations/supabase/client";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -30,17 +29,27 @@ export default function LoginPage() {
 
     try {
       setLoading(true);
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: formData.email,
-        password: formData.password,
+      
+      // Use custom authentication API
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password,
+        }),
       });
 
-      if (error) throw error;
+      const data = await response.json();
 
-      if (data.user) {
-        // Redirect to dashboard
-        router.push("/");
+      if (!response.ok) {
+        throw new Error(data.error || "Login failed");
       }
+
+      // Redirect to dashboard on success
+      router.push("/");
     } catch (error: any) {
       console.error("Login error:", error);
       setError(error.message || "Invalid email or password");

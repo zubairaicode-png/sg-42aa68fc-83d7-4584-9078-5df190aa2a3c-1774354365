@@ -136,9 +136,12 @@ export default function CreateUserPage() {
         hasPassword: !!formData.password,
       });
 
-      // Use API endpoint instead of direct signup
-      console.log("Calling /api/admin/create-user...");
-      const response = await fetch("/api/admin/create-user", {
+      // Get primary location
+      const primaryLocationId = selectedLocations.find((sl) => sl.isPrimary)?.locationId || selectedLocations[0].locationId;
+
+      // Use custom authentication API to create user
+      console.log("Calling /api/users/create...");
+      const response = await fetch("/api/users/create", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -146,26 +149,26 @@ export default function CreateUserPage() {
         body: JSON.stringify({
           email: formData.email,
           password: formData.password,
-          fullName: formData.fullName,
+          full_name: formData.fullName,
           role: formData.role,
+          business_location_id: primaryLocationId,
         }),
       });
 
       const result = await response.json();
       console.log("API response:", result);
 
-      if (!response.ok || !result.success) {
+      if (!response.ok) {
         throw new Error(result.error || "Failed to create user");
       }
 
-      const userId = result.userId;
+      const userId = result.user.id;
       console.log("User created successfully with ID:", userId);
 
       // Assign locations
       const locationIds = selectedLocations.map((sl) => sl.locationId);
-      const primaryLocationId = selectedLocations.find((sl) => sl.isPrimary)?.locationId || locationIds[0];
 
-      console.log("Step 3: Assigning locations...", { userId, locationIds, primaryLocationId });
+      console.log("Assigning locations...", { userId, locationIds, primaryLocationId });
 
       await userService.assignLocations(userId, locationIds, primaryLocationId);
 
