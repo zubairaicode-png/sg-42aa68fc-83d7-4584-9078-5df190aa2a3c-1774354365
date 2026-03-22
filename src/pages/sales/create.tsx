@@ -84,6 +84,8 @@ export default function CreateSalesInvoicePage() {
   });
   const [isManualInvoice, setIsManualInvoice] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [customerSearchQuery, setCustomerSearchQuery] = useState("");
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
 
   useEffect(() => {
     loadProducts();
@@ -133,6 +135,19 @@ export default function CreateSalesInvoicePage() {
     try {
       const data = await customerService.getAll();
       setCustomers(data);
+      
+      // Find "Walking Customer" and set as default
+      const walkingCustomer = data.find(c => 
+        c.name.toLowerCase().includes("walking") || 
+        c.customer_number === "WALK-001"
+      );
+      
+      if (walkingCustomer) {
+        setFormData(prev => ({ 
+          ...prev, 
+          customerId: walkingCustomer.id 
+        }));
+      }
     } catch (error) {
       console.error("Error loading customers:", error);
     }
@@ -526,38 +541,48 @@ export default function CreateSalesInvoicePage() {
                     <div className="relative flex-1">
                       <Input
                         id="customer"
-                        placeholder="Type to search customers..."
+                        placeholder="Walking Customer (default) - Type to search..."
                         value={
-                          formData.customerId 
-                            ? customers.find(c => c.id === formData.customerId)?.name || ""
-                            : ""
+                          showCustomerDropdown
+                            ? customerSearchQuery
+                            : formData.customerId 
+                              ? customers.find(c => c.id === formData.customerId)?.name || ""
+                              : ""
                         }
                         onChange={(e) => {
-                          // Clear selection when typing
-                          setFormData({ ...formData, customerId: "" });
+                          setCustomerSearchQuery(e.target.value);
+                          setShowCustomerDropdown(true);
                         }}
-                        onFocus={(e) => {
-                          e.target.select();
+                        onFocus={() => {
+                          setShowCustomerDropdown(true);
+                          setCustomerSearchQuery("");
+                        }}
+                        onBlur={() => {
+                          setTimeout(() => setShowCustomerDropdown(false), 200);
                         }}
                       />
                       
-                      {!formData.customerId && (
+                      {showCustomerDropdown && (
                         <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-lg max-h-60 overflow-y-auto">
                           {customers.length > 0 ? (
                             customers
                               .filter(customer => 
-                                customer.name.toLowerCase().includes(formData.customerId.toLowerCase()) ||
-                                (customer.customer_number && customer.customer_number.toLowerCase().includes(formData.customerId.toLowerCase())) ||
-                                (customer.email && customer.email.toLowerCase().includes(formData.customerId.toLowerCase())) ||
-                                (customer.phone && customer.phone.includes(formData.customerId))
+                                customerSearchQuery.trim() === "" ||
+                                customer.name.toLowerCase().includes(customerSearchQuery.toLowerCase()) ||
+                                (customer.customer_number && customer.customer_number.toLowerCase().includes(customerSearchQuery.toLowerCase())) ||
+                                (customer.email && customer.email.toLowerCase().includes(customerSearchQuery.toLowerCase())) ||
+                                (customer.phone && customer.phone.includes(customerSearchQuery))
                               )
                               .map((customer) => (
                                 <button
                                   key={customer.id}
                                   type="button"
                                   className="w-full px-4 py-2 hover:bg-accent text-left text-sm border-b last:border-b-0"
-                                  onClick={() => {
+                                  onMouseDown={(e) => {
+                                    e.preventDefault();
                                     setFormData({ ...formData, customerId: customer.id });
+                                    setShowCustomerDropdown(false);
+                                    setCustomerSearchQuery("");
                                   }}
                                 >
                                   <div className="font-medium">{customer.name}</div>
