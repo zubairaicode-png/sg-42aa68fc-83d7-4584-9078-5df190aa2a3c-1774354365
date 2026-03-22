@@ -64,8 +64,8 @@ export default function SalesSummaryReport() {
       setInvoices(invoicesList);
 
       const totalRevenue = invoicesList.reduce((sum, inv) => sum + Number(inv.subtotal || 0), 0);
-      const totalVAT = invoicesList.reduce((sum, inv) => sum + Number(inv.vat_amount || 0), 0);
-      const totalPaid = invoicesList.reduce((sum, inv) => sum + Number(inv.amount_paid || 0), 0);
+      const totalVAT = invoicesList.reduce((sum, inv) => sum + Number((inv as any).tax_amount || (inv as any).vat_amount || 0), 0);
+      const totalPaid = invoicesList.reduce((sum, inv) => sum + Number((inv as any).amount_paid || (inv as any).paid_amount || 0), 0);
       const totalAmount = invoicesList.reduce((sum, inv) => sum + Number(inv.total_amount || 0), 0);
       const totalDue = totalAmount - totalPaid;
 
@@ -86,7 +86,7 @@ export default function SalesSummaryReport() {
           date,
           invoices: existing.invoices + 1,
           revenue: existing.revenue + Number(inv.subtotal || 0),
-          vat: existing.vat + Number(inv.vat_amount || 0)
+          vat: existing.vat + Number((inv as any).tax_amount || (inv as any).vat_amount || 0)
         });
       });
 
@@ -292,7 +292,7 @@ export default function SalesSummaryReport() {
                           <TableCell>{new Date(invoice.invoice_date).toLocaleDateString("en-GB")}</TableCell>
                           <TableCell>{invoice.customers?.name || "-"}</TableCell>
                           <TableCell className="text-right">{formatCurrency(Number(invoice.subtotal))}</TableCell>
-                          <TableCell className="text-right">{formatCurrency(Number(invoice.vat_amount))}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(Number((invoice as any).tax_amount || (invoice as any).vat_amount || 0))}</TableCell>
                           <TableCell className="text-right font-medium">{formatCurrency(Number(invoice.total_amount))}</TableCell>
                         </TableRow>
                       ))}
@@ -353,13 +353,14 @@ export default function SalesSummaryReport() {
                     </TableHeader>
                     <TableBody>
                       {invoices.map((invoice) => {
-                        const balance = Number(invoice.total_amount) - Number(invoice.amount_paid || 0);
+                        const paid = Number((invoice as any).amount_paid || (invoice as any).paid_amount || 0);
+                        const balance = Number(invoice.total_amount) - paid;
                         return (
                           <TableRow key={invoice.id}>
                             <TableCell className="font-medium">{invoice.invoice_number}</TableCell>
                             <TableCell>{invoice.customers?.name || "-"}</TableCell>
                             <TableCell className="text-right">{formatCurrency(Number(invoice.total_amount))}</TableCell>
-                            <TableCell className="text-right">{formatCurrency(Number(invoice.amount_paid || 0))}</TableCell>
+                            <TableCell className="text-right">{formatCurrency(paid)}</TableCell>
                             <TableCell className="text-right">{formatCurrency(balance)}</TableCell>
                             <TableCell>
                               <span className={`px-2 py-1 rounded text-xs font-medium ${
