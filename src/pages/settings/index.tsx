@@ -129,7 +129,6 @@ export default function SettingsPage() {
       if (error) throw error;
 
       if (data && data.length > 0) {
-        // Map database fields to component state format
         const mappedLocations = data.map(loc => ({
           id: loc.id,
           name: loc.location_name || "",
@@ -153,19 +152,16 @@ export default function SettingsPage() {
   };
 
   const loadSettings = () => {
-    // Load company info
     const savedCompanyInfo = localStorage.getItem("companyInfo");
     if (savedCompanyInfo) {
       setCompanyInfo(JSON.parse(savedCompanyInfo));
     }
 
-    // Load tax settings
     const savedTaxSettings = localStorage.getItem("taxSettings");
     if (savedTaxSettings) {
       setTaxSettings(JSON.parse(savedTaxSettings));
     }
 
-    // Load invoice design
     const savedInvoiceDesign = localStorage.getItem("invoiceDesign");
     if (savedInvoiceDesign) {
       setInvoiceDesign(JSON.parse(savedInvoiceDesign));
@@ -224,7 +220,6 @@ export default function SettingsPage() {
     try {
       setLoading(true);
 
-      // Check if this is the first location
       const isFirstLocation = businessLocations.length === 0;
 
       const { data, error } = await supabase
@@ -250,10 +245,8 @@ export default function SettingsPage() {
 
       if (error) throw error;
 
-      // Reload locations from database
       await loadBusinessLocations();
 
-      // Reset form
       setNewLocation({
         name: "",
         name_ar: "",
@@ -289,13 +282,11 @@ export default function SettingsPage() {
     try {
       setLoading(true);
 
-      // First, set all locations to non-default
       await supabase
         .from("business_locations")
         .update({ is_default: false })
         .neq("id", "00000000-0000-0000-0000-000000000000");
 
-      // Then set the selected location as default
       const { error } = await supabase
         .from("business_locations")
         .update({ is_default: true })
@@ -303,7 +294,6 @@ export default function SettingsPage() {
 
       if (error) throw error;
 
-      // Reload locations
       await loadBusinessLocations();
 
       toast({
@@ -344,7 +334,6 @@ export default function SettingsPage() {
 
       if (error) throw error;
 
-      // Reload locations
       await loadBusinessLocations();
 
       toast({
@@ -360,297 +349,6 @@ export default function SettingsPage() {
       });
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleBackupDatabase = async () => {
-    try {
-      setBackupInProgress(true);
-      setBackupProgress(0);
-
-      // Get all tables data
-      const tables = [
-        'customers', 'suppliers', 'products', 'sales_invoices', 'sales_invoice_items',
-        'purchase_invoices', 'purchase_invoice_items', 'expenses', 'quotations', 'quotation_items',
-        'subscription_plans', 'customer_subscriptions', 'subscription_servers',
-        'business_locations', 'fixed_assets', 'bank_reconciliations'
-      ];
-
-      const backupData: any = {
-        version: '1.0',
-        timestamp: new Date().toISOString(),
-        tables: {}
-      };
-
-      for (let i = 0; i < tables.length; i++) {
-        const table = tables[i];
-        setBackupProgress(Math.round(((i + 1) / tables.length) * 100));
-
-        try {
-          const { data, error } = await supabase
-            .from(table as any)
-            .select('*');
-
-          if (error) {
-            console.warn(`Warning: Could not backup table ${table}:`, error);
-            backupData.tables[table] = [];
-          } else {
-            backupData.tables[table] = data || [];
-          }
-        } catch (err) {
-          console.warn(`Warning: Could not backup table ${table}:`, err);
-          backupData.tables[table] = [];
-        }
-      }
-
-      // Add localStorage data
-      backupData.localStorage = {
-        companyInfo: localStorage.getItem('companyInfo'),
-        taxSettings: localStorage.getItem('taxSettings'),
-        invoiceDesign: localStorage.getItem('invoiceDesign'),
-        accountingYear: localStorage.getItem('accountingYear')
-      };
-
-      // Download backup file
-      const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `erp-backup-${new Date().toISOString().split('T')[0]}.json`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-
-      toast({
-        title: "Backup Complete",
-        description: `Database backup downloaded successfully. ${Object.keys(backupData.tables).length} tables exported.`,
-      });
-    } catch (error: any) {
-      console.error("Error creating backup:", error);
-      toast({
-        title: "Backup Failed",
-        description: error.message || "Failed to create database backup",
-        variant: "destructive",
-      });
-    } finally {
-      setBackupInProgress(false);
-      setBackupProgress(0);
-    }
-  };
-
-  const handleRestoreDatabase = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    if (!confirm("⚠️ WARNING: This will REPLACE all existing data with the backup data. This action cannot be undone. Are you sure you want to continue?")) {
-      event.target.value = '';
-      return;
-    }
-
-    try {
-      setRestoreInProgress(true);
-      setRestoreProgress(0);
-
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        try {
-          const backupData = JSON.parse(e.target?.result as string);
-
-          if (!backupData.version || !backupData.tables) {
-            throw new Error("Invalid backup file format");
-          }
-
-          const tables = Object.keys(backupData.tables);
-          let successCount = 0;
-          let failCount = 0;
-
-          for (let i = 0; i < tables.length; i++) {
-            const table = tables[i];
-            const data = backupData.tables[table];
-            setRestoreProgress(Math.round(((i + 1) / tables.length) * 100));
-
-            if (!data || data.length === 0) continue;
-
-            try {
-              // Delete existing data
-              await supabase.from(table as any).delete().neq('id', '00000000-0000-0000-0000-000000000000');
-
-              // Insert backup data in batches
-              const batchSize = 100;
-              for (let j = 0; j < data.length; j += batchSize) {
-                const batch = data.slice(j, j + batchSize);
-                const { error } = await supabase.from(table as any).insert(batch);
-                
-                if (error) {
-                  console.warn(`Warning restoring ${table}:`, error);
-                  failCount++;
-                } else {
-                  successCount++;
-                }
-              }
-            } catch (err) {
-              console.warn(`Error restoring table ${table}:`, err);
-              failCount++;
-            }
-          }
-
-          // Restore localStorage data
-          if (backupData.localStorage) {
-            Object.keys(backupData.localStorage).forEach(key => {
-              if (backupData.localStorage[key]) {
-                localStorage.setItem(key, backupData.localStorage[key]);
-              }
-            });
-          }
-
-          toast({
-            title: "Restore Complete",
-            description: `Database restored successfully. ${successCount} tables imported, ${failCount} had warnings.`,
-          });
-
-          // Reload page data
-          setTimeout(() => {
-            window.location.reload();
-          }, 2000);
-        } catch (error: any) {
-          console.error("Error parsing backup file:", error);
-          toast({
-            title: "Restore Failed",
-            description: error.message || "Invalid backup file or restore failed",
-            variant: "destructive",
-          });
-        } finally {
-          setRestoreInProgress(false);
-          setRestoreProgress(0);
-          event.target.value = '';
-        }
-      };
-
-      reader.readAsText(file);
-    } catch (error: any) {
-      console.error("Error restoring backup:", error);
-      toast({
-        title: "Restore Failed",
-        description: error.message || "Failed to restore database backup",
-        variant: "destructive",
-      });
-      setRestoreInProgress(false);
-      setRestoreProgress(0);
-      event.target.value = '';
-    }
-  };
-
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setCompanyInfo({ ...companyInfo, logo: reader.result as string });
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const fetchInvoiceDesign = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data, error } = await supabase
-        .from("invoice_design_settings")
-        .select("*")
-        .eq("created_by", user.id)
-        .single();
-
-      if (error && error.code !== "PGRST116") throw error;
-
-      if (data) {
-        setInvoiceDesign({
-          template_style: data.template_style || "modern",
-          primary_color: data.primary_color || "#2980B9",
-          secondary_color: data.secondary_color || "#3498DB",
-          footer_text: data.footer_text || "",
-          layout_name: data.layout_name || "Default Layout"
-        });
-
-        // Parse layout fields if they exist
-        if (data.header_layout || data.footer_layout) {
-          const headerFields = data.header_layout ? JSON.parse(data.header_layout as string) : [];
-          const footerFields = data.footer_layout ? JSON.parse(data.footer_layout as string) : [];
-          setLayoutFields([...headerFields, ...footerFields]);
-        }
-      }
-    } catch (error: any) {
-      console.error("Error fetching invoice design:", error);
-    }
-  };
-
-  const saveInvoiceDesign = async () => {
-    try {
-      setIsSaving(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("User not authenticated");
-
-      // Separate header and footer fields
-      const headerFields = layoutFields.filter(f => f.section === "header");
-      const footerFields = layoutFields.filter(f => f.section === "footer");
-
-      const designData = {
-        ...invoiceDesign,
-        header_layout: JSON.stringify(headerFields),
-        footer_layout: JSON.stringify(footerFields),
-        created_by: user.id,
-        updated_at: new Date().toISOString(),
-      };
-
-      const { error } = await supabase
-        .from("invoice_design_settings")
-        .upsert(designData, { onConflict: "created_by" });
-
-      if (error) throw error;
-
-      toast({
-        title: "Success",
-        description: "Invoice design settings saved successfully!",
-      });
-    } catch (error: any) {
-      console.error("Error saving invoice design:", error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to save invoice design settings",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const saveTaxSettings = async () => {
-    try {
-      setIsSaving(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("User not authenticated");
-
-      const { error } = await supabase
-        .from("tax_settings")
-        .upsert({ ...taxSettings, created_by: user.id, updated_at: new Date().toISOString() }, { onConflict: "created_by" });
-
-      if (error) throw error;
-
-      toast({
-        title: "Success",
-        description: "Tax settings saved successfully!",
-      });
-    } catch (error: any) {
-      console.error("Error saving tax settings:", error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to save tax settings",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSaving(false);
     }
   };
 
@@ -870,6 +568,215 @@ export default function SettingsPage() {
     });
   };
 
+  const handleRestoreDatabase = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!confirm("⚠️ WARNING: This will REPLACE all existing data with the backup data. This action cannot be undone. Are you sure you want to continue?")) {
+      event.target.value = '';
+      return;
+    }
+
+    try {
+      setRestoreInProgress(true);
+      setRestoreProgress(0);
+
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const backupData = JSON.parse(e.target?.result as string);
+
+          if (!backupData.version || !backupData.tables) {
+            throw new Error("Invalid backup file format");
+          }
+
+          const tables = Object.keys(backupData.tables);
+          let successCount = 0;
+          let failCount = 0;
+
+          for (let i = 0; i < tables.length; i++) {
+            const table = tables[i];
+            const data = backupData.tables[table];
+            setRestoreProgress(Math.round(((i + 1) / tables.length) * 100));
+
+            if (!data || data.length === 0) continue;
+
+            try {
+              await supabase.from(table as any).delete().neq('id', '00000000-0000-0000-0000-000000000000');
+
+              const batchSize = 100;
+              for (let j = 0; j < data.length; j += batchSize) {
+                const batch = data.slice(j, j + batchSize);
+                const { error } = await supabase.from(table as any).insert(batch);
+                
+                if (error) {
+                  console.warn(`Warning restoring ${table}:`, error);
+                  failCount++;
+                } else {
+                  successCount++;
+                }
+              }
+            } catch (err) {
+              console.warn(`Error restoring table ${table}:`, err);
+              failCount++;
+            }
+          }
+
+          if (backupData.localStorage) {
+            Object.keys(backupData.localStorage).forEach(key => {
+              if (backupData.localStorage[key]) {
+                localStorage.setItem(key, backupData.localStorage[key]);
+              }
+            });
+          }
+
+          toast({
+            title: "Restore Complete",
+            description: `Database restored successfully. ${successCount} tables imported, ${failCount} had warnings.`,
+          });
+
+          setTimeout(() => {
+            window.location.reload();
+          }, 2000);
+        } catch (error: any) {
+          console.error("Error parsing backup file:", error);
+          toast({
+            title: "Restore Failed",
+            description: error.message || "Invalid backup file or restore failed",
+            variant: "destructive",
+          });
+        } finally {
+          setRestoreInProgress(false);
+          setRestoreProgress(0);
+          event.target.value = '';
+        }
+      };
+
+      reader.readAsText(file);
+    } catch (error: any) {
+      console.error("Error restoring backup:", error);
+      toast({
+        title: "Restore Failed",
+        description: error.message || "Failed to restore database backup",
+        variant: "destructive",
+      });
+      setRestoreInProgress(false);
+      setRestoreProgress(0);
+      event.target.value = '';
+    }
+  };
+
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setCompanyInfo({ ...companyInfo, logo: reader.result as string });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const fetchInvoiceDesign = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from("invoice_design_settings")
+        .select("*")
+        .eq("created_by", user.id)
+        .single();
+
+      if (error && error.code !== "PGRST116") throw error;
+
+      if (data) {
+        setInvoiceDesign({
+          template_style: data.template_style || "modern",
+          primary_color: data.primary_color || "#2980B9",
+          secondary_color: data.secondary_color || "#3498DB",
+          footer_text: data.footer_text || "",
+          layout_name: data.layout_name || "Default Layout"
+        });
+
+        if (data.header_layout || data.footer_layout) {
+          const headerFields = data.header_layout ? JSON.parse(data.header_layout as string) : [];
+          const footerFields = data.footer_layout ? JSON.parse(data.footer_layout as string) : [];
+          setLayoutFields([...headerFields, ...footerFields]);
+        }
+      }
+    } catch (error: any) {
+      console.error("Error fetching invoice design:", error);
+    }
+  };
+
+  const saveInvoiceDesign = async () => {
+    try {
+      setIsSaving(true);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("User not authenticated");
+
+      const headerFields = layoutFields.filter(f => f.section === "header");
+      const footerFields = layoutFields.filter(f => f.section === "footer");
+
+      const designData = {
+        ...invoiceDesign,
+        header_layout: JSON.stringify(headerFields),
+        footer_layout: JSON.stringify(footerFields),
+        created_by: user.id,
+        updated_at: new Date().toISOString(),
+      };
+
+      const { error } = await supabase
+        .from("invoice_design_settings")
+        .upsert(designData, { onConflict: "created_by" });
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Invoice design settings saved successfully!",
+      });
+    } catch (error: any) {
+      console.error("Error saving invoice design:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to save invoice design settings",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const saveTaxSettings = async () => {
+    try {
+      setIsSaving(true);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("User not authenticated");
+
+      const { error } = await supabase
+        .from("tax_settings")
+        .upsert({ ...taxSettings, created_by: user.id, updated_at: new Date().toISOString() }, { onConflict: "created_by" });
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Tax settings saved successfully!",
+      });
+    } catch (error: any) {
+      console.error("Error saving tax settings:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to save tax settings",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
     <>
       <SEO 
@@ -905,7 +812,6 @@ export default function SettingsPage() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-6">
-                    {/* Logo Upload */}
                     <div className="space-y-2">
                       <Label>Company Logo</Label>
                       <div className="flex items-center gap-4">
@@ -931,7 +837,6 @@ export default function SettingsPage() {
                       </div>
                     </div>
 
-                    {/* Company Names */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="nameEn">Company Name (English) *</Label>
@@ -954,7 +859,6 @@ export default function SettingsPage() {
                       </div>
                     </div>
 
-                    {/* ZATCA Required Fields */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="vatNumber">VAT Number (الرقم الضريبي) *</Label>
@@ -979,7 +883,6 @@ export default function SettingsPage() {
                       </div>
                     </div>
 
-                    {/* National Address (ZATCA Phase 2) */}
                     <div className="space-y-4">
                       <h3 className="text-sm font-semibold">National Address (العنوان الوطني)</h3>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1052,7 +955,6 @@ export default function SettingsPage() {
                       </div>
                     </div>
 
-                    {/* Contact Information */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="email">Email *</Label>
@@ -1084,11 +986,9 @@ export default function SettingsPage() {
                       </div>
                     </div>
 
-                    {/* Currency Settings */}
                     <div className="space-y-4">
                       <h3 className="text-sm font-semibold">Currency & Formatting (العملة والتنسيق)</h3>
                       
-                      {/* Currency Symbol Upload */}
                       <div className="space-y-4 p-4 border rounded-lg bg-muted/30">
                         <div className="flex items-center justify-between">
                           <div>
@@ -1415,7 +1315,6 @@ export default function SettingsPage() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-6">
-                    {/* Existing Locations List */}
                     <div className="space-y-4">
                       <h3 className="text-sm font-semibold">Active Business Locations</h3>
                       {businessLocations.map((location) => (
@@ -1468,7 +1367,6 @@ export default function SettingsPage() {
                       ))}
                     </div>
 
-                    {/* Add New Location Form */}
                     <div className="border-t pt-6">
                       <h3 className="text-sm font-semibold mb-4">Add New Business Location</h3>
                       <div className="space-y-4">
@@ -1600,7 +1498,6 @@ export default function SettingsPage() {
                 </Card>
               </TabsContent>
 
-              {/* Backup & Restore */}
               <TabsContent value="backup">
                 <Card>
                   <CardHeader>
@@ -1613,7 +1510,6 @@ export default function SettingsPage() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-6">
-                    {/* Progress Indicators */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label>Backup Progress</Label>
@@ -1650,7 +1546,6 @@ export default function SettingsPage() {
                       </div>
                     </div>
 
-                    {/* Create Backup Point */}
                     <div className="border-t pt-6">
                       <h3 className="text-sm font-semibold mb-4">💾 Create Backup Point</h3>
                       <div className="bg-muted/50 p-4 rounded-lg space-y-4">
@@ -1706,7 +1601,6 @@ export default function SettingsPage() {
                       </div>
                     </div>
 
-                    {/* Saved Backup Points */}
                     <div className="border-t pt-6">
                       <h3 className="text-sm font-semibold mb-4">📋 Saved Backup Points ({backupPoints.length})</h3>
                       {backupPoints.length === 0 ? (
@@ -1777,7 +1671,6 @@ export default function SettingsPage() {
                       )}
                     </div>
 
-                    {/* Import External Backup */}
                     <div className="border-t pt-6">
                       <h3 className="text-sm font-semibold mb-4">📤 Import External Backup</h3>
                       <div className="bg-destructive/10 border border-destructive/20 p-4 rounded-lg space-y-3">
