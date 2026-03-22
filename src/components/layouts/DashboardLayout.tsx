@@ -71,28 +71,36 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
   useEffect(() => {
     const loadUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        setUserEmail(user.email || "");
+      try {
+        const response = await fetch("/api/auth/me");
         
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("full_name, role")
-          .eq("id", user.id)
-          .single();
-        
-        if (profile) {
-          setUserName(profile.full_name || "User");
-          setUserRole(profile.role || "employee");
+        if (!response.ok) {
+          router.push("/auth/login");
+          return;
         }
+
+        const data = await response.json();
+        setUserEmail(data.email || "");
+        setUserName(data.full_name || "User");
+        setUserRole(data.role || "employee");
+      } catch (error) {
+        console.error("Error loading user:", error);
+        router.push("/auth/login");
       }
     };
     loadUser();
-  }, []);
+  }, [router]);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-    router.push("/auth/login");
+    try {
+      await fetch("/api/auth/logout", {
+        method: "POST",
+      });
+      router.push("/auth/login");
+    } catch (error) {
+      console.error("Logout error:", error);
+      router.push("/auth/login");
+    }
   };
 
   const getRoleBadgeColor = (role: string) => {
