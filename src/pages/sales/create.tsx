@@ -16,6 +16,7 @@ import { CurrencyDisplay } from "@/components/ui/currency-display";
 import { SaudiRiyalIcon } from "@/components/icons/SaudiRiyalIcon";
 import { productService } from "@/services/productService";
 import { salesService } from "@/services/salesService";
+import { customerService } from "@/services/customerService";
 import { useToast } from "@/hooks/use-toast";
 import type { InvoiceItem } from "@/types";
 import type { Database } from "@/integrations/supabase/types";
@@ -36,6 +37,7 @@ export default function CreateSalesInvoicePage() {
   const [loading, setLoading] = useState(false);
   const [isCustomerDialogOpen, setIsCustomerDialogOpen] = useState(false);
   const [products, setProducts] = useState<Database["public"]["Tables"]["products"]["Row"][]>([]);
+  const [customers, setCustomers] = useState<Database["public"]["Tables"]["customers"]["Row"][]>([]);
   const [productSearchQuery, setProductSearchQuery] = useState("");
   const [selectedItemIndex, setSelectedItemIndex] = useState<number | null>(null);
   const [newCustomer, setNewCustomer] = useState({
@@ -76,6 +78,7 @@ export default function CreateSalesInvoicePage() {
 
   useEffect(() => {
     loadProducts();
+    loadCustomers();
   }, []);
 
   const loadProducts = async () => {
@@ -87,46 +90,80 @@ export default function CreateSalesInvoicePage() {
     }
   };
 
-  const handleAddCustomer = () => {
+  const loadCustomers = async () => {
+    try {
+      const data = await customerService.getAll();
+      setCustomers(data);
+    } catch (error) {
+      console.error("Error loading customers:", error);
+    }
+  };
+
+  const handleAddCustomer = async () => {
     if (!newCustomer.name || !newCustomer.email || !newCustomer.phone) {
-      alert("Please fill in all required customer fields");
+      toast({
+        title: "Validation Error",
+        description: "Please fill in all required customer fields (Name, Email, Phone)",
+        variant: "destructive",
+      });
       return;
     }
 
-    const existingCustomers = JSON.parse(localStorage.getItem("customers") || "[]");
-    
-    const customer = {
-      id: (existingCustomers.length + 1).toString(),
-      ...newCustomer,
-      type: "business",
-      address: "",
-      country: "Saudi Arabia",
-      taxNumber: newCustomer.vatNumber,
-      paymentTerms: 30,
-      creditLimit: 0,
-      balance: 0,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+    try {
+      const customerData = {
+        customer_number: `CUST-${Date.now()}`,
+        name: newCustomer.name,
+        email: newCustomer.email,
+        phone: newCustomer.phone,
+        vat_number: newCustomer.vatNumber || null,
+        building_number: newCustomer.buildingNumber || null,
+        additional_number: newCustomer.additionalNumber || null,
+        street_name: newCustomer.streetName || null,
+        district: newCustomer.district || null,
+        city: newCustomer.city || null,
+        postal_code: newCustomer.postalCode || null,
+        country: "Saudi Arabia",
+        status: "active",
+        opening_balance: 0,
+      };
 
-    existingCustomers.push(customer);
-    localStorage.setItem("customers", JSON.stringify(existingCustomers));
+      const createdCustomer = await customerService.create(customerData);
+      
+      toast({
+        title: "Success",
+        description: "Customer added successfully",
+      });
 
-    setFormData({ ...formData, customerId: customer.id });
+      // Reload customers list
+      await loadCustomers();
+      
+      // Set the newly created customer as selected
+      if (createdCustomer) {
+        setFormData({ ...formData, customerId: createdCustomer.id });
+      }
 
-    setNewCustomer({ 
-      name: "", 
-      email: "", 
-      phone: "", 
-      vatNumber: "",
-      buildingNumber: "",
-      additionalNumber: "",
-      streetName: "",
-      district: "",
-      city: "",
-      postalCode: "",
-    });
-    setIsCustomerDialogOpen(false);
+      // Reset form and close dialog
+      setNewCustomer({ 
+        name: "", 
+        email: "", 
+        phone: "", 
+        vatNumber: "",
+        buildingNumber: "",
+        additionalNumber: "",
+        streetName: "",
+        district: "",
+        city: "",
+        postalCode: "",
+      });
+      setIsCustomerDialogOpen(false);
+    } catch (error: any) {
+      console.error("Error adding customer:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to add customer",
+        variant: "destructive",
+      });
+    }
   };
 
   const addItem = () => {
@@ -292,11 +329,10 @@ export default function CreateSalesInvoicePage() {
     try {
       setLoading(true);
 
-      // Get customer name
-      const customers = JSON.parse(localStorage.getItem("customers") || "[]");
-      const customer = customers.find((c: any) => c.id === formData.customerId);
+      // Get customer info from loaded customers
+      const customer = customers.find(c => c.id === formData.customerId);
       const customerName = customer?.name || "Unknown Customer";
-      const customerVat = customer?.vatNumber || "";
+      const customerVat = customer?.vat_number || "";
 
       // Generate invoice number (in production, this should come from backend)
       const invoiceNumber = `INV-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 100000)).padStart(5, '0')}`;
@@ -417,20 +453,59 @@ export default function CreateSalesInvoicePage() {
                 <div className="space-y-2">
                   <Label htmlFor="customer">Customer *</Label>
                   <div className="flex gap-2">
-                    <Select
-                      value={formData.customerId}
-                      onValueChange={(value) => setFormData({ ...formData, customerId: value })}
-                    >
-                      <SelectTrigger id="customer" className="flex-1">
-                        <SelectValue placeholder="Select customer" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="1">Al-Rajhi Trading Co.</SelectItem>
-                        <SelectItem value="2">Najd Commercial Est.</SelectItem>
-                        <SelectItem value="3">Riyadh Supplies Ltd.</SelectItem>
-                        <SelectItem value="4">Gulf Electronics</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <div className="relative flex-1">
+                      <Input
+                        id="customer"
+                        placeholder="Type to search customers..."
+                        value={
+                          formData.customerId 
+                            ? customers.find(c => c.id === formData.customerId)?.name || ""
+                            : ""
+                        }
+                        onChange={(e) => {
+                          // Clear selection when typing
+                          setFormData({ ...formData, customerId: "" });
+                        }}
+                        onFocus={(e) => {
+                          e.target.select();
+                        }}
+                      />
+                      
+                      {!formData.customerId && (
+                        <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-lg max-h-60 overflow-y-auto">
+                          {customers.length > 0 ? (
+                            customers
+                              .filter(customer => 
+                                customer.name.toLowerCase().includes(formData.customerId.toLowerCase()) ||
+                                (customer.customer_number && customer.customer_number.toLowerCase().includes(formData.customerId.toLowerCase())) ||
+                                (customer.email && customer.email.toLowerCase().includes(formData.customerId.toLowerCase())) ||
+                                (customer.phone && customer.phone.includes(formData.customerId))
+                              )
+                              .map((customer) => (
+                                <button
+                                  key={customer.id}
+                                  type="button"
+                                  className="w-full px-4 py-2 hover:bg-accent text-left text-sm border-b last:border-b-0"
+                                  onClick={() => {
+                                    setFormData({ ...formData, customerId: customer.id });
+                                  }}
+                                >
+                                  <div className="font-medium">{customer.name}</div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {customer.customer_number && `Code: ${customer.customer_number}`}
+                                    {customer.email && ` | ${customer.email}`}
+                                    {customer.phone && ` | ${customer.phone}`}
+                                  </div>
+                                </button>
+                              ))
+                          ) : (
+                            <div className="px-4 py-3 text-sm text-muted-foreground">
+                              No customers found. Click + to add a new customer.
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                     
                     <Dialog open={isCustomerDialogOpen} onOpenChange={setIsCustomerDialogOpen}>
                       <DialogTrigger asChild>

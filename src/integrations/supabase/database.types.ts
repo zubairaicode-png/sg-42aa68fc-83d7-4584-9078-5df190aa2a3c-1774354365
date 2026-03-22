@@ -292,6 +292,7 @@ export type Database = {
           id: string
           name: string
           notes: string | null
+          opening_balance: number | null
           payment_terms: number | null
           phone: string | null
           postal_code: string | null
@@ -318,6 +319,7 @@ export type Database = {
           id?: string
           name: string
           notes?: string | null
+          opening_balance?: number | null
           payment_terms?: number | null
           phone?: string | null
           postal_code?: string | null
@@ -344,6 +346,7 @@ export type Database = {
           id?: string
           name?: string
           notes?: string | null
+          opening_balance?: number | null
           payment_terms?: number | null
           phone?: string | null
           postal_code?: string | null
@@ -1394,6 +1397,7 @@ export type Database = {
           id: string
           name: string
           notes: string | null
+          opening_balance: number | null
           payment_terms: number | null
           phone: string | null
           postal_code: string | null
@@ -1413,6 +1417,7 @@ export type Database = {
           id?: string
           name: string
           notes?: string | null
+          opening_balance?: number | null
           payment_terms?: number | null
           phone?: string | null
           postal_code?: string | null
@@ -1432,6 +1437,7 @@ export type Database = {
           id?: string
           name?: string
           notes?: string | null
+          opening_balance?: number | null
           payment_terms?: number | null
           phone?: string | null
           postal_code?: string | null
