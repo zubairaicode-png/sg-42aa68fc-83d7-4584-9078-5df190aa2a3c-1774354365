@@ -14,6 +14,7 @@ import { locationService } from "@/services/locationService";
 import { userService } from "@/services/userService";
 import { ArrowLeft, Save } from "lucide-react";
 import Link from "next/link";
+import { supabase } from "@/lib/supabase";
 
 interface LocationAssignment {
   locationId: string;
@@ -40,8 +41,16 @@ export default function CreateUserPage() {
 
   const loadLocations = async () => {
     try {
-      const data = await locationService.getAll();
-      setLocations(data);
+      const { data, error } = await supabase
+        .from("business_locations")
+        .select("*")
+        .eq("status", "active")
+        .order("location_name", { ascending: true });
+
+      if (error) throw error;
+      
+      console.log("Loaded business locations:", data);
+      setLocations(data || []);
     } catch (error: any) {
       console.error("Error loading locations:", error);
       toast({
