@@ -141,41 +141,29 @@ export default function CreateUserPage() {
       setLoading(true);
       console.log("Starting user creation process...", { email: formData.email });
 
-      // Create user via Supabase Admin API
-      const { data: authData, error: createError } = await supabase.auth.admin.createUser({
-        email: formData.email,
-        password: formData.password,
-        email_confirm: true,
-        user_metadata: {
-          full_name: formData.fullName,
-        }
+      // Create user via secure API endpoint
+      const response = await fetch("/api/admin/create-user", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password,
+          fullName: formData.fullName,
+          role: formData.role,
+        }),
       });
 
-      console.log("User creation result:", { authData, createError });
+      const result = await response.json();
+      console.log("User creation API result:", result);
 
-      if (createError) {
-        console.error("Error creating user:", createError);
-        throw createError;
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || "Failed to create user");
       }
 
-      if (!authData.user) {
-        throw new Error("User creation failed - no user returned");
-      }
-
-      console.log("User created successfully:", authData.user.id);
-
-      // Update user profile with role
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .update({ role: formData.role })
-        .eq("id", authData.user.id);
-
-      if (profileError) {
-        console.error("Error updating profile:", profileError);
-        throw profileError;
-      }
-
-      console.log("Profile updated with role:", formData.role);
+      const userId = result.userId;
+      console.log("User created successfully:", userId);
 
       // Assign locations
       const locationIds = selectedLocations.map((sl) => sl.locationId);
@@ -183,7 +171,7 @@ export default function CreateUserPage() {
 
       console.log("Assigning locations:", { locationIds, primaryLocationId });
 
-      await userService.assignLocations(authData.user.id, locationIds, primaryLocationId);
+      await userService.assignLocations(userId, locationIds, primaryLocationId);
 
       console.log("Locations assigned successfully");
 
