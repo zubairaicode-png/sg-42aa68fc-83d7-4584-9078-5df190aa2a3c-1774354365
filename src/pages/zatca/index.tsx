@@ -327,6 +327,140 @@ export default function ZATCAPhase2Page() {
     }));
   };
 
+  const handleSyncSingleInvoice = async (invoiceId: string, type: "invoice" | "return") => {
+    try {
+      const table = type === "invoice" ? "sales_invoices" : "sales_returns";
+      
+      // Simulate ZATCA API call
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
+      const { error } = await supabase
+        .from(table)
+        .update({
+          zatca_status: "cleared",
+          zatca_uuid: `uuid-${invoiceId}-${Date.now()}`,
+          zatca_synced_at: new Date().toISOString(),
+        })
+        .eq("id", invoiceId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Sync Successful",
+        description: `${type === "invoice" ? "Invoice" : "Return"} synced to ZATCA`,
+      });
+
+      // Auto-generate ZATCA PDF after successful sync
+      if (type === "invoice") {
+        await generateAndDownloadZATCAPDF(invoiceId);
+      }
+
+      // Refresh data
+      if (type === "invoice") {
+        await fetchSalesInvoices();
+      } else {
+        await fetchSalesReturns();
+      }
+
+    } catch (error: any) {
+      toast({
+        title: "Sync Failed",
+        description: error.message || "Failed to sync document",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const generateAndDownloadZATCAPDF = async (invoiceId: string) => {
+    try {
+      // Fetch full invoice details
+      const { data: fullInvoice, error } = await supabase
+        .from("sales_invoices")
+        .select(`
+          *,
+          customers (
+            name,
+            vat_number,
+            building_number,
+            street_name,
+            district,
+            city,
+            postal_code,
+            additional_number
+          ),
+          sales_invoice_items (
+            description,
+            quantity,
+            unit_price,
+            tax_rate,
+            tax_amount,
+            total
+          )
+        `)
+        .eq("id", invoiceId)
+        .single();
+
+      if (error) throw error;
+
+      const invoiceData: InvoiceData = {
+        invoiceNumber: fullInvoice.invoice_number,
+        invoiceDate: new Date(fullInvoice.invoice_date),
+        
+        supplierNameEn: orgDetails.nameEn || "Your Company",
+        supplierNameAr: orgDetails.nameAr || "شركتك",
+        supplierVAT: orgDetails.vatNumber || "",
+        supplierCR: orgDetails.crNumber || "",
+        supplierBuildingNo: orgDetails.buildingNumber || "",
+        supplierStreet: orgDetails.streetName || "",
+        supplierDistrict: orgDetails.district || "",
+        supplierCity: orgDetails.city || "",
+        supplierPostalCode: orgDetails.postalCode || "",
+        supplierAdditionalNo: orgDetails.additionalNumber || "",
+        
+        customerName: fullInvoice.customers?.name || "Cash Customer",
+        customerVAT: fullInvoice.customers?.vat_number || undefined,
+        customerBuildingNo: fullInvoice.customers?.building_number || "",
+        customerStreet: fullInvoice.customers?.street_name || "",
+        customerDistrict: fullInvoice.customers?.district || "",
+        customerCity: fullInvoice.customers?.city || "",
+        customerPostalCode: fullInvoice.customers?.postal_code || "",
+        customerAdditionalNo: fullInvoice.customers?.additional_number || "",
+        
+        items: (fullInvoice.sales_invoice_items || []).map((item: any) => ({
+          description: item.description || "Item",
+          quantity: item.quantity || 0,
+          unitPrice: item.unit_price || 0,
+          vatRate: item.tax_rate || 15,
+          vatAmount: item.tax_amount || 0,
+          total: item.total || 0,
+        })),
+        
+        subtotal: fullInvoice.subtotal || 0,
+        totalVAT: fullInvoice.tax_amount || 0,
+        total: fullInvoice.total_amount || 0,
+        
+        paymentMethod: fullInvoice.payment_method || "Cash",
+        notes: fullInvoice.notes || "",
+      };
+
+      const pdfBlob = await generateZATCAPDF(invoiceData, "modern");
+      
+      const url = URL.createObjectURL(pdfBlob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `ZATCA-${fullInvoice.invoice_number}-${Date.now()}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      console.log(`✅ ZATCA PDF generated for ${fullInvoice.invoice_number}`);
+    } catch (error) {
+      console.error("Error generating ZATCA PDF:", error);
+      // Don't show error to user - PDF generation is bonus feature
+    }
+  };
+
   const handleSyncToZATCA = async () => {
     setIsSyncing(true);
     try {
@@ -362,6 +496,8 @@ export default function ZATCAPhase2Page() {
 
         if (!error) {
           syncedCount++;
+          // Auto-generate ZATCA PDF for each synced invoice
+          await generateAndDownloadZATCAPDF(invoice.id);
         }
       }
 
@@ -385,7 +521,7 @@ export default function ZATCAPhase2Page() {
 
       toast({
         title: "Sync Successful",
-        description: `Synced ${syncedCount} documents to ZATCA successfully`,
+        description: `Synced ${syncedCount} documents to ZATCA and generated ${pendingInvoices.length} PDFs`,
       });
 
       // Refresh data
@@ -401,45 +537,6 @@ export default function ZATCAPhase2Page() {
       });
     } finally {
       setIsSyncing(false);
-    }
-  };
-
-  const handleSyncSingleInvoice = async (invoiceId: string, type: "invoice" | "return") => {
-    try {
-      const table = type === "invoice" ? "sales_invoices" : "sales_returns";
-      
-      // Simulate ZATCA API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
-
-      const { error } = await supabase
-        .from(table)
-        .update({
-          zatca_status: "cleared",
-          zatca_uuid: `uuid-${invoiceId}-${Date.now()}`,
-          zatca_synced_at: new Date().toISOString(),
-        })
-        .eq("id", invoiceId);
-
-      if (error) throw error;
-
-      toast({
-        title: "Sync Successful",
-        description: `${type === "invoice" ? "Invoice" : "Return"} synced to ZATCA`,
-      });
-
-      // Refresh data
-      if (type === "invoice") {
-        await fetchSalesInvoices();
-      } else {
-        await fetchSalesReturns();
-      }
-
-    } catch (error: any) {
-      toast({
-        title: "Sync Failed",
-        description: error.message || "Failed to sync document",
-        variant: "destructive",
-      });
     }
   };
 

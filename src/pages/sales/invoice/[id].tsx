@@ -218,33 +218,59 @@ export default function InvoiceViewPage() {
         button.textContent = 'Generating PDF...';
       }
 
-      const actionButtons = document.querySelector('.no-print');
+      // Hide action buttons before capture
+      const actionButtons = document.querySelector('.no-print') as HTMLElement;
       if (actionButtons) {
-        (actionButtons as HTMLElement).style.display = 'none';
+        actionButtons.style.display = 'none';
       }
+
+      // Wait a moment for styles to apply
+      await new Promise(resolve => setTimeout(resolve, 100));
 
       const canvas = await html2canvas(invoiceRef.current, {
         scale: 2,
         useCORS: true,
         logging: false,
-        backgroundColor: '#ffffff'
+        backgroundColor: '#ffffff',
+        windowWidth: invoiceRef.current.scrollWidth,
+        windowHeight: invoiceRef.current.scrollHeight,
       });
 
+      // Restore action buttons
       if (actionButtons) {
-        (actionButtons as HTMLElement).style.display = 'flex';
+        actionButtons.style.display = 'flex';
       }
 
-      const imgWidth = 210;
+      const imgWidth = 210; // A4 width in mm
+      const pageHeight = 297; // A4 height in mm
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
       
       const pdf = new jsPDF({
-        orientation: imgHeight > imgWidth ? 'portrait' : 'portrait',
+        orientation: 'portrait',
         unit: 'mm',
         format: 'a4'
       });
 
       const imgData = canvas.toDataURL('image/png');
-      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+      
+      if (imgHeight <= pageHeight) {
+        // Single page
+        pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+      } else {
+        // Multiple pages
+        let heightLeft = imgHeight;
+        let position = 0;
+
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+
+        while (heightLeft > 0) {
+          position = heightLeft - imgHeight;
+          pdf.addPage();
+          pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+          heightLeft -= pageHeight;
+        }
+      }
 
       pdf.save(`${invoice?.invoice_number}_ZATCA_Invoice.pdf`);
 
@@ -260,6 +286,12 @@ export default function InvoiceViewPage() {
       if (button) {
         button.disabled = false;
         button.innerHTML = '<svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>Download PDF';
+      }
+      
+      // Restore action buttons in case of error
+      const actionButtons = document.querySelector('.no-print') as HTMLElement;
+      if (actionButtons) {
+        actionButtons.style.display = 'flex';
       }
     }
   };
@@ -316,7 +348,7 @@ export default function InvoiceViewPage() {
           </div>
 
           {/* Invoice Template */}
-          <Card className="p-8 print:p-0 print:shadow-none" ref={invoiceRef}>
+          <Card className="p-8 print:p-0 print:shadow-none" ref={invoiceRef} id="invoice-print-area">
             <div className="space-y-8">
               {/* Header */}
               <div className="flex justify-between items-start border-b pb-8">
@@ -489,6 +521,31 @@ export default function InvoiceViewPage() {
           onPaymentRecorded={handleRecordPayment}
         />
       </DashboardLayout>
+      <style jsx global>{`
+        @media print {
+          body * {
+            visibility: hidden;
+          }
+          #invoice-print-area,
+          #invoice-print-area * {
+            visibility: visible;
+          }
+          #invoice-print-area {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            background: white;
+          }
+          .no-print {
+            display: none !important;
+          }
+          @page {
+            size: A4;
+            margin: 0;
+          }
+        }
+      `}</style>
     </>
   );
 }

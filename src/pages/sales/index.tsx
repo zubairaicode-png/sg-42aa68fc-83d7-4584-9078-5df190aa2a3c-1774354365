@@ -252,14 +252,15 @@ export default function SalesPage() {
                         <th className="text-right p-4 font-semibold text-sm">Total</th>
                         <th className="text-right p-4 font-semibold text-sm">Paid</th>
                         <th className="text-right p-4 font-semibold text-sm">Balance</th>
-                        <th className="text-center p-4 font-semibold text-sm">Status</th>
+                        <th className="text-center p-4 font-semibold text-sm">Payment</th>
+                        <th className="text-center p-4 font-semibold text-sm">ZATCA</th>
                         <th className="text-center p-4 font-semibold text-sm">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {loading ? (
                         <tr>
-                          <td colSpan={9} className="p-8 text-center">
+                          <td colSpan={10} className="p-8 text-center">
                             <div className="flex items-center justify-center gap-2">
                               <div className="h-5 w-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                               <span className="text-muted-foreground">Loading sales invoices...</span>
@@ -268,7 +269,7 @@ export default function SalesPage() {
                         </tr>
                       ) : filteredInvoices.length === 0 ? (
                         <tr>
-                          <td colSpan={9} className="p-8 text-center text-muted-foreground">
+                          <td colSpan={10} className="p-8 text-center text-muted-foreground">
                             {searchQuery ? "No sales invoices found matching your search" : "No sales invoices yet"}
                           </td>
                         </tr>
@@ -288,6 +289,23 @@ export default function SalesPage() {
                                 getStatusColor(invoice.payment_status || "unpaid")
                               )}>
                                 {formatStatus(invoice.payment_status || "unpaid")}
+                              </span>
+                            </td>
+                            <td className="p-4 text-center">
+                              <span className={cn(
+                                "inline-block px-2 py-1 rounded text-xs font-medium",
+                                invoice.zatca_status === "cleared" 
+                                  ? "bg-success/10 text-success" 
+                                  : invoice.zatca_status === "reported"
+                                  ? "bg-blue-500/10 text-blue-500"
+                                  : invoice.zatca_status === "rejected"
+                                  ? "bg-destructive/10 text-destructive"
+                                  : "bg-warning/10 text-warning"
+                              )}>
+                                {invoice.zatca_status === "cleared" && "✓ Cleared"}
+                                {invoice.zatca_status === "reported" && "📝 Reported"}
+                                {invoice.zatca_status === "rejected" && "✗ Rejected"}
+                                {(!invoice.zatca_status || invoice.zatca_status === "pending") && "⏳ Pending"}
                               </span>
                             </td>
                             <td className="p-4">
