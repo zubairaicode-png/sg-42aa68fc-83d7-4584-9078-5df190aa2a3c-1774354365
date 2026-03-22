@@ -45,7 +45,7 @@ export default function SalesPage() {
     return invoice.customer_name || "Unknown Customer";
   };
 
-  const getStatusColor = (status: InvoiceStatus) => {
+  const getStatusColor = (status: string) => {
     switch (status) {
       case "paid": return "text-success bg-success/10";
       case "pending": 
