@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { SEO } from "@/components/SEO";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Shield, Mail, Lock, User, ArrowRight } from "lucide-react";
+import { Building2, Mail, Lock, User, ArrowRight, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,6 +16,7 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
+  const [registrationAllowed, setRegistrationAllowed] = useState(true);
   const [formData, setFormData] = useState({
     fullName: "",
     email: "",
@@ -24,11 +25,25 @@ export default function SignupPage() {
     role: "viewer" as "super_admin" | "admin" | "manager" | "accountant" | "sales" | "inventory" | "viewer",
   });
 
+  useEffect(() => {
+    // Check if new company registration is allowed
+    const savedSystemSettings = localStorage.getItem("systemSettings");
+    if (savedSystemSettings) {
+      const settings = JSON.parse(savedSystemSettings);
+      setRegistrationAllowed(settings.allowNewCompanyRegistration !== false);
+    }
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setSuccess(false);
     
+    if (!registrationAllowed) {
+      setError("New company registration is currently disabled");
+      return;
+    }
+
     if (!formData.fullName || !formData.email || !formData.password || !formData.confirmPassword) {
       setError("Please fill in all fields");
       return;
@@ -91,135 +106,152 @@ export default function SignupPage() {
     <>
       <SEO 
         title="Sign Up - Saudi ERP System"
-        description="Create your account"
+        description="Create your company account"
       />
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 via-background to-secondary/5 p-4">
         <Card className="w-full max-w-md">
           <CardHeader className="space-y-1 text-center">
             <div className="flex justify-center mb-4">
               <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
-                <Shield className="h-8 w-8 text-primary" />
+                <Building2 className="h-8 w-8 text-primary" />
               </div>
             </div>
-            <CardTitle className="text-2xl font-heading">Create Account</CardTitle>
+            <CardTitle className="text-2xl font-heading">Create Company Account</CardTitle>
             <CardDescription>
-              Sign up for Saudi ERP system
+              Start managing your business with Saudi ERP
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {error && (
-                <Alert variant="destructive">
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
-
-              {success && (
-                <Alert className="bg-success/10 text-success border-success/20">
+            {!registrationAllowed ? (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  New company registration is currently disabled. Please contact your system administrator for access.
+                </AlertDescription>
+              </Alert>
+            ) : success ? (
+              <div className="space-y-4">
+                <Alert>
                   <AlertDescription>
                     Account created successfully! Redirecting to login...
                   </AlertDescription>
                 </Alert>
-              )}
+              </div>
+            ) : (
+              <form onSubmit={handleSubmit} className="space-y-4">
+                {error && (
+                  <Alert variant="destructive">
+                    <AlertDescription>{error}</AlertDescription>
+                  </Alert>
+                )}
 
-              <div className="space-y-2">
-                <Label htmlFor="fullName">Full Name</Label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="fullName"
-                    value={formData.fullName}
-                    onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                    placeholder="John Doe"
-                    className="pl-9"
-                    required
-                  />
+                {success && (
+                  <Alert className="bg-success/10 text-success border-success/20">
+                    <AlertDescription>
+                      Account created successfully! Redirecting to login...
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                <div className="space-y-2">
+                  <Label htmlFor="fullName">Full Name</Label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="fullName"
+                      value={formData.fullName}
+                      onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
+                      placeholder="John Doe"
+                      className="pl-9"
+                      required
+                    />
+                  </div>
                 </div>
-              </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="email">Email Address</Label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="email"
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    placeholder="your@email.com"
-                    className="pl-9"
-                    required
-                  />
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email Address</Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="email"
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      placeholder="your@email.com"
+                      className="pl-9"
+                      required
+                    />
+                  </div>
                 </div>
-              </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="role">Role</Label>
-                <Select
-                  value={formData.role}
-                  onValueChange={(value: "super_admin" | "admin" | "manager" | "accountant" | "sales" | "inventory" | "viewer") => 
-                    setFormData({ ...formData, role: value })
-                  }
-                >
-                  <SelectTrigger id="role">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="super_admin">Super Admin</SelectItem>
-                    <SelectItem value="admin">Admin</SelectItem>
-                    <SelectItem value="manager">Manager</SelectItem>
-                    <SelectItem value="accountant">Accountant</SelectItem>
-                    <SelectItem value="sales">Sales</SelectItem>
-                    <SelectItem value="inventory">Inventory</SelectItem>
-                    <SelectItem value="viewer">Viewer</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="password"
-                    type="password"
-                    value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    placeholder="At least 6 characters"
-                    className="pl-9"
-                    required
-                  />
+                <div className="space-y-2">
+                  <Label htmlFor="role">Role</Label>
+                  <Select
+                    value={formData.role}
+                    onValueChange={(value: "super_admin" | "admin" | "manager" | "accountant" | "sales" | "inventory" | "viewer") => 
+                      setFormData({ ...formData, role: value })
+                    }
+                  >
+                    <SelectTrigger id="role">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="super_admin">Super Admin</SelectItem>
+                      <SelectItem value="admin">Admin</SelectItem>
+                      <SelectItem value="manager">Manager</SelectItem>
+                      <SelectItem value="accountant">Accountant</SelectItem>
+                      <SelectItem value="sales">Sales</SelectItem>
+                      <SelectItem value="inventory">Inventory</SelectItem>
+                      <SelectItem value="viewer">Viewer</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-              </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="confirmPassword">Confirm Password</Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="confirmPassword"
-                    type="password"
-                    value={formData.confirmPassword}
-                    onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                    placeholder="Re-enter password"
-                    className="pl-9"
-                    required
-                  />
+                <div className="space-y-2">
+                  <Label htmlFor="password">Password</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="password"
+                      type="password"
+                      value={formData.password}
+                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                      placeholder="At least 6 characters"
+                      className="pl-9"
+                      required
+                    />
+                  </div>
                 </div>
-              </div>
 
-              <Button type="submit" className="w-full" size="lg" disabled={loading || success}>
-                {loading ? "Creating account..." : "Create Account"}
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
+                <div className="space-y-2">
+                  <Label htmlFor="confirmPassword">Confirm Password</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="confirmPassword"
+                      type="password"
+                      value={formData.confirmPassword}
+                      onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                      placeholder="Re-enter password"
+                      className="pl-9"
+                      required
+                    />
+                  </div>
+                </div>
 
-              <div className="text-center text-sm text-muted-foreground">
-                Already have an account?{" "}
-                <Link href="/auth/login" className="text-primary hover:underline">
-                  Sign in
-                </Link>
-              </div>
-            </form>
+                <Button type="submit" className="w-full" size="lg" disabled={loading || success}>
+                  {loading ? "Creating account..." : "Create Account"}
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </form>
+            )}
+
+            <div className="mt-4 text-center text-sm text-muted-foreground">
+              Already have an account?{" "}
+              <Link href="/auth/login" className="text-primary hover:underline">
+                Sign in
+              </Link>
+            </div>
           </CardContent>
         </Card>
       </div>

@@ -110,6 +110,12 @@ export default function SettingsPage() {
   const [newBackupName, setNewBackupName] = useState("");
   const [newBackupDescription, setNewBackupDescription] = useState("");
 
+  // System Settings State
+  const [systemSettings, setSystemSettings] = useState({
+    enableSignup: true,
+    allowNewCompanyRegistration: true,
+  });
+
   // Layout designer state
   const [layoutFields, setLayoutFields] = useState<LayoutField[]>([]);
 
@@ -166,6 +172,11 @@ export default function SettingsPage() {
     if (savedInvoiceDesign) {
       setInvoiceDesign(JSON.parse(savedInvoiceDesign));
     }
+
+    const savedSystemSettings = localStorage.getItem("systemSettings");
+    if (savedSystemSettings) {
+      setSystemSettings(JSON.parse(savedSystemSettings));
+    }
   };
 
   const handleSaveCompany = () => {
@@ -190,6 +201,19 @@ export default function SettingsPage() {
       toast({
         title: "Tax Settings Saved",
         description: "Tax configuration has been updated successfully",
+      });
+    }, 1000);
+  };
+
+  const handleSaveSystemSettings = () => {
+    setLoading(true);
+    localStorage.setItem("systemSettings", JSON.stringify(systemSettings));
+    
+    setTimeout(() => {
+      setLoading(false);
+      toast({
+        title: "System Settings Saved",
+        description: "System configuration has been updated successfully",
       });
     }, 1000);
   };
@@ -797,6 +821,7 @@ export default function SettingsPage() {
                 <TabsTrigger value="tax">Tax Settings</TabsTrigger>
                 <TabsTrigger value="invoice">Invoice Design</TabsTrigger>
                 <TabsTrigger value="locations">Business Locations</TabsTrigger>
+                <TabsTrigger value="system">System Settings</TabsTrigger>
                 <TabsTrigger value="backup">Backup & Restore</TabsTrigger>
               </TabsList>
 
@@ -1493,6 +1518,80 @@ export default function SettingsPage() {
                           </Button>
                         </div>
                       </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="system">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Building2 className="h-5 w-5" />
+                      System Settings
+                    </CardTitle>
+                    <CardDescription>
+                      Configure system-wide settings and access controls
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div className="space-y-4">
+                      <h3 className="text-sm font-semibold">User Registration Settings</h3>
+                      
+                      <div className="flex items-center justify-between p-4 border rounded-lg">
+                        <div className="space-y-1">
+                          <Label htmlFor="enableSignup" className="text-base font-medium">
+                            Enable User Signup
+                          </Label>
+                          <p className="text-sm text-muted-foreground">
+                            Allow new users to create accounts from the login page. When disabled, the signup link will be hidden.
+                          </p>
+                        </div>
+                        <Switch
+                          id="enableSignup"
+                          checked={systemSettings.enableSignup}
+                          onCheckedChange={(checked) => setSystemSettings({ ...systemSettings, enableSignup: checked })}
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between p-4 border rounded-lg">
+                        <div className="space-y-1">
+                          <Label htmlFor="allowNewCompany" className="text-base font-medium">
+                            Allow New Company Registration
+                          </Label>
+                          <p className="text-sm text-muted-foreground">
+                            Enable new company registration form. When disabled, users cannot create new company accounts.
+                          </p>
+                        </div>
+                        <Switch
+                          id="allowNewCompany"
+                          checked={systemSettings.allowNewCompanyRegistration}
+                          onCheckedChange={(checked) => setSystemSettings({ ...systemSettings, allowNewCompanyRegistration: checked })}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="bg-muted/50 p-4 rounded-lg space-y-2">
+                      <h4 className="text-sm font-semibold">Current Status:</h4>
+                      <div className="space-y-1 text-sm">
+                        <p>
+                          • User Signup: <span className={systemSettings.enableSignup ? "text-green-600 font-medium" : "text-red-600 font-medium"}>
+                            {systemSettings.enableSignup ? "Enabled ✓" : "Disabled ✗"}
+                          </span>
+                        </p>
+                        <p>
+                          • Company Registration: <span className={systemSettings.allowNewCompanyRegistration ? "text-green-600 font-medium" : "text-red-600 font-medium"}>
+                            {systemSettings.allowNewCompanyRegistration ? "Enabled ✓" : "Disabled ✗"}
+                          </span>
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end">
+                      <Button onClick={handleSaveSystemSettings} disabled={loading}>
+                        <Save className="mr-2 h-4 w-4" />
+                        {loading ? "Saving..." : "Save System Settings"}
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>
