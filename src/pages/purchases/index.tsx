@@ -4,12 +4,15 @@ import { DashboardLayout } from "@/components/layouts/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Plus, Search, Filter, Download, Eye, Edit, Trash2 } from "lucide-react";
+import { Plus, Search, Filter, Download, Eye, Edit, Trash2, DollarSign } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { InvoiceStatus } from "@/types";
 import { purchaseService } from "@/services/purchaseService";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
+import { PaymentDialog } from "@/components/PaymentDialog";
+import { generatePaymentReceipt, generateReceiptNumber } from "@/lib/paymentReceiptGenerator";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function PurchasesPage() {
   const { toast } = useToast();
@@ -17,6 +20,8 @@ export default function PurchasesPage() {
   const [purchaseInvoices, setPurchaseInvoices] = useState<any[]>([]);
   const [filteredInvoices, setFilteredInvoices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+  const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
 
   useEffect(() => {
     loadPurchaseInvoices();
@@ -94,6 +99,73 @@ export default function PurchasesPage() {
 
   const formatStatus = (status: string) => {
     return status.charAt(0).toUpperCase() + status.slice(1);
+  };
+
+  const handleRecordPayment = async (invoice: any, paymentAmount: number, paymentMethod: string, notes: string) => {
+    try {
+      const newPaidAmount = parseFloat(invoice.paid_amount || 0) + paymentAmount;
+      const totalAmount = parseFloat(invoice.total_amount || 0);
+      const newBalance = totalAmount - newPaidAmount;
+
+      // Determine new payment status
+      let newStatus = "unpaid";
+      if (newBalance <= 0) {
+        newStatus = "paid";
+      } else if (newPaidAmount > 0) {
+        newStatus = "pending";
+      }
+
+      // Update invoice in database
+      const { error } = await supabase
+        .from("purchase_invoices")
+        .update({
+          paid_amount: newPaidAmount,
+          payment_status: newStatus,
+        })
+        .eq("id", invoice.id);
+
+      if (error) {
+        console.error("Error updating invoice:", error);
+        throw error;
+      }
+
+      // Generate payment receipt
+      const receiptData = {
+        receiptNumber: generateReceiptNumber(),
+        paymentDate: new Date().toLocaleDateString(),
+        invoiceNumber: invoice.invoice_number,
+        supplierName: invoice.supplier_name,
+        supplierVat: invoice.supplier_vat,
+        paymentAmount: paymentAmount,
+        paymentMethod: paymentMethod,
+        previousBalance: totalAmount - parseFloat(invoice.paid_amount || 0),
+        newBalance: newBalance,
+        notes: notes,
+        type: "purchase" as const,
+      };
+
+      generatePaymentReceipt(receiptData);
+
+      toast({
+        title: "Payment Recorded",
+        description: `Payment of SAR ${paymentAmount.toFixed(2)} recorded successfully. Receipt downloaded.`,
+      });
+
+      // Reload invoices
+      loadPurchaseInvoices();
+    } catch (error: any) {
+      console.error("Error recording payment:", error);
+      toast({
+        title: "Error",
+        description: "Failed to record payment",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const openPaymentDialog = (invoice: any) => {
+    setSelectedInvoice(invoice);
+    setPaymentDialogOpen(true);
   };
 
   const stats = {
@@ -248,6 +320,17 @@ export default function PurchasesPage() {
                                     <Edit className="h-4 w-4" />
                                   </Button>
                                 </Link>
+                                {invoice.payment_status !== "paid" && (
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon" 
+                                    className="h-8 w-8 text-success hover:text-success"
+                                    onClick={() => openPaymentDialog(invoice)}
+                                    title="Record Payment"
+                                  >
+                                    <DollarSign className="h-4 w-4" />
+                                  </Button>
+                                )}
                                 <Button 
                                   variant="ghost" 
                                   size="icon" 
@@ -268,6 +351,16 @@ export default function PurchasesPage() {
             </CardContent>
           </Card>
         </div>
+
+        <PaymentDialog
+          open={paymentDialogOpen}
+          onOpenChange={setPaymentDialogOpen}
+          invoice={selectedInvoice}
+          type="purchase"
+          onPaymentRecorded={() => {
+            // Payment will be handled through the parent component
+          }}
+        />
       </DashboardLayout>
     </>
   );
