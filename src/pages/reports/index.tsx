@@ -17,16 +17,16 @@ export default function ReportsPage() {
     {
       title: "Sales Reports",
       reports: [
-        { name: "Sales Summary", description: "Overview of sales by period", icon: FileText, href: "/reports" },
+        { name: "Sales Summary", description: "Overview of sales by period", icon: FileText, href: "/reports/sales-summary" },
         { name: "Sales by Customer", description: "Customer-wise sales analysis", icon: FileText, href: "/reports/customer-ledger" },
-        { name: "Sales by Product", description: "Product-wise sales breakdown", icon: FileText, href: "/reports" },
+        { name: "Sales by Product", description: "Product-wise sales breakdown", icon: FileText, href: "/reports/sales-by-product" },
         { name: "VAT Report (Sales)", description: "VAT collected on sales", icon: FileText, href: "/reports/vat-report" },
       ],
     },
     {
       title: "Purchase Reports",
       reports: [
-        { name: "Purchase Summary", description: "Overview of purchases by period", icon: FileText, href: "/reports" },
+        { name: "Purchase Summary", description: "Overview of purchases by period", icon: FileText, href: "/reports/purchase-summary" },
         { name: "Purchase by Supplier", description: "Supplier-wise purchase analysis", icon: FileText, href: "/reports/supplier-ledger" },
         { name: "VAT Report (Purchases)", description: "VAT paid on purchases", icon: FileText, href: "/reports/vat-report" },
       ],
