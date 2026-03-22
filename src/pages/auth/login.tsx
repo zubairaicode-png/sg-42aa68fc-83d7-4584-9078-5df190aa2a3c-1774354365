@@ -47,7 +47,11 @@ export default function Login() {
       router.push("/");
     } catch (error: any) {
       console.error("Login error:", error);
-      toast.error(error.message || "Invalid email or password");
+      toast({
+        title: "Error",
+        description: error.message || "Invalid email or password",
+        variant: "destructive"
+      });
     } finally {
       setLoading(false);
     }

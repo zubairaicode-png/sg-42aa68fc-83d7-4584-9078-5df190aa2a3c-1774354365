@@ -51,7 +51,7 @@ export default function EditUserPage() {
         role: userData.role || "viewer",
       });
 
-      if (userData.user_locations && userData.user_locations.length > 0) {
+      if (userData.user_locations && Array.isArray(userData.user_locations) && userData.user_locations.length > 0) {
         setSelectedLocations(
           userData.user_locations.map((ul: any) => ({
             locationId: ul.location_id,

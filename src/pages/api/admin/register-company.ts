@@ -38,15 +38,15 @@ export default async function handler(
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    // Check if company already exists (by VAT number or email)
+    // Check if location already exists (by email)
     const { data: existingCompany } = await supabase
-      .from("companies")
+      .from("business_locations")
       .select("id")
-      .or(`vat_number.eq.${vatNumber},email.eq.${email}`)
+      .eq("email", email)
       .single();
 
     if (existingCompany) {
-      return res.status(400).json({ error: "Company with this VAT number or email already exists" });
+      return res.status(400).json({ error: "Company with this email already exists" });
     }
 
     // Check if admin email already exists
@@ -63,22 +63,24 @@ export default async function handler(
     // Hash the admin password
     const hashedPassword = await bcrypt.hash(adminPassword, 10);
 
-    // Create company record
+    // Create company record as a business location
+    // Generate a unique location code
+    const locationCode = `HQ-${Math.floor(Math.random() * 10000)}`;
+
     const { data: company, error: companyError } = await supabase
-      .from("companies")
+      .from("business_locations")
       .insert({
-        name: companyName,
-        name_arabic: companyNameArabic,
+        location_code: locationCode,
+        location_name: companyName,
+        location_name_ar: companyNameArabic,
         email: email,
         phone: phone,
         address: address,
         city: city,
         country: country || "Saudi Arabia",
         postal_code: postalCode,
-        vat_number: vatNumber,
-        tax_registration_number: taxRegistrationNumber,
-        commercial_registration: commercialRegistration,
-        is_active: true,
+        is_default: true,
+        status: 'active',
       })
       .select()
       .single();
@@ -92,12 +94,12 @@ export default async function handler(
     const { data: user, error: userError } = await supabase
       .from("users")
       .insert({
-        company_id: company.id,
+        business_location_id: company.id,
         email: adminEmail,
         password_hash: hashedPassword,
         full_name: adminFullName,
         role: "admin",
-        is_active: true,
+        status: "active",
       })
       .select()
       .single();
@@ -105,7 +107,7 @@ export default async function handler(
     if (userError) {
       console.error("Error creating admin user:", userError);
       // Rollback: Delete the company if user creation fails
-      await supabase.from("companies").delete().eq("id", company.id);
+      await supabase.from("business_locations").delete().eq("id", company.id);
       return res.status(500).json({ error: "Failed to create admin user" });
     }
 
@@ -113,7 +115,7 @@ export default async function handler(
       message: "Company registered successfully",
       company: {
         id: company.id,
-        name: company.name,
+        name: company.location_name,
       },
       user: {
         id: user.id,
