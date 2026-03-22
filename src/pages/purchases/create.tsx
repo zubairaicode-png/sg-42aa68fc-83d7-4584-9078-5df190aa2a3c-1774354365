@@ -27,6 +27,9 @@ interface PurchaseFormData {
   dueDate: string;
   items: InvoiceItem[];
   notes: string;
+  paid_amount: number;
+  payment_method: string;
+  payment_notes: string;
 }
 
 export default function CreatePurchaseInvoicePage() {
@@ -71,6 +74,9 @@ export default function CreatePurchaseInvoicePage() {
       },
     ],
     notes: "",
+    paid_amount: 0,
+    payment_method: "",
+    payment_notes: "",
   });
 
   useEffect(() => {
@@ -248,8 +254,6 @@ export default function CreatePurchaseInvoicePage() {
     return { subtotal, discountAmount, taxAmount, total };
   };
 
-  const totals = calculateTotals();
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -340,6 +344,26 @@ export default function CreatePurchaseInvoicePage() {
       }
     }
 
+    // Validate payment amount
+    const totals = calculateTotals();
+    if (formData.paid_amount > totals.total) {
+      toast({
+        title: "Validation Error",
+        description: `Paid amount (${formData.paid_amount.toFixed(2)}) cannot exceed invoice total (${totals.total.toFixed(2)})`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (formData.paid_amount > 0 && !formData.payment_method) {
+      toast({
+        title: "Validation Error",
+        description: "Please select a payment method when recording a payment",
+        variant: "destructive",
+      });
+      return;
+    }
+
     console.log("All validations passed!");
 
     try {
@@ -363,6 +387,19 @@ export default function CreatePurchaseInvoicePage() {
       const invoiceNumber = `PINV-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 100000)).padStart(5, '0')}`;
       console.log("Generated Invoice Number:", invoiceNumber);
 
+      // Calculate totals
+      const totals = calculateTotals();
+
+      // Calculate payment status based on paid amount
+      let paymentStatus: "paid" | "unpaid" | "pending" = "unpaid";
+      const paidAmount = formData.paid_amount || 0;
+      
+      if (paidAmount >= totals.total) {
+        paymentStatus = "paid";
+      } else if (paidAmount > 0) {
+        paymentStatus = "pending";
+      }
+
       // Prepare purchase invoice data
       const purchaseData = {
         supplier_id: formData.supplierId,
@@ -374,7 +411,8 @@ export default function CreatePurchaseInvoicePage() {
         subtotal: totals.subtotal,
         total_amount: totals.total,
         tax_amount: totals.taxAmount,
-        payment_status: "unpaid" as const,
+        paid_amount: paidAmount,
+        payment_status: paymentStatus,
         notes: formData.notes || null,
       };
 
@@ -688,13 +726,7 @@ export default function CreatePurchaseInvoicePage() {
 
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>Purchase Items</CardTitle>
-                <Button type="button" variant="outline" size="sm" onClick={addItem}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Item
-                </Button>
-              </div>
+              <CardTitle>Purchase Items</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
@@ -863,33 +895,112 @@ export default function CreatePurchaseInvoicePage() {
               <div className="mt-6 pt-6 border-t">
                 <div className="max-w-md ml-auto space-y-3">
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Subtotal:</span>
-                    <span className="font-medium flex items-center gap-1">
+                    <span className="font-medium">Invoice Total:</span>
+                    <span className="font-semibold flex items-center gap-1">
                       <SaudiRiyalIcon size={14} />
-                      {totals.subtotal.toFixed(2)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Discount:</span>
-                    <span className="font-medium text-destructive flex items-center gap-1">
-                      -<SaudiRiyalIcon size={14} />
-                      {totals.discountAmount.toFixed(2)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Tax (VAT {SAUDI_VAT_RATE}%):</span>
-                    <span className="font-medium flex items-center gap-1">
-                      <SaudiRiyalIcon size={14} />
-                      {totals.taxAmount.toFixed(2)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-lg font-bold pt-3 border-t">
-                    <span>Total Amount:</span>
-                    <span className="text-primary flex items-center gap-1.5">
-                      <SaudiRiyalIcon size={18} />
                       {totals.total.toFixed(2)}
                     </span>
                   </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="font-medium">Amount Paid:</span>
+                    <span className="font-semibold text-success flex items-center gap-1">
+                      <SaudiRiyalIcon size={14} />
+                      {formData.paid_amount.toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm pt-2 border-t">
+                    <span className="font-medium">Amount Due:</span>
+                    <span className={`font-bold text-lg flex items-center gap-1 ${
+                      (totals.total - formData.paid_amount) > 0 ? 'text-destructive' : 'text-success'
+                    }`}>
+                      <SaudiRiyalIcon size={16} />
+                      {(totals.total - formData.paid_amount).toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Payment Information</CardTitle>
+              <p className="text-sm text-muted-foreground mt-1">
+                Record payment made at the time of invoice creation (optional)
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="paidAmount">Amount Paid (SAR)</Label>
+                  <Input
+                    id="paidAmount"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    max={totals.total}
+                    value={formData.paid_amount}
+                    onChange={(e) => setFormData({ ...formData, paid_amount: parseFloat(e.target.value) || 0 })}
+                    placeholder="0.00"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Enter 0 for unpaid invoice, or enter the amount paid to supplier
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="paymentMethodForPaid">Payment Method</Label>
+                  <Select
+                    value={formData.payment_method}
+                    onValueChange={(value) => setFormData({ ...formData, payment_method: value })}
+                  >
+                    <SelectTrigger id="paymentMethodForPaid">
+                      <SelectValue placeholder="Select payment method" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cash">💵 Cash</SelectItem>
+                      <SelectItem value="card">💳 Credit/Debit Card</SelectItem>
+                      <SelectItem value="bank">🏦 Bank Transfer</SelectItem>
+                      <SelectItem value="cheque">📝 Cheque</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="paymentNotes">Payment Notes (Optional)</Label>
+                <Textarea
+                  id="paymentNotes"
+                  value={formData.payment_notes}
+                  onChange={(e) => setFormData({ ...formData, payment_notes: e.target.value })}
+                  placeholder="Add notes about this payment..."
+                  rows={2}
+                />
+              </div>
+
+              <div className="p-4 bg-muted rounded-lg space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="font-medium">Invoice Total:</span>
+                  <span className="font-semibold flex items-center gap-1">
+                    <SaudiRiyalIcon size={14} />
+                    {totals.total.toFixed(2)}
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="font-medium">Amount Paid:</span>
+                  <span className="font-semibold text-success flex items-center gap-1">
+                    <SaudiRiyalIcon size={14} />
+                    {formData.paid_amount.toFixed(2)}
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm pt-2 border-t">
+                  <span className="font-medium">Amount Due:</span>
+                  <span className={`font-bold text-lg flex items-center gap-1 ${
+                    (totals.total - formData.paid_amount) > 0 ? 'text-destructive' : 'text-success'
+                  }`}>
+                    <SaudiRiyalIcon size={16} />
+                    {(totals.total - formData.paid_amount).toFixed(2)}
+                  </span>
                 </div>
               </div>
             </CardContent>
