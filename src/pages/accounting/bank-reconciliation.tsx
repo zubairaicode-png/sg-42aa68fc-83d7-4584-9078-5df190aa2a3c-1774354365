@@ -45,9 +45,11 @@ import {
   RefreshCw,
   ArrowRight,
   Calendar,
-  DollarSign
+  DollarSign,
+  FileDown,
 } from "lucide-react";
 import { bankReconciliationService, type BankAccountWithBalance, type BankTransactionWithMatching } from "@/services/bankReconciliationService";
+import { bankReconciliationExportService } from "@/services/bankReconciliationExportService";
 import { useToast } from "@/hooks/use-toast";
 import { AuthGuard } from "@/components/AuthGuard";
 import { cn } from "@/lib/utils";
@@ -86,6 +88,8 @@ export default function BankReconciliationPage() {
   const [isAccountDialogOpen, setIsAccountDialogOpen] = useState(false);
   const [isMatchDialogOpen, setIsMatchDialogOpen] = useState(false);
   const [selectedBankTransaction, setSelectedBankTransaction] = useState<BankTransactionWithMatching | null>(null);
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
+  const [exportFormat, setExportFormat] = useState<"pdf" | "excel">("pdf");
   
   const [newAccount, setNewAccount] = useState({
     accountName: "",
@@ -532,6 +536,46 @@ export default function BankReconciliationPage() {
     return matchSuggestions.find(s => s.bankTransactionId === transactionId);
   };
 
+  const handleExportReport = () => {
+    if (!selectedAccount || !selectedAccountData) {
+      toast({
+        title: "Error",
+        description: "Please select a bank account first",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const exportOptions = {
+      accountName: selectedAccountData.account_name,
+      accountNumber: selectedAccountData.account_number,
+      bankName: selectedAccountData.bank_name,
+      dateRange: {
+        start: filters.startDate || transactions[transactions.length - 1]?.transaction_date?.split("T")[0] || new Date().toISOString().split("T")[0],
+        end: filters.endDate || transactions[0]?.transaction_date?.split("T")[0] || new Date().toISOString().split("T")[0],
+      },
+      transactions,
+      summary: reconciliationSummary,
+      companyName: "Saudi ERP System",
+    };
+
+    if (exportFormat === "pdf") {
+      bankReconciliationExportService.exportToPDF(exportOptions);
+      toast({
+        title: "Success",
+        description: "PDF report downloaded successfully",
+      });
+    } else {
+      bankReconciliationExportService.exportToExcel(exportOptions);
+      toast({
+        title: "Success",
+        description: "Excel report downloaded successfully",
+      });
+    }
+
+    setIsExportDialogOpen(false);
+  };
+
   const selectedAccountData = bankAccounts.find(acc => acc.id === selectedAccount);
   const unmatchedCount = transactions.filter(t => !t.is_matched).length;
   const matchedCount = transactions.filter(t => t.is_matched).length;
@@ -555,8 +599,21 @@ export default function BankReconciliationPage() {
             {/* Bank Account Selection */}
             <Card>
               <CardHeader>
-                <CardTitle>Select Bank Account</CardTitle>
-                <CardDescription>Choose the bank account to reconcile</CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Select Bank Account</CardTitle>
+                    <CardDescription>Choose the bank account to reconcile</CardDescription>
+                  </div>
+                  {selectedAccount && transactions.length > 0 && (
+                    <Button
+                      variant="outline"
+                      onClick={() => setIsExportDialogOpen(true)}
+                    >
+                      <FileDown className="h-4 w-4 mr-2" />
+                      Export Report
+                    </Button>
+                  )}
+                </div>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid gap-4 md:grid-cols-2">
@@ -1251,6 +1308,79 @@ export default function BankReconciliationPage() {
                   >
                     <Link2 className="h-4 w-4 mr-2" />
                     Match Transaction
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            {/* Export Dialog */}
+            <Dialog open={isExportDialogOpen} onOpenChange={setIsExportDialogOpen}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Export Reconciliation Report</DialogTitle>
+                  <DialogDescription>
+                    Choose the format to export your bank reconciliation report
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label>Export Format</Label>
+                    <Select value={exportFormat} onValueChange={(value: "pdf" | "excel") => setExportFormat(value)}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="pdf">PDF Report</SelectItem>
+                        <SelectItem value="excel">Excel Spreadsheet</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Report Details</Label>
+                    <div className="text-sm text-muted-foreground space-y-1">
+                      <p>• Account: {selectedAccountData?.account_name}</p>
+                      <p>• Transactions: {transactions.length}</p>
+                      <p>• Matched: {reconciliationSummary.matchedCount}</p>
+                      <p>• Unmatched: {reconciliationSummary.unmatchedCount}</p>
+                      <p>• Date Range: {filters.startDate || "All"} to {filters.endDate || "All"}</p>
+                    </div>
+                  </div>
+
+                  {exportFormat === "pdf" && (
+                    <div className="rounded-lg border p-3 bg-muted/50">
+                      <p className="text-sm font-medium mb-2">PDF Report includes:</p>
+                      <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
+                        <li>Reconciliation summary with balances</li>
+                        <li>All transactions with status</li>
+                        <li>Professional formatting with company branding</li>
+                        <li>Page numbers and timestamps</li>
+                      </ul>
+                    </div>
+                  )}
+
+                  {exportFormat === "excel" && (
+                    <div className="rounded-lg border p-3 bg-muted/50">
+                      <p className="text-sm font-medium mb-2">Excel Spreadsheet includes:</p>
+                      <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
+                        <li>Summary sheet with reconciliation details</li>
+                        <li>All transactions sheet with formulas</li>
+                        <li>Matched transactions sheet</li>
+                        <li>Unmatched transactions sheet</li>
+                        <li>Editable and sortable data</li>
+                      </ul>
+                    </div>
+                  )}
+                </div>
+
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsExportDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button onClick={handleExportReport}>
+                    <FileDown className="h-4 w-4 mr-2" />
+                    Export {exportFormat === "pdf" ? "PDF" : "Excel"}
                   </Button>
                 </DialogFooter>
               </DialogContent>
