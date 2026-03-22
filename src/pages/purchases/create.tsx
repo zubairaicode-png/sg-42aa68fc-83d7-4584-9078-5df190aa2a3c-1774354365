@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { SEO } from "@/components/SEO";
 import { DashboardLayout } from "@/components/layouts/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,9 @@ import { SAUDI_VAT_RATE } from "@/lib/constants";
 import { CurrencyDisplay } from "@/components/ui/currency-display";
 import { SaudiRiyalIcon } from "@/components/icons/SaudiRiyalIcon";
 import { useToast } from "@/hooks/use-toast";
+import { purchaseService } from "@/services/purchaseService";
+import { supplierService } from "@/services/supplierService";
+import { productService } from "@/services/productService";
 import type { InvoiceItem } from "@/types";
 
 interface PurchaseFormData {
@@ -30,6 +33,12 @@ export default function CreatePurchaseInvoicePage() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [isSupplierDialogOpen, setIsSupplierDialogOpen] = useState(false);
+  const [isProductDialogOpen, setIsProductDialogOpen] = useState(false);
+  const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
+  const [supplierSearchQuery, setSupplierSearchQuery] = useState("");
+  const [productSearchQuery, setProductSearchQuery] = useState("");
+  const [selectedItemIndex, setSelectedItemIndex] = useState<number | null>(null);
   const [newSupplier, setNewSupplier] = useState({
     name: "",
     email: "",
@@ -61,7 +70,30 @@ export default function CreatePurchaseInvoicePage() {
     notes: "",
   });
 
-  const handleAddSupplier = () => {
+  useEffect(() => {
+    loadSuppliers();
+    loadProducts();
+  }, []);
+
+  const loadSuppliers = async () => {
+    try {
+      const data = await supplierService.getAll();
+      setSuppliers(data);
+    } catch (error) {
+      console.error("Error loading suppliers:", error);
+    }
+  };
+
+  const loadProducts = async () => {
+    try {
+      const data = await productService.getAll();
+      setProducts(data);
+    } catch (error) {
+      console.error("Error loading products:", error);
+    }
+  };
+
+  const handleAddSupplier = async () => {
     if (!newSupplier.name || !newSupplier.email || !newSupplier.phone) {
       toast({
         title: "Validation Error",
@@ -71,45 +103,51 @@ export default function CreatePurchaseInvoicePage() {
       return;
     }
 
-    const existingSuppliers = JSON.parse(localStorage.getItem("suppliers") || "[]");
-    
-    const supplier = {
-      id: (existingSuppliers.length + 1).toString(),
-      ...newSupplier,
-      type: "business",
-      address: "",
-      country: "Saudi Arabia",
-      taxNumber: newSupplier.vatNumber,
-      paymentTerms: 30,
-      creditLimit: 0,
-      balance: 0,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+    try {
+      await supplierService.create({
+        name: newSupplier.name,
+        email: newSupplier.email,
+        phone: newSupplier.phone,
+        vat_number: newSupplier.vatNumber || null,
+        building_number: newSupplier.buildingNumber || null,
+        additional_number: newSupplier.additionalNumber || null,
+        street_name: newSupplier.streetName || null,
+        district: newSupplier.district || null,
+        city: newSupplier.city || null,
+        postal_code: newSupplier.postalCode || null,
+        country: "Saudi Arabia",
+        status: "active",
+      });
 
-    existingSuppliers.push(supplier);
-    localStorage.setItem("suppliers", JSON.stringify(existingSuppliers));
+      await loadSuppliers();
+      
+      setNewSupplier({ 
+        name: "", 
+        email: "", 
+        phone: "", 
+        vatNumber: "",
+        buildingNumber: "",
+        additionalNumber: "",
+        streetName: "",
+        district: "",
+        city: "",
+        postalCode: "",
+      });
+      
+      setIsSupplierDialogOpen(false);
 
-    setFormData({ ...formData, supplierId: supplier.id });
-
-    setNewSupplier({ 
-      name: "", 
-      email: "", 
-      phone: "", 
-      vatNumber: "",
-      buildingNumber: "",
-      additionalNumber: "",
-      streetName: "",
-      district: "",
-      city: "",
-      postalCode: "",
-    });
-    setIsSupplierDialogOpen(false);
-
-    toast({
-      title: "Success",
-      description: "Supplier added successfully",
-    });
+      toast({
+        title: "Success",
+        description: "Supplier added successfully",
+      });
+    } catch (error: any) {
+      console.error("Error adding supplier:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to add supplier",
+        variant: "destructive",
+      });
+    }
   };
 
   const addItem = () => {
@@ -230,35 +268,44 @@ export default function CreatePurchaseInvoicePage() {
     try {
       setLoading(true);
 
-      // Get supplier name
-      const suppliers = JSON.parse(localStorage.getItem("suppliers") || "[]");
-      const supplier = suppliers.find((s: any) => s.id === formData.supplierId);
+      // Get supplier info from loaded suppliers
+      const supplier = suppliers.find(s => s.id === formData.supplierId);
       const supplierName = supplier?.name || "Unknown Supplier";
+      const supplierVat = supplier?.vat_number || "";
 
-      // Generate invoice number
+      // Generate invoice number (in production, this should come from backend)
       const invoiceNumber = `PINV-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 100000)).padStart(5, '0')}`;
 
-      // Save to localStorage (temporary until database integration)
-      const purchases = JSON.parse(localStorage.getItem("purchases") || "[]");
-      const newPurchase = {
-        id: (purchases.length + 1).toString(),
-        supplierId: formData.supplierId,
-        supplierName: supplierName,
-        invoiceNumber: invoiceNumber,
-        date: formData.date,
-        dueDate: formData.dueDate,
-        items: formData.items,
+      // Prepare purchase invoice data
+      const purchaseData = {
+        supplier_id: formData.supplierId,
+        supplier_name: supplierName,
+        supplier_vat: supplierVat,
+        invoice_number: invoiceNumber,
+        invoice_date: formData.date,
+        due_date: formData.dueDate,
         subtotal: totals.subtotal,
-        discount: totals.discountAmount,
-        tax: totals.taxAmount,
-        total: totals.total,
-        status: "unpaid",
-        notes: formData.notes,
-        createdAt: new Date().toISOString(),
+        total_amount: totals.total,
+        tax_amount: totals.taxAmount,
+        payment_status: "unpaid" as const,
+        notes: formData.notes || null,
       };
 
-      purchases.push(newPurchase);
-      localStorage.setItem("purchases", JSON.stringify(purchases));
+      // Prepare items data
+      const itemsData = formData.items.map(item => ({
+        product_id: item.productId || null,
+        product_name: item.productName,
+        quantity: item.quantity,
+        unit_price: item.unitPrice,
+        tax_rate: item.taxRate,
+        tax_amount: item.taxAmount,
+        line_total: item.total,
+        discount_amount: (item.quantity * item.unitPrice * item.discount) / 100,
+        discount_percentage: item.discount,
+      }));
+
+      // Save to database using Supabase
+      await purchaseService.createInvoice(purchaseData, itemsData);
 
       toast({
         title: "Success",
@@ -318,20 +365,64 @@ export default function CreatePurchaseInvoicePage() {
                 <div className="space-y-2">
                   <Label htmlFor="supplier">Supplier *</Label>
                   <div className="flex gap-2">
-                    <Select
-                      value={formData.supplierId}
-                      onValueChange={(value) => setFormData({ ...formData, supplierId: value })}
-                    >
-                      <SelectTrigger id="supplier" className="flex-1">
-                        <SelectValue placeholder="Select supplier" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="1">Tech Supplies Co.</SelectItem>
-                        <SelectItem value="2">Office Equipment Ltd.</SelectItem>
-                        <SelectItem value="3">Global Distributors</SelectItem>
-                        <SelectItem value="4">Saudi Hardware Trading</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <div className="relative flex-1">
+                      <Input
+                        id="supplier"
+                        placeholder="Type to search suppliers..."
+                        value={formData.supplierId ? suppliers.find(s => s.id === formData.supplierId)?.name || "" : supplierSearchQuery}
+                        onChange={(e) => {
+                          setSupplierSearchQuery(e.target.value);
+                          setFormData({ ...formData, supplierId: "" });
+                        }}
+                        onFocus={(e) => e.target.select()}
+                      />
+                      
+                      {supplierSearchQuery && !formData.supplierId && (
+                        <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-lg max-h-60 overflow-y-auto">
+                          {suppliers
+                            .filter(supplier => {
+                              const query = supplierSearchQuery.toLowerCase().trim();
+                              return (
+                                supplier.name.toLowerCase().includes(query) ||
+                                (supplier.supplier_number && supplier.supplier_number.toLowerCase().includes(query)) ||
+                                (supplier.email && supplier.email.toLowerCase().includes(query)) ||
+                                (supplier.phone && supplier.phone.includes(query))
+                              );
+                            })
+                            .map((supplier) => (
+                              <button
+                                key={supplier.id}
+                                type="button"
+                                className="w-full text-left px-4 py-3 hover:bg-accent transition-colors border-b last:border-b-0"
+                                onClick={() => {
+                                  setFormData({ ...formData, supplierId: supplier.id });
+                                  setSupplierSearchQuery("");
+                                }}
+                              >
+                                <div className="font-medium">{supplier.name}</div>
+                                <div className="text-xs text-muted-foreground mt-1">
+                                  {supplier.supplier_number && `${supplier.supplier_number} | `}
+                                  {supplier.email}
+                                  {supplier.phone && ` | ${supplier.phone}`}
+                                </div>
+                              </button>
+                            ))}
+                          {suppliers.filter(supplier => {
+                            const query = supplierSearchQuery.toLowerCase().trim();
+                            return (
+                              supplier.name.toLowerCase().includes(query) ||
+                              (supplier.supplier_number && supplier.supplier_number.toLowerCase().includes(query)) ||
+                              (supplier.email && supplier.email.toLowerCase().includes(query)) ||
+                              (supplier.phone && supplier.phone.includes(query))
+                            );
+                          }).length === 0 && (
+                            <div className="px-4 py-3 text-sm text-muted-foreground text-center">
+                              No suppliers found. Click + to add a new supplier.
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
 
                     <Dialog open={isSupplierDialogOpen} onOpenChange={setIsSupplierDialogOpen}>
                       <DialogTrigger asChild>

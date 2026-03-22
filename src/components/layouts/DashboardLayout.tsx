@@ -59,7 +59,7 @@ const navItems = [
   { href: "/reports", icon: FileBarChart, label: "Reports" },
   { href: "/reports/cash-flow", icon: TrendingUp, label: "Cash Flow Statement" },
   { href: "/settings", icon: Settings, label: "Settings" },
-  { href: "/user-management", icon: Users, label: "User Management" },
+  { href: "/users", icon: Users, label: "User Management" },
 ];
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
