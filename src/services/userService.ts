@@ -7,20 +7,7 @@ export const userService = {
   async getAll() {
     const { data, error } = await supabase
       .from("users")
-      .select(`
-        *,
-        user_locations (
-          id,
-          location_id,
-          is_primary,
-          business_locations (
-            id,
-            location_name,
-            city,
-            country
-          )
-        )
-      `)
+      .select("*")
       .order("created_at", { ascending: false });
 
     console.log("User service getAll:", { data, error });

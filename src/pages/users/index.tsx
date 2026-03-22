@@ -6,10 +6,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { userService } from "@/services/userService";
-import { Users, Search, Plus, Edit, MapPin, Shield } from "lucide-react";
+import { Users, Search, Plus, Edit, Trash2, Shield, Settings } from "lucide-react";
 import Link from "next/link";
 
 export default function UsersPage() {
@@ -19,6 +28,9 @@ export default function UsersPage() {
   const [filteredUsers, setFilteredUsers] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<any>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     loadUsers();
@@ -55,6 +67,36 @@ export default function UsersPage() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteClick = (user: any) => {
+    setUserToDelete(user);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!userToDelete) return;
+
+    try {
+      setDeleting(true);
+      await userService.delete(userToDelete.id);
+      toast({
+        title: "Success",
+        description: "User deleted successfully",
+      });
+      setDeleteDialogOpen(false);
+      setUserToDelete(null);
+      loadUsers();
+    } catch (error: any) {
+      console.error("Error deleting user:", error);
+      toast({
+        title: "Error",
+        description: "Failed to delete user",
+        variant: "destructive",
+      });
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -113,12 +155,20 @@ export default function UsersPage() {
                 Manage users, roles, and permissions
               </p>
             </div>
-            <Link href="/users/create">
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Add User
-              </Button>
-            </Link>
+            <div className="flex gap-2">
+              <Link href="/users/roles">
+                <Button variant="outline">
+                  <Settings className="h-4 w-4 mr-2" />
+                  Manage Roles
+                </Button>
+              </Link>
+              <Link href="/users/create">
+                <Button>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add User
+                </Button>
+              </Link>
+            </div>
           </div>
 
           {/* Stats */}
@@ -237,11 +287,20 @@ export default function UsersPage() {
                             </p>
                           </td>
                           <td className="p-4 text-right">
-                            <Link href={`/users/${user.id}/edit`}>
-                              <Button variant="ghost" size="sm">
-                                <Edit className="h-4 w-4" />
+                            <div className="flex justify-end gap-2">
+                              <Link href={`/users/${user.id}/edit`}>
+                                <Button variant="ghost" size="sm">
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                              </Link>
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                onClick={() => handleDeleteClick(user)}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
                               </Button>
-                            </Link>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -252,6 +311,28 @@ export default function UsersPage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Delete Confirmation Dialog */}
+        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete User</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete user "{userToDelete?.full_name}"? This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDeleteConfirm}
+                disabled={deleting}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {deleting ? "Deleting..." : "Delete"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </DashboardLayout>
     </>
   );
