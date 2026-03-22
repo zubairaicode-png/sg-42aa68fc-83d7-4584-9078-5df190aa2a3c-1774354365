@@ -230,8 +230,15 @@ export default function RolesPage() {
 
     try {
       setSaving(true);
+      
+      console.log("Saving role with data:", {
+        name: formData.name,
+        description: formData.description,
+        permissions: formData.permissions,
+      });
 
       if (editingRole) {
+        console.log("Updating existing role:", editingRole.id);
         await roleService.update(editingRole.id, {
           name: formData.name,
           description: formData.description,
@@ -242,11 +249,13 @@ export default function RolesPage() {
           description: "Role updated successfully",
         });
       } else {
-        await roleService.create({
+        console.log("Creating new role...");
+        const result = await roleService.create({
           name: formData.name,
           description: formData.description,
           permissions: formData.permissions,
         });
+        console.log("Role created successfully:", result);
         toast({
           title: "Success",
           description: "Role created successfully",
@@ -257,9 +266,15 @@ export default function RolesPage() {
       loadRoles();
     } catch (error: any) {
       console.error("Error saving role:", error);
+      console.error("Error details:", {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+      });
       toast({
         title: "Error",
-        description: "Failed to save role",
+        description: error.message || "Failed to save role",
         variant: "destructive",
       });
     } finally {
