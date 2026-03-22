@@ -196,6 +196,72 @@ export type Database = {
           },
         ]
       }
+      customer_subscriptions: {
+        Row: {
+          auto_renew: boolean | null
+          created_at: string | null
+          customer_id: string
+          discount_percent: number | null
+          end_date: string | null
+          id: string
+          next_billing_date: string | null
+          notes: string | null
+          plan_id: string
+          price: number
+          start_date: string
+          status: string
+          trial_end_date: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          auto_renew?: boolean | null
+          created_at?: string | null
+          customer_id: string
+          discount_percent?: number | null
+          end_date?: string | null
+          id?: string
+          next_billing_date?: string | null
+          notes?: string | null
+          plan_id: string
+          price: number
+          start_date: string
+          status: string
+          trial_end_date?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          auto_renew?: boolean | null
+          created_at?: string | null
+          customer_id?: string
+          discount_percent?: number | null
+          end_date?: string | null
+          id?: string
+          next_billing_date?: string | null
+          notes?: string | null
+          plan_id?: string
+          price?: number
+          start_date?: string
+          status?: string
+          trial_end_date?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_subscriptions_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_subscriptions_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "subscription_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customers: {
         Row: {
           additional_number: string | null
@@ -1175,6 +1241,114 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      subscription_invoices: {
+        Row: {
+          amount: number
+          billing_period_end: string
+          billing_period_start: string
+          created_at: string | null
+          customer_id: string
+          due_date: string
+          id: string
+          invoice_number: string
+          paid_date: string | null
+          status: string
+          subscription_id: string
+          total_amount: number
+          vat_amount: number
+        }
+        Insert: {
+          amount: number
+          billing_period_end: string
+          billing_period_start: string
+          created_at?: string | null
+          customer_id: string
+          due_date: string
+          id?: string
+          invoice_number: string
+          paid_date?: string | null
+          status: string
+          subscription_id: string
+          total_amount: number
+          vat_amount: number
+        }
+        Update: {
+          amount?: number
+          billing_period_end?: string
+          billing_period_start?: string
+          created_at?: string | null
+          customer_id?: string
+          due_date?: string
+          id?: string
+          invoice_number?: string
+          paid_date?: string | null
+          status?: string
+          subscription_id?: string
+          total_amount?: number
+          vat_amount?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscription_invoices_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_invoices_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "customer_subscriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      subscription_plans: {
+        Row: {
+          billing_cycle: string
+          created_at: string | null
+          description: string | null
+          features: Json | null
+          id: string
+          is_active: boolean | null
+          name: string
+          price: number
+          resource_limits: Json | null
+          setup_fee: number | null
+          trial_days: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          billing_cycle: string
+          created_at?: string | null
+          description?: string | null
+          features?: Json | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          price: number
+          resource_limits?: Json | null
+          setup_fee?: number | null
+          trial_days?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          billing_cycle?: string
+          created_at?: string | null
+          description?: string | null
+          features?: Json | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          price?: number
+          resource_limits?: Json | null
+          setup_fee?: number | null
+          trial_days?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       suppliers: {
         Row: {
