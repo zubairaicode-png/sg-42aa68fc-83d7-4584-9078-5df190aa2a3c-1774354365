@@ -178,7 +178,7 @@ export const bankReconciliationExportService = {
     const workbook = XLSX.utils.book_new();
 
     // Summary Sheet
-    const summaryData = [
+    const summaryData: any[][] = [
       ["BANK RECONCILIATION REPORT"],
       [],
       ["Bank:", options.bankName],
@@ -204,7 +204,7 @@ export const bankReconciliationExportService = {
     summarySheet["!cols"] = [{ wch: 30 }, { wch: 40 }];
 
     // Transactions Sheet
-    const transactionsData = [
+    const transactionsData: any[][] = [
       ["Date", "Description", "Reference", "Debit", "Credit", "Balance", "Status", "Category", "Matched With"],
     ];
 
@@ -238,7 +238,7 @@ export const bankReconciliationExportService = {
     ];
 
     // Matched Transactions Sheet
-    const matchedData = [["Date", "Description", "Reference", "Amount", "Balance", "Matched Journal Entry"]];
+    const matchedData: any[][] = [["Date", "Description", "Reference", "Amount", "Balance", "Matched Journal Entry"]];
     
     options.transactions
       .filter(t => t.is_matched)
@@ -264,7 +264,7 @@ export const bankReconciliationExportService = {
     ];
 
     // Unmatched Transactions Sheet
-    const unmatchedData = [["Date", "Description", "Reference", "Debit", "Credit", "Balance", "Category"]];
+    const unmatchedData: any[][] = [["Date", "Description", "Reference", "Debit", "Credit", "Balance", "Category"]];
     
     options.transactions
       .filter(t => !t.is_matched && !t.reconciled)
