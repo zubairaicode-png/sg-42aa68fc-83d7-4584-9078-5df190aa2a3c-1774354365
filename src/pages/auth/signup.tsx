@@ -21,7 +21,7 @@ export default function SignupPage() {
     email: "",
     password: "",
     confirmPassword: "",
-    role: "employee" as "admin" | "manager" | "employee",
+    role: "viewer" as "super_admin" | "admin" | "manager" | "accountant" | "sales" | "inventory" | "viewer",
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -157,7 +157,7 @@ export default function SignupPage() {
                 <Label htmlFor="role">Role</Label>
                 <Select
                   value={formData.role}
-                  onValueChange={(value: "admin" | "manager" | "employee") => 
+                  onValueChange={(value: "super_admin" | "admin" | "manager" | "accountant" | "sales" | "inventory" | "viewer") => 
                     setFormData({ ...formData, role: value })
                   }
                 >
@@ -165,9 +165,13 @@ export default function SignupPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="super_admin">Super Admin</SelectItem>
                     <SelectItem value="admin">Admin</SelectItem>
                     <SelectItem value="manager">Manager</SelectItem>
-                    <SelectItem value="employee">Employee</SelectItem>
+                    <SelectItem value="accountant">Accountant</SelectItem>
+                    <SelectItem value="sales">Sales</SelectItem>
+                    <SelectItem value="inventory">Inventory</SelectItem>
+                    <SelectItem value="viewer">Viewer</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
