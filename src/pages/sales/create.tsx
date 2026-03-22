@@ -162,18 +162,34 @@ export default function CreateSalesInvoicePage() {
   };
 
   const selectProduct = (index: number, product: Database["public"]["Tables"]["products"]["Row"]) => {
-    updateItem(index, "productId", product.id);
-    updateItem(index, "productName", product.name);
-    updateItem(index, "serialNumber", product.serial_number || "");
-    updateItem(index, "unitPrice", product.selling_price);
+    const newItems = [...formData.items];
+    newItems[index] = {
+      ...newItems[index],
+      productId: product.id,
+      productName: product.name,
+      serialNumber: product.serial_number || "",
+      unitPrice: product.selling_price,
+    };
+    
+    // Calculate totals
+    const item = newItems[index];
+    const subtotal = item.quantity * item.unitPrice;
+    const discountAmount = (subtotal * item.discount) / 100;
+    const taxableAmount = subtotal - discountAmount;
+    item.taxAmount = (taxableAmount * item.taxRate) / 100;
+    item.total = taxableAmount + item.taxAmount;
+    
+    setFormData({ ...formData, items: newItems });
     setSelectedItemIndex(null);
     setProductSearchQuery("");
   };
 
   const getFilteredProducts = () => {
-    if (!productSearchQuery) return products;
+    if (!productSearchQuery.trim()) {
+      return products; // Show all products when search is empty
+    }
     
-    const query = productSearchQuery.toLowerCase();
+    const query = productSearchQuery.toLowerCase().trim();
     return products.filter(p => 
       p.name.toLowerCase().includes(query) ||
       (p.product_code && p.product_code.toLowerCase().includes(query)) ||
@@ -518,81 +534,54 @@ export default function CreateSalesInvoicePage() {
                         <div className="md:col-span-2 space-y-2">
                           <Label>Product/Service *</Label>
                           <div className="relative">
-                            <div className="flex gap-2">
-                              <div className="flex-1 relative">
-                                <Input
-                                  placeholder="Search product..."
-                                  value={selectedItemIndex === index ? productSearchQuery : item.productName}
-                                  onChange={(e) => {
-                                    setProductSearchQuery(e.target.value);
-                                    setSelectedItemIndex(index);
-                                  }}
-                                  onFocus={() => {
-                                    setSelectedItemIndex(index);
-                                    setProductSearchQuery("");
-                                  }}
-                                  onBlur={() => {
-                                    // Delay closing to allow clicking on results
-                                    setTimeout(() => {
-                                      if (selectedItemIndex === index && !item.productId) {
-                                        setSelectedItemIndex(null);
-                                        setProductSearchQuery("");
-                                      }
-                                    }, 200);
-                                  }}
-                                />
-                                {selectedItemIndex === index && (
-                                  <div className="absolute z-10 w-full mt-1 bg-background border rounded-md shadow-lg max-h-60 overflow-y-auto">
-                                    {productSearchQuery ? (
-                                      getFilteredProducts().length > 0 ? (
-                                        getFilteredProducts().map((product) => (
-                                          <button
-                                            key={product.id}
-                                            type="button"
-                                            className="w-full px-4 py-2 text-left hover:bg-accent text-sm"
-                                            onMouseDown={(e) => {
-                                              e.preventDefault();
-                                              selectProduct(index, product);
-                                            }}
-                                          >
-                                            <div className="font-medium">{product.name}</div>
-                                            <div className="text-xs text-muted-foreground">
-                                              Code: {product.product_code} | Stock: {product.stock_quantity}
-                                              {product.serial_number && ` | S/N: ${product.serial_number}`}
-                                            </div>
-                                          </button>
-                                        ))
-                                      ) : (
-                                        <div className="px-4 py-2 text-sm text-muted-foreground">
-                                          No products found
-                                        </div>
-                                      )
-                                    ) : (
-                                      <div className="px-4 py-3 text-sm text-muted-foreground">
-                                        <div className="font-medium mb-2">💡 Search Tips:</div>
-                                        <ul className="space-y-1 text-xs">
-                                          <li>• Type product name (e.g., "HP Laptop")</li>
-                                          <li>• Type product code (e.g., "PRN-001")</li>
-                                          <li>• Type serial number (e.g., "SN-HP-001")</li>
-                                          <li>• Type description keywords</li>
-                                        </ul>
+                            <Input
+                              placeholder={item.productName || "Type to search products..."}
+                              value={selectedItemIndex === index ? productSearchQuery : item.productName}
+                              onChange={(e) => {
+                                setProductSearchQuery(e.target.value);
+                                setSelectedItemIndex(index);
+                              }}
+                              onFocus={() => {
+                                setSelectedItemIndex(index);
+                                setProductSearchQuery("");
+                              }}
+                            />
+                            
+                            {selectedItemIndex === index && (
+                              <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-lg max-h-60 overflow-y-auto">
+                                {getFilteredProducts().length > 0 ? (
+                                  getFilteredProducts().map((product) => (
+                                    <div
+                                      key={product.id}
+                                      className="px-4 py-2 hover:bg-accent cursor-pointer text-sm border-b last:border-b-0"
+                                      onClick={() => {
+                                        selectProduct(index, product);
+                                      }}
+                                    >
+                                      <div className="font-medium">{product.name}</div>
+                                      <div className="text-xs text-muted-foreground">
+                                        Code: {product.product_code} | Stock: {product.stock_quantity}
+                                        {product.serial_number && ` | S/N: ${product.serial_number}`}
                                       </div>
-                                    )}
+                                    </div>
+                                  ))
+                                ) : productSearchQuery ? (
+                                  <div className="px-4 py-3 text-sm text-muted-foreground">
+                                    No products found for "{productSearchQuery}"
+                                  </div>
+                                ) : (
+                                  <div className="px-4 py-3 text-sm text-muted-foreground">
+                                    <div className="font-medium mb-2">💡 Search Tips:</div>
+                                    <ul className="space-y-1 text-xs">
+                                      <li>• Type product name (e.g., "HP Laptop")</li>
+                                      <li>• Type product code (e.g., "PRN-001")</li>
+                                      <li>• Type serial number (e.g., "SN-HP-001")</li>
+                                      <li>• Type description keywords</li>
+                                    </ul>
                                   </div>
                                 )}
                               </div>
-                              <Button 
-                                type="button" 
-                                variant="outline" 
-                                size="icon"
-                                onClick={() => {
-                                  setSelectedItemIndex(index);
-                                  setProductSearchQuery("");
-                                }}
-                              >
-                                <Search className="h-4 w-4" />
-                              </Button>
-                            </div>
+                            )}
                           </div>
                         </div>
                       )}
