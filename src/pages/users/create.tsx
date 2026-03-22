@@ -139,7 +139,16 @@ export default function CreateUserPage() {
         },
       });
 
-      if (signUpError) throw signUpError;
+      console.log("Supabase signUp response:", { authData, signUpError });
+
+      if (signUpError) {
+        console.error("SignUp error details:", {
+          message: signUpError.message,
+          status: signUpError.status,
+          name: signUpError.name,
+        });
+        throw signUpError;
+      }
       if (!authData.user) throw new Error("Failed to create user");
 
       const userId = authData.user.id;
