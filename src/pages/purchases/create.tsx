@@ -152,6 +152,7 @@ export default function CreatePurchaseInvoicePage() {
 
     try {
       await supplierService.create({
+        supplier_number: `SUP-${Date.now()}`,
         name: newSupplier.name,
         email: newSupplier.email,
         phone: newSupplier.phone,
