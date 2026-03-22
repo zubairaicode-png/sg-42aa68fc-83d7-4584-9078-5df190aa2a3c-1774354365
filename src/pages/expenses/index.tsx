@@ -221,12 +221,16 @@ export default function ExpensesPage() {
                             </td>
                             <td className="p-4">
                               <div className="flex items-center justify-center gap-2">
-                                <Button variant="ghost" size="icon" className="h-8 w-8">
-                                  <Eye className="h-4 w-4" />
-                                </Button>
-                                <Button variant="ghost" size="icon" className="h-8 w-8">
-                                  <Edit className="h-4 w-4" />
-                                </Button>
+                                <Link href={`/expenses/${expense.id}`}>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
+                                </Link>
+                                <Link href={`/expenses/edit/${expense.id}`}>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                                    <Edit className="h-4 w-4" />
+                                  </Button>
+                                </Link>
                                 <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive">
                                   <Trash2 className="h-4 w-4" />
                                 </Button>

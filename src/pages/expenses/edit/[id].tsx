@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/router";
 import { SEO } from "@/components/SEO";
 import { DashboardLayout } from "@/components/layouts/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -9,8 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Save, ArrowLeft, Upload } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/router";
 import { SAUDI_VAT_RATE } from "@/lib/constants";
+import { useToast } from "@/hooks/use-toast";
 
 interface ExpenseFormData {
   date: string;
@@ -46,8 +47,11 @@ const EXPENSE_CATEGORIES = [
   "Other",
 ];
 
-export default function CreateExpensePage() {
+export default function EditExpensePage() {
   const router = useRouter();
+  const { id } = router.query;
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState<ExpenseFormData>({
     date: new Date().toISOString().split("T")[0],
     category: "",
@@ -64,14 +68,63 @@ export default function CreateExpensePage() {
     payment_status: "unpaid",
   });
 
+  useEffect(() => {
+    if (id) {
+      loadExpense(id as string);
+    }
+  }, [id]);
+
+  const loadExpense = (expenseId: string) => {
+    try {
+      setLoading(true);
+      const expensesData = localStorage.getItem("expenses");
+      if (expensesData) {
+        const expenses = JSON.parse(expensesData);
+        const expense = expenses.find((exp: any) => exp.id === expenseId);
+        
+        if (expense) {
+          setFormData({
+            date: expense.date || new Date().toISOString().split("T")[0],
+            category: expense.category || "",
+            description: expense.description || "",
+            amount: parseFloat(expense.amount) || 0,
+            vatIncluded: true,
+            vatAmount: parseFloat(expense.vatAmount) || 0,
+            totalAmount: parseFloat(expense.totalAmount) || 0,
+            paymentMethod: expense.paymentMethod || "cash",
+            vendor: expense.vendor || "",
+            receiptAttached: expense.receiptAttached || false,
+            notes: expense.notes || "",
+            paid_amount: parseFloat(expense.paid_amount) || 0,
+            payment_status: expense.status || "unpaid",
+          });
+        } else {
+          toast({
+            title: "Error",
+            description: "Expense not found",
+            variant: "destructive",
+          });
+          router.push("/expenses");
+        }
+      }
+    } catch (error) {
+      console.error("Error loading expense:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load expense",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const calculateVAT = (amount: number, vatIncluded: boolean) => {
     if (vatIncluded) {
-      // VAT is included in the amount
       const vatAmount = (amount * SAUDI_VAT_RATE) / (100 + SAUDI_VAT_RATE);
       const baseAmount = amount - vatAmount;
       return { baseAmount, vatAmount, totalAmount: amount };
     } else {
-      // VAT needs to be added
       const vatAmount = (amount * SAUDI_VAT_RATE) / 100;
       const totalAmount = amount + vatAmount;
       return { baseAmount: amount, vatAmount, totalAmount };
@@ -106,133 +159,101 @@ export default function CreateExpensePage() {
     e.preventDefault();
     
     if (!formData.category) {
-      alert("Please select an expense category");
+      toast({
+        title: "Validation Error",
+        description: "Please select an expense category",
+        variant: "destructive",
+      });
       return;
     }
     
     if (!formData.description) {
-      alert("Please enter a description");
+      toast({
+        title: "Validation Error",
+        description: "Please enter a description",
+        variant: "destructive",
+      });
       return;
     }
     
     if (formData.amount <= 0) {
-      alert("Please enter a valid amount");
+      toast({
+        title: "Validation Error",
+        description: "Please enter a valid amount",
+        variant: "destructive",
+      });
       return;
     }
 
-    // Validate payment amount
     if (formData.paid_amount > formData.totalAmount) {
-      alert(`Paid amount (${formData.paid_amount.toFixed(2)}) cannot exceed expense total (${formData.totalAmount.toFixed(2)})`);
+      toast({
+        title: "Validation Error",
+        description: `Paid amount (${formData.paid_amount.toFixed(2)}) cannot exceed expense total (${formData.totalAmount.toFixed(2)})`,
+        variant: "destructive",
+      });
       return;
     }
 
-    if (formData.paid_amount > 0 && !formData.paymentMethod) {
-      alert("Please select a payment method when recording a payment");
-      return;
+    try {
+      const expensesData = localStorage.getItem("expenses");
+      if (expensesData) {
+        const expenses = JSON.parse(expensesData);
+        const expenseIndex = expenses.findIndex((exp: any) => exp.id === id);
+        
+        if (expenseIndex !== -1) {
+          // Update expense
+          expenses[expenseIndex] = {
+            ...expenses[expenseIndex],
+            date: formData.date,
+            category: formData.category,
+            description: formData.description,
+            amount: formData.amount,
+            vatAmount: formData.vatAmount,
+            totalAmount: formData.totalAmount,
+            paymentMethod: formData.paymentMethod,
+            vendor: formData.vendor,
+            status: formData.payment_status,
+            paid_amount: formData.paid_amount,
+            receiptAttached: formData.receiptAttached,
+            notes: formData.notes,
+            updatedAt: new Date().toISOString(),
+          };
+          
+          localStorage.setItem("expenses", JSON.stringify(expenses));
+          
+          toast({
+            title: "Success",
+            description: "Expense updated successfully",
+          });
+          
+          router.push("/expenses");
+        }
+      }
+    } catch (error) {
+      console.error("Error updating expense:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update expense",
+        variant: "destructive",
+      });
     }
-
-    // Generate expense number
-    const expenseNumber = `EXP-${new Date().getFullYear()}-${String(Date.now()).slice(-5)}`;
-
-    // Create expense object
-    const expense = {
-      id: Date.now().toString(),
-      expenseNumber,
-      date: formData.date,
-      category: formData.category,
-      description: formData.description,
-      amount: formData.amount,
-      vatAmount: formData.vatAmount,
-      totalAmount: formData.totalAmount,
-      paymentMethod: formData.paymentMethod,
-      vendor: formData.vendor,
-      status: formData.payment_status,
-      paid_amount: formData.paid_amount,
-      receiptAttached: formData.receiptAttached,
-      notes: formData.notes,
-      createdAt: new Date().toISOString(),
-    };
-
-    // Save to localStorage
-    const existingExpenses = localStorage.getItem("expenses");
-    const expenses = existingExpenses ? JSON.parse(existingExpenses) : [];
-    expenses.push(expense);
-    localStorage.setItem("expenses", JSON.stringify(expenses));
-
-    // Create accounting entry
-    const journalEntry = {
-      id: Date.now().toString(),
-      entryNumber: `JE-${new Date().getFullYear()}-${String(Date.now()).slice(-5)}`,
-      date: formData.date,
-      description: `Expense: ${formData.description}`,
-      reference: expenseNumber,
-      lines: [
-        {
-          account: getCategoryAccount(formData.category),
-          description: formData.description,
-          debit: formData.amount,
-          credit: 0,
-        },
-        {
-          account: "1300 - VAT Receivable",
-          description: "Input VAT",
-          debit: formData.vatAmount,
-          credit: 0,
-        },
-        {
-          account: getPaymentAccount(formData.paymentMethod),
-          description: "Payment",
-          debit: 0,
-          credit: formData.paid_amount > 0 ? formData.paid_amount : formData.totalAmount,
-        },
-      ],
-      createdAt: new Date().toISOString(),
-    };
-
-    // Save journal entry
-    const existingJournals = localStorage.getItem("journalEntries");
-    const journals = existingJournals ? JSON.parse(existingJournals) : [];
-    journals.push(journalEntry);
-    localStorage.setItem("journalEntries", JSON.stringify(journals));
-
-    console.log("Expense created:", expense);
-    router.push("/expenses");
   };
 
-  const getCategoryAccount = (category: string): string => {
-    const mapping: { [key: string]: string } = {
-      "Office Rent": "5200 - Rent Expense",
-      "Utilities": "5400 - Utilities Expense",
-      "Salaries & Wages": "5300 - Salaries Expense",
-      "Marketing & Advertising": "5100 - Marketing Expense",
-      "Office Supplies": "5100 - Office Supplies",
-      "Travel & Transportation": "5100 - Travel Expense",
-      "Meals & Entertainment": "5100 - Entertainment Expense",
-      "Professional Fees": "5100 - Professional Fees",
-      "Insurance": "5100 - Insurance Expense",
-      "Software & Subscriptions": "5100 - Software Expense",
-      "Maintenance & Repairs": "5100 - Maintenance Expense",
-      "Telecommunications": "5100 - Telecom Expense",
-      "Banking Fees": "5100 - Bank Charges",
-      "Taxes & Licenses": "5100 - Tax Expense",
-    };
-    return mapping[category] || "5100 - Other Expense";
-  };
-
-  const getPaymentAccount = (method: string): string => {
-    const mapping: { [key: string]: string } = {
-      "cash": "1100 - Cash",
-      "bank": "1200 - Bank Account",
-      "card": "1200 - Bank Account",
-    };
-    return mapping[method] || "1100 - Cash";
-  };
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-96">
+          <p className="text-muted-foreground">Loading expense...</p>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <>
       <SEO 
-        title="Create Expense - Saudi ERP System"
-        description="Record a new business expense"
+        title="Edit Expense - Saudi ERP System"
+        description="Edit expense details"
       />
       <DashboardLayout>
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -245,8 +266,8 @@ export default function CreateExpensePage() {
                 </Button>
               </Link>
               <div>
-                <h1 className="text-3xl font-bold font-heading">Create Expense</h1>
-                <p className="text-muted-foreground mt-1">Record a new business expense</p>
+                <h1 className="text-3xl font-bold font-heading">Edit Expense</h1>
+                <p className="text-muted-foreground mt-1">Update expense details</p>
               </div>
             </div>
             <div className="flex gap-2">
@@ -255,7 +276,7 @@ export default function CreateExpensePage() {
               </Link>
               <Button type="submit">
                 <Save className="h-4 w-4 mr-2" />
-                Save Expense
+                Update Expense
               </Button>
             </div>
           </div>
@@ -328,10 +349,10 @@ export default function CreateExpensePage() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="cash">Cash</SelectItem>
-                      <SelectItem value="bank">Bank Transfer</SelectItem>
-                      <SelectItem value="card">Credit/Debit Card</SelectItem>
-                      <SelectItem value="cheque">Cheque</SelectItem>
+                      <SelectItem value="cash">💵 Cash</SelectItem>
+                      <SelectItem value="bank">🏦 Bank Transfer</SelectItem>
+                      <SelectItem value="card">💳 Credit/Debit Card</SelectItem>
+                      <SelectItem value="cheque">📝 Cheque</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -402,10 +423,6 @@ export default function CreateExpensePage() {
               <CardTitle>Payment Information</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <p className="text-sm text-muted-foreground mb-4">
-                Record payment made at the time of expense recording (optional)
-              </p>
-
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="paid_amount">Amount Paid (SAR)</Label>
@@ -432,31 +449,22 @@ export default function CreateExpensePage() {
                       });
                     }}
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Enter 0 for unpaid expense, or enter amount paid
-                  </p>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="paymentMethodPaid">Payment Method</Label>
-                  <Select
-                    value={formData.paymentMethod}
-                    onValueChange={(value) => setFormData({ ...formData, paymentMethod: value })}
-                  >
-                    <SelectTrigger id="paymentMethodPaid">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="cash">💵 Cash</SelectItem>
-                      <SelectItem value="bank">🏦 Bank Transfer</SelectItem>
-                      <SelectItem value="card">💳 Credit/Debit Card</SelectItem>
-                      <SelectItem value="cheque">📝 Cheque</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Label>Payment Status</Label>
+                  <div className={`inline-flex items-center px-3 py-2 rounded-md text-sm font-medium capitalize ${
+                    formData.payment_status === "paid" 
+                      ? "bg-success/10 text-success"
+                      : formData.payment_status === "pending"
+                      ? "bg-warning/10 text-warning"
+                      : "bg-muted text-muted-foreground"
+                  }`}>
+                    {formData.payment_status}
+                  </div>
                 </div>
               </div>
 
-              {/* Payment Summary */}
               <Card>
                 <CardContent className="p-4 bg-muted rounded-lg space-y-2">
                   <div className="flex justify-between text-sm">
@@ -475,18 +483,6 @@ export default function CreateExpensePage() {
                         : 'text-success'
                     }`}>
                       SAR {(formData.totalAmount - formData.paid_amount).toFixed(2)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-sm pt-2 border-t">
-                    <span className="font-medium">Payment Status:</span>
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${
-                      formData.payment_status === "paid" 
-                        ? "bg-success/10 text-success"
-                        : formData.payment_status === "pending"
-                        ? "bg-warning/10 text-warning"
-                        : "bg-muted text-muted-foreground"
-                    }`}>
-                      {formData.payment_status}
                     </span>
                   </div>
                 </CardContent>
@@ -514,7 +510,6 @@ export default function CreateExpensePage() {
                     Upload
                   </Button>
                 </div>
-                <p className="text-xs text-muted-foreground">Upload receipt or invoice (PDF, JPG, PNG)</p>
               </div>
 
               <div className="space-y-2">
