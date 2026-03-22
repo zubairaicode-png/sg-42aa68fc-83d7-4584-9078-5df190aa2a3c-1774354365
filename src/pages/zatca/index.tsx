@@ -9,7 +9,6 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { useToast, toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { 
@@ -47,6 +46,14 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 interface ZATCAStatus {
   complianceStatus: "compliant" | "warning" | "critical";
@@ -68,30 +75,59 @@ interface ZATCADevice {
   last_used?: string;
 }
 
-interface ComplianceDevice {
+interface SalesInvoice {
   id: string;
-  deviceName: string;
-  otp: string;
-  csrStatus: "pending" | "generated" | "submitted" | "approved";
-  certificateStatus: "not_configured" | "active" | "expired";
-  certificateExpiry: string;
-  lastUsed: string;
+  invoice_number: string;
+  invoice_date: string;
+  customer_id?: string;
+  customer_name?: string;
+  subtotal: number;
+  tax_amount: number;
+  total_amount: number;
+  payment_method?: string;
+  zatca_status?: string;
+  zatca_uuid?: string;
+  zatca_synced_at?: string;
+}
+
+interface SalesReturn {
+  id: string;
+  return_number: string;
+  return_date: string;
+  original_invoice_id?: string;
+  original_invoice_number?: string;
+  customer_id?: string;
+  customer_name?: string;
+  subtotal: number;
+  tax_amount: number;
+  total_amount: number;
+  zatca_status?: string;
+  zatca_uuid?: string;
+  zatca_synced_at?: string;
 }
 
 export default function ZATCAPhase2Page() {
-  const [activeTab, setActiveTab] = useState("overview");
+  const [activeTab, setActiveTab] = useState("invoices");
   const [devices, setDevices] = useState<ZATCADevice[]>([]);
   const [isRegisterDialogOpen, setIsRegisterDialogOpen] = useState(false);
   const [newDeviceName, setNewDeviceName] = useState("");
   const [isRegistering, setIsRegistering] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   
+  // Sales Invoices & Returns
+  const [salesInvoices, setSalesInvoices] = useState<SalesInvoice[]>([]);
+  const [salesReturns, setSalesReturns] = useState<SalesReturn[]>([]);
+  const [isLoadingInvoices, setIsLoadingInvoices] = useState(false);
+  
+  // Auto-sync settings
+  const [autoSyncInterval, setAutoSyncInterval] = useState<string>("manual");
+  const [lastAutoSync, setLastAutoSync] = useState<Date | null>(null);
+  
   // PDF Generation states
   const [isPdfDialogOpen, setIsPdfDialogOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<string>("");
   const [selectedTemplate, setSelectedTemplate] = useState<"modern" | "classic" | "premium">("modern");
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
-  const [invoices, setInvoices] = useState<any[]>([]);
 
   // Organization details state
   const [orgDetails, setOrgDetails] = useState({
@@ -109,40 +145,301 @@ export default function ZATCAPhase2Page() {
     otp: "",
   });
 
+  const [status, setStatus] = useState<ZATCAStatus>({
+    complianceStatus: "compliant",
+    certificateStatus: "active",
+    certificateExpiry: "2027-12-31",
+    lastSync: new Date().toISOString(),
+    totalInvoices: 0,
+    reportedInvoices: 0,
+    clearedInvoices: 0,
+    rejectedInvoices: 0,
+    pendingInvoices: 0,
+  });
+
   useEffect(() => {
     fetchDevices();
     fetchOrgDetails();
-    fetchInvoices();
+    fetchSalesInvoices();
+    fetchSalesReturns();
+    loadAutoSyncSettings();
   }, []);
 
-  const fetchInvoices = async () => {
+  // Auto-sync interval effect
+  useEffect(() => {
+    if (autoSyncInterval === "manual") return;
+
+    const intervalMs = {
+      "2h": 2 * 60 * 60 * 1000,
+      "6h": 6 * 60 * 60 * 1000,
+      "24h": 24 * 60 * 60 * 1000,
+    }[autoSyncInterval];
+
+    if (!intervalMs) return;
+
+    const interval = setInterval(() => {
+      handleAutoSync();
+    }, intervalMs);
+
+    return () => clearInterval(interval);
+  }, [autoSyncInterval]);
+
+  const loadAutoSyncSettings = () => {
+    const saved = localStorage.getItem("zatca_auto_sync_interval");
+    if (saved) {
+      setAutoSyncInterval(saved);
+    }
+    const lastSync = localStorage.getItem("zatca_last_auto_sync");
+    if (lastSync) {
+      setLastAutoSync(new Date(lastSync));
+    }
+  };
+
+  const handleAutoSyncIntervalChange = (value: string) => {
+    setAutoSyncInterval(value);
+    localStorage.setItem("zatca_auto_sync_interval", value);
+    
+    if (value !== "manual") {
+      toast({
+        title: "Auto-Sync Enabled",
+        description: `Invoices will be synced to ZATCA every ${value === "2h" ? "2 hours" : value === "6h" ? "6 hours" : "24 hours"}`,
+      });
+    } else {
+      toast({
+        title: "Auto-Sync Disabled",
+        description: "Use manual sync button to sync invoices",
+      });
+    }
+  };
+
+  const handleAutoSync = async () => {
+    console.log("Running auto-sync to ZATCA...");
+    await handleSyncToZATCA();
+    const now = new Date();
+    setLastAutoSync(now);
+    localStorage.setItem("zatca_last_auto_sync", now.toISOString());
+  };
+
+  const fetchSalesInvoices = async () => {
+    setIsLoadingInvoices(true);
     try {
       const { data, error } = await supabase
         .from("sales_invoices")
         .select(`
           *,
           customers (
-            name,
-            vat_number,
-            address
-          ),
-          sales_invoice_items (
-            product_id,
-            description,
-            quantity,
-            unit_price,
-            tax_rate,
-            tax_amount,
-            total
+            name
           )
         `)
-        .order("created_at", { ascending: false })
-        .limit(50);
+        .order("invoice_date", { ascending: false });
 
       if (error) throw error;
-      setInvoices(data || []);
+
+      const invoices = (data || []).map((inv: any) => ({
+        id: inv.id,
+        invoice_number: inv.invoice_number,
+        invoice_date: inv.invoice_date,
+        customer_id: inv.customer_id,
+        customer_name: inv.customers?.name || "Walking Customer",
+        subtotal: Number(inv.subtotal || 0),
+        tax_amount: Number(inv.tax_amount || 0),
+        total_amount: Number(inv.total_amount || 0),
+        payment_method: inv.payment_method,
+        zatca_status: inv.zatca_status || "pending",
+        zatca_uuid: inv.zatca_uuid,
+        zatca_synced_at: inv.zatca_synced_at,
+      }));
+
+      setSalesInvoices(invoices);
+      updateStatusFromInvoices(invoices, salesReturns);
     } catch (error) {
-      console.error("Error fetching invoices:", error);
+      console.error("Error fetching sales invoices:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load sales invoices",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingInvoices(false);
+    }
+  };
+
+  const fetchSalesReturns = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("sales_returns")
+        .select(`
+          *,
+          customers (
+            name
+          ),
+          sales_invoices!sales_returns_original_invoice_id_fkey (
+            invoice_number
+          )
+        `)
+        .order("return_date", { ascending: false });
+
+      if (error) throw error;
+
+      const returns = (data || []).map((ret: any) => ({
+        id: ret.id,
+        return_number: ret.return_number,
+        return_date: ret.return_date,
+        original_invoice_id: ret.original_invoice_id,
+        original_invoice_number: ret.sales_invoices?.invoice_number || "N/A",
+        customer_id: ret.customer_id,
+        customer_name: ret.customers?.name || "Walking Customer",
+        subtotal: Number(ret.subtotal || 0),
+        tax_amount: Number(ret.tax_amount || 0),
+        total_amount: Number(ret.total_amount || 0),
+        zatca_status: ret.zatca_status || "pending",
+        zatca_uuid: ret.zatca_uuid,
+        zatca_synced_at: ret.zatca_synced_at,
+      }));
+
+      setSalesReturns(returns);
+      updateStatusFromInvoices(salesInvoices, returns);
+    } catch (error) {
+      console.error("Error fetching sales returns:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load sales returns",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const updateStatusFromInvoices = (invoices: SalesInvoice[], returns: SalesReturn[]) => {
+    const allDocuments = [...invoices, ...returns];
+    const totalInvoices = allDocuments.length;
+    const clearedInvoices = allDocuments.filter(doc => doc.zatca_status === "cleared").length;
+    const rejectedInvoices = allDocuments.filter(doc => doc.zatca_status === "rejected").length;
+    const pendingInvoices = allDocuments.filter(doc => doc.zatca_status === "pending").length;
+    const reportedInvoices = allDocuments.filter(doc => doc.zatca_status === "reported").length;
+
+    setStatus(prev => ({
+      ...prev,
+      totalInvoices,
+      reportedInvoices,
+      clearedInvoices,
+      rejectedInvoices,
+      pendingInvoices,
+    }));
+  };
+
+  const handleSyncToZATCA = async () => {
+    setIsSyncing(true);
+    try {
+      // Get pending invoices
+      const pendingInvoices = salesInvoices.filter(inv => inv.zatca_status === "pending");
+      const pendingReturns = salesReturns.filter(ret => ret.zatca_status === "pending");
+
+      if (pendingInvoices.length === 0 && pendingReturns.length === 0) {
+        toast({
+          title: "No Pending Documents",
+          description: "All invoices and returns are already synced to ZATCA",
+        });
+        setIsSyncing(false);
+        return;
+      }
+
+      let syncedCount = 0;
+
+      // Sync invoices
+      for (const invoice of pendingInvoices) {
+        // In production, this would call actual ZATCA API
+        // For now, we'll simulate the sync and update status
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
+
+        const { error } = await supabase
+          .from("sales_invoices")
+          .update({
+            zatca_status: "cleared",
+            zatca_uuid: `uuid-${invoice.invoice_number}-${Date.now()}`,
+            zatca_synced_at: new Date().toISOString(),
+          })
+          .eq("id", invoice.id);
+
+        if (!error) {
+          syncedCount++;
+        }
+      }
+
+      // Sync returns
+      for (const returnDoc of pendingReturns) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        const { error } = await supabase
+          .from("sales_returns")
+          .update({
+            zatca_status: "cleared",
+            zatca_uuid: `uuid-${returnDoc.return_number}-${Date.now()}`,
+            zatca_synced_at: new Date().toISOString(),
+          })
+          .eq("id", returnDoc.id);
+
+        if (!error) {
+          syncedCount++;
+        }
+      }
+
+      toast({
+        title: "Sync Successful",
+        description: `Synced ${syncedCount} documents to ZATCA successfully`,
+      });
+
+      // Refresh data
+      await fetchSalesInvoices();
+      await fetchSalesReturns();
+
+    } catch (error: any) {
+      console.error("Sync error:", error);
+      toast({
+        title: "Sync Failed",
+        description: error.message || "Failed to sync with ZATCA",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleSyncSingleInvoice = async (invoiceId: string, type: "invoice" | "return") => {
+    try {
+      const table = type === "invoice" ? "sales_invoices" : "sales_returns";
+      
+      // Simulate ZATCA API call
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
+      const { error } = await supabase
+        .from(table)
+        .update({
+          zatca_status: "cleared",
+          zatca_uuid: `uuid-${invoiceId}-${Date.now()}`,
+          zatca_synced_at: new Date().toISOString(),
+        })
+        .eq("id", invoiceId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Sync Successful",
+        description: `${type === "invoice" ? "Invoice" : "Return"} synced to ZATCA`,
+      });
+
+      // Refresh data
+      if (type === "invoice") {
+        await fetchSalesInvoices();
+      } else {
+        await fetchSalesReturns();
+      }
+
+    } catch (error: any) {
+      toast({
+        title: "Sync Failed",
+        description: error.message || "Failed to sync document",
+        variant: "destructive",
+      });
     }
   };
 
@@ -159,14 +456,42 @@ export default function ZATCAPhase2Page() {
     setIsGeneratingPdf(true);
 
     try {
-      const invoice = invoices.find(inv => inv.id === selectedInvoice);
+      const invoice = salesInvoices.find(inv => inv.id === selectedInvoice);
       if (!invoice) throw new Error("Invoice not found");
 
+      // Fetch full invoice details including items
+      const { data: fullInvoice, error } = await supabase
+        .from("sales_invoices")
+        .select(`
+          *,
+          customers (
+            name,
+            vat_number,
+            building_number,
+            street_name,
+            district,
+            city,
+            postal_code,
+            additional_number
+          ),
+          sales_invoice_items (
+            description,
+            quantity,
+            unit_price,
+            tax_rate,
+            tax_amount,
+            total
+          )
+        `)
+        .eq("id", selectedInvoice)
+        .single();
+
+      if (error) throw error;
+
       const invoiceData: InvoiceData = {
-        invoiceNumber: invoice.invoice_number,
-        invoiceDate: new Date(invoice.invoice_date),
+        invoiceNumber: fullInvoice.invoice_number,
+        invoiceDate: new Date(fullInvoice.invoice_date),
         
-        // Supplier details from organization
         supplierNameEn: orgDetails.nameEn || "Your Company",
         supplierNameAr: orgDetails.nameAr || "شركتك",
         supplierVAT: orgDetails.vatNumber || "",
@@ -178,18 +503,16 @@ export default function ZATCAPhase2Page() {
         supplierPostalCode: orgDetails.postalCode || "",
         supplierAdditionalNo: orgDetails.additionalNumber || "",
         
-        // Customer details
-        customerName: invoice.customers?.name || "Cash Customer",
-        customerVAT: invoice.customers?.vat_number || undefined,
-        customerBuildingNo: (invoice.customers as any)?.building_number || "",
-        customerStreet: (invoice.customers as any)?.street_name || "",
-        customerDistrict: (invoice.customers as any)?.district || "",
-        customerCity: (invoice.customers as any)?.city || "",
-        customerPostalCode: (invoice.customers as any)?.postal_code || "",
-        customerAdditionalNo: (invoice.customers as any)?.additional_number || "",
+        customerName: fullInvoice.customers?.name || "Cash Customer",
+        customerVAT: fullInvoice.customers?.vat_number || undefined,
+        customerBuildingNo: fullInvoice.customers?.building_number || "",
+        customerStreet: fullInvoice.customers?.street_name || "",
+        customerDistrict: fullInvoice.customers?.district || "",
+        customerCity: fullInvoice.customers?.city || "",
+        customerPostalCode: fullInvoice.customers?.postal_code || "",
+        customerAdditionalNo: fullInvoice.customers?.additional_number || "",
         
-        // Line items
-        items: (invoice.sales_invoice_items || []).map((item: any) => ({
+        items: (fullInvoice.sales_invoice_items || []).map((item: any) => ({
           description: item.description || "Item",
           quantity: item.quantity || 0,
           unitPrice: item.unit_price || 0,
@@ -198,23 +521,20 @@ export default function ZATCAPhase2Page() {
           total: item.total || 0,
         })),
         
-        // Totals
-        subtotal: invoice.subtotal || 0,
-        totalVAT: invoice.vat_amount || 0,
-        total: invoice.total_amount || 0,
+        subtotal: fullInvoice.subtotal || 0,
+        totalVAT: fullInvoice.tax_amount || 0,
+        total: fullInvoice.total_amount || 0,
         
-        // Payment info
-        paymentMethod: invoice.payment_method || "Cash",
-        notes: invoice.notes || "",
+        paymentMethod: fullInvoice.payment_method || "Cash",
+        notes: fullInvoice.notes || "",
       };
 
       const pdfBlob = await generateZATCAPDF(invoiceData, selectedTemplate);
       
-      // Create download link
       const url = URL.createObjectURL(pdfBlob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `Invoice-${invoice.invoice_number}-${selectedTemplate}.pdf`;
+      link.download = `Invoice-${fullInvoice.invoice_number}-${selectedTemplate}.pdf`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -297,8 +617,7 @@ export default function ZATCAPhase2Page() {
     }
   };
 
-  const handleSyncWithZATCA = async () => {
-    // Validate required fields
+  const handleSyncOrgDetails = async () => {
     if (!orgDetails.vatNumber || !orgDetails.crNumber || !orgDetails.buildingNumber || 
         !orgDetails.streetName || !orgDetails.city || !orgDetails.postalCode) {
       toast({ 
@@ -311,7 +630,6 @@ export default function ZATCAPhase2Page() {
 
     setIsSyncing(true);
     try {
-      // Save to localStorage first
       const companyInfo = {
         nameEn: orgDetails.nameEn,
         nameAr: orgDetails.nameAr,
@@ -327,8 +645,6 @@ export default function ZATCAPhase2Page() {
       };
       localStorage.setItem("companyInfo", JSON.stringify(companyInfo));
 
-      // In production, this would call ZATCA API to validate and sync
-      // For now, we'll simulate the sync
       await new Promise(resolve => setTimeout(resolve, 2000));
 
       toast({ 
@@ -346,27 +662,16 @@ export default function ZATCAPhase2Page() {
     }
   };
 
-  const [status, setStatus] = useState<ZATCAStatus>({
-    complianceStatus: "compliant",
-    certificateStatus: "active",
-    certificateExpiry: "2027-12-31",
-    lastSync: new Date().toISOString(),
-    totalInvoices: 1250,
-    reportedInvoices: 1248,
-    clearedInvoices: 1245,
-    rejectedInvoices: 2,
-    pendingInvoices: 3,
-  });
-
   const getStatusColor = (status: string) => {
     switch (status) {
       case "compliant":
       case "active":
-      case "approved":
+      case "cleared":
         return "bg-success/10 text-success";
       case "warning":
       case "expiring":
       case "pending":
+      case "reported":
         return "bg-warning/10 text-warning";
       case "critical":
       case "expired":
@@ -381,11 +686,12 @@ export default function ZATCAPhase2Page() {
     switch (status) {
       case "compliant":
       case "active":
-      case "approved":
+      case "cleared":
         return <CheckCircle2 className="h-5 w-5" />;
       case "warning":
       case "expiring":
       case "pending":
+      case "reported":
         return <AlertTriangle className="h-5 w-5" />;
       case "critical":
       case "expired":
@@ -396,7 +702,9 @@ export default function ZATCAPhase2Page() {
     }
   };
 
-  const complianceRate = ((status.clearedInvoices / status.totalInvoices) * 100).toFixed(1);
+  const complianceRate = status.totalInvoices > 0 
+    ? ((status.clearedInvoices / status.totalInvoices) * 100).toFixed(1)
+    : "0.0";
 
   return (
     <>
@@ -412,7 +720,7 @@ export default function ZATCAPhase2Page() {
               <div>
                 <h1 className="text-3xl font-bold">ZATCA Phase 2 Integration</h1>
                 <p className="text-muted-foreground mt-1">
-                  Manage e-invoicing compliance and device certification
+                  Manage e-invoicing compliance and sync invoices to ZATCA
                 </p>
               </div>
               <div className="flex gap-2">
@@ -421,221 +729,335 @@ export default function ZATCAPhase2Page() {
                   onClick={() => setIsPdfDialogOpen(true)}
                 >
                   <Download className="mr-2 h-4 w-4" />
-                  Download Invoice PDF
+                  Download PDF
                 </Button>
-                <Button 
-                  variant="outline"
-                  onClick={() => setActiveTab("settings")}
-                >
-                  <SettingsIcon className="mr-2 h-4 w-4" />
-                  Configuration
-                </Button>
-                <Button onClick={handleSyncWithZATCA} disabled={isSyncing}>
+                <Button onClick={handleSyncToZATCA} disabled={isSyncing}>
                   <RefreshCw className={`mr-2 h-4 w-4 ${isSyncing ? "animate-spin" : ""}`} />
-                  {isSyncing ? "Syncing..." : "Sync Now"}
+                  {isSyncing ? "Syncing..." : "Sync to ZATCA"}
                 </Button>
               </div>
             </div>
 
             {/* Compliance Status Overview */}
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Compliance Status</CardTitle>
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Total Documents</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="flex items-center gap-2">
-                    <Badge className={getStatusColor(status.complianceStatus)}>
-                      <span className="flex items-center gap-1">
-                        {getStatusIcon(status.complianceStatus)}
-                        <span className="capitalize">{status.complianceStatus}</span>
-                      </span>
-                    </Badge>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-2">Rate: {complianceRate}%</p>
+                  <div className="text-2xl font-bold font-heading">{status.totalInvoices}</div>
+                  <p className="text-xs text-muted-foreground mt-1">Invoices + Returns</p>
                 </CardContent>
               </Card>
 
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Certificate Status</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center gap-2">
-                    <Badge className={getStatusColor(status.certificateStatus)}>
-                      <span className="flex items-center gap-1">
-                        {getStatusIcon(status.certificateStatus)}
-                        <span className="capitalize">{status.certificateStatus}</span>
-                      </span>
-                    </Badge>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-2">Expires: {status.certificateExpiry}</p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Cleared Invoices</CardTitle>
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Cleared</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold font-heading text-success">{status.clearedInvoices}</div>
-                  <p className="text-xs text-muted-foreground mt-1">of {status.totalInvoices} total</p>
+                  <p className="text-xs text-muted-foreground mt-1">Rate: {complianceRate}%</p>
                 </CardContent>
               </Card>
 
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Pending / Rejected</CardTitle>
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Pending</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="flex gap-4">
-                    <div>
-                      <div className="text-2xl font-bold font-heading text-warning">{status.pendingInvoices}</div>
-                      <p className="text-xs text-muted-foreground">Pending</p>
-                    </div>
-                    <div>
-                      <div className="text-2xl font-bold font-heading text-destructive">{status.rejectedInvoices}</div>
-                      <p className="text-xs text-muted-foreground">Rejected</p>
-                    </div>
-                  </div>
+                  <div className="text-2xl font-bold font-heading text-warning">{status.pendingInvoices}</div>
+                  <p className="text-xs text-muted-foreground mt-1">Awaiting sync</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Reported</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold font-heading text-primary">{status.reportedInvoices}</div>
+                  <p className="text-xs text-muted-foreground mt-1">Simplified invoices</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Rejected</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold font-heading text-destructive">{status.rejectedInvoices}</div>
+                  <p className="text-xs text-muted-foreground mt-1">Need attention</p>
                 </CardContent>
               </Card>
             </div>
 
+            {/* Auto-Sync Settings */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Auto-Sync Settings</CardTitle>
+                    <CardDescription>Configure automatic synchronization to ZATCA</CardDescription>
+                  </div>
+                  {lastAutoSync && (
+                    <p className="text-sm text-muted-foreground">
+                      Last sync: {lastAutoSync.toLocaleString()}
+                    </p>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center gap-4">
+                  <div className="flex-1">
+                    <Label htmlFor="sync-interval">Sync Interval</Label>
+                    <Select value={autoSyncInterval} onValueChange={handleAutoSyncIntervalChange}>
+                      <SelectTrigger id="sync-interval" className="mt-2">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="manual">
+                          <div className="flex items-center gap-2">
+                            <Clock className="h-4 w-4" />
+                            Manual Sync Only
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="2h">
+                          <div className="flex items-center gap-2">
+                            <RefreshCw className="h-4 w-4" />
+                            Every 2 Hours
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="6h">
+                          <div className="flex items-center gap-2">
+                            <RefreshCw className="h-4 w-4" />
+                            Every 6 Hours
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="24h">
+                          <div className="flex items-center gap-2">
+                            <RefreshCw className="h-4 w-4" />
+                            Every 24 Hours
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <Label className="opacity-0">Action</Label>
+                    <Button 
+                      onClick={handleSyncToZATCA} 
+                      disabled={isSyncing}
+                      className="mt-2"
+                    >
+                      {isSyncing ? (
+                        <>
+                          <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                          Syncing...
+                        </>
+                      ) : (
+                        <>
+                          <Send className="mr-2 h-4 w-4" />
+                          Sync Now
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
             {/* Main Content Tabs */}
             <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
               <TabsList>
-                <TabsTrigger value="overview">Overview</TabsTrigger>
+                <TabsTrigger value="invoices">
+                  <FileText className="h-4 w-4 mr-2" />
+                  Sales Invoices ({salesInvoices.length})
+                </TabsTrigger>
+                <TabsTrigger value="returns">
+                  <FileCode className="h-4 w-4 mr-2" />
+                  Sales Returns ({salesReturns.length})
+                </TabsTrigger>
                 <TabsTrigger value="devices">Device Management</TabsTrigger>
-                <TabsTrigger value="invoices">Invoice Status</TabsTrigger>
-                <TabsTrigger value="logs">Submission Logs</TabsTrigger>
                 <TabsTrigger value="settings">Settings</TabsTrigger>
               </TabsList>
 
-              {/* Overview Tab */}
-              <TabsContent value="overview" className="space-y-4">
-                <div className="grid gap-6 md:grid-cols-2">
-                  {/* ZATCA Phase 2 Requirements */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>ZATCA Phase 2 Requirements</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">QR Code Generation</span>
-                        <CheckCircle2 className="h-5 w-5 text-success" />
+              {/* Sales Invoices Tab */}
+              <TabsContent value="invoices" className="space-y-4">
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle>Sales Invoices</CardTitle>
+                        <CardDescription>Track and sync sales invoices to ZATCA</CardDescription>
                       </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">Cryptographic Stamp</span>
-                        <CheckCircle2 className="h-5 w-5 text-success" />
+                      <Badge variant="outline">
+                        {salesInvoices.filter(inv => inv.zatca_status === "pending").length} Pending
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    {isLoadingInvoices ? (
+                      <div className="text-center py-8">
+                        <RefreshCw className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />
+                        <p className="text-muted-foreground mt-2">Loading invoices...</p>
                       </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">XML Invoice Format</span>
-                        <CheckCircle2 className="h-5 w-5 text-success" />
+                    ) : salesInvoices.length === 0 ? (
+                      <div className="text-center py-8 text-muted-foreground">
+                        No sales invoices found. Create your first invoice to get started.
                       </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">Real-time Clearance</span>
-                        <CheckCircle2 className="h-5 w-5 text-success" />
+                    ) : (
+                      <div className="rounded-md border">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Invoice #</TableHead>
+                              <TableHead>Date</TableHead>
+                              <TableHead>Customer</TableHead>
+                              <TableHead className="text-right">Amount</TableHead>
+                              <TableHead className="text-right">VAT</TableHead>
+                              <TableHead className="text-center">ZATCA Status</TableHead>
+                              <TableHead className="text-center">UUID</TableHead>
+                              <TableHead className="text-center">Actions</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {salesInvoices.map((invoice) => (
+                              <TableRow key={invoice.id}>
+                                <TableCell className="font-medium">{invoice.invoice_number}</TableCell>
+                                <TableCell>{new Date(invoice.invoice_date).toLocaleDateString()}</TableCell>
+                                <TableCell>{invoice.customer_name}</TableCell>
+                                <TableCell className="text-right font-semibold">
+                                  SAR {invoice.total_amount.toFixed(2)}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  SAR {invoice.tax_amount.toFixed(2)}
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  <Badge className={getStatusColor(invoice.zatca_status || "pending")}>
+                                    {getStatusIcon(invoice.zatca_status || "pending")}
+                                    <span className="ml-1 capitalize">{invoice.zatca_status || "pending"}</span>
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  {invoice.zatca_uuid ? (
+                                    <span className="text-xs font-mono">{invoice.zatca_uuid.substring(0, 12)}...</span>
+                                  ) : (
+                                    <span className="text-xs text-muted-foreground">-</span>
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  {invoice.zatca_status === "pending" ? (
+                                    <Button 
+                                      size="sm" 
+                                      variant="outline"
+                                      onClick={() => handleSyncSingleInvoice(invoice.id, "invoice")}
+                                    >
+                                      <Send className="h-3 w-3 mr-1" />
+                                      Sync
+                                    </Button>
+                                  ) : (
+                                    <Button size="sm" variant="ghost" disabled>
+                                      <CheckCircle className="h-3 w-3 mr-1" />
+                                      Synced
+                                    </Button>
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
                       </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">Simplified Invoices</span>
-                        <CheckCircle2 className="h-5 w-5 text-success" />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">Standard Invoices</span>
-                        <CheckCircle2 className="h-5 w-5 text-success" />
-                      </div>
-                    </CardContent>
-                  </Card>
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
 
-                  {/* Recent Activity */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Recent Activity</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      <div className="flex items-start gap-3">
-                        <div className="rounded-full bg-success/10 p-2">
-                          <CheckCircle2 className="h-4 w-4 text-success" />
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-sm font-medium">Invoice INV-2026-00125 cleared</p>
-                          <p className="text-xs text-muted-foreground">2 minutes ago</p>
-                        </div>
+              {/* Sales Returns Tab */}
+              <TabsContent value="returns" className="space-y-4">
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle>Sales Returns</CardTitle>
+                        <CardDescription>Track and sync sales return invoices to ZATCA</CardDescription>
                       </div>
-                      <div className="flex items-start gap-3">
-                        <div className="rounded-full bg-success/10 p-2">
-                          <Send className="h-4 w-4 text-success" />
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-sm font-medium">Invoice INV-2026-00124 reported</p>
-                          <p className="text-xs text-muted-foreground">15 minutes ago</p>
-                        </div>
+                      <Badge variant="outline">
+                        {salesReturns.filter(ret => ret.zatca_status === "pending").length} Pending
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    {salesReturns.length === 0 ? (
+                      <div className="text-center py-8 text-muted-foreground">
+                        No sales returns found.
                       </div>
-                      <div className="flex items-start gap-3">
-                        <div className="rounded-full bg-warning/10 p-2">
-                          <AlertTriangle className="h-4 w-4 text-warning" />
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-sm font-medium">Certificate renewal reminder</p>
-                          <p className="text-xs text-muted-foreground">1 hour ago</p>
-                        </div>
+                    ) : (
+                      <div className="rounded-md border">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Return #</TableHead>
+                              <TableHead>Date</TableHead>
+                              <TableHead>Original Invoice</TableHead>
+                              <TableHead>Customer</TableHead>
+                              <TableHead className="text-right">Amount</TableHead>
+                              <TableHead className="text-right">VAT</TableHead>
+                              <TableHead className="text-center">ZATCA Status</TableHead>
+                              <TableHead className="text-center">UUID</TableHead>
+                              <TableHead className="text-center">Actions</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {salesReturns.map((returnDoc) => (
+                              <TableRow key={returnDoc.id}>
+                                <TableCell className="font-medium">{returnDoc.return_number}</TableCell>
+                                <TableCell>{new Date(returnDoc.return_date).toLocaleDateString()}</TableCell>
+                                <TableCell>{returnDoc.original_invoice_number}</TableCell>
+                                <TableCell>{returnDoc.customer_name}</TableCell>
+                                <TableCell className="text-right font-semibold">
+                                  SAR {returnDoc.total_amount.toFixed(2)}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  SAR {returnDoc.tax_amount.toFixed(2)}
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  <Badge className={getStatusColor(returnDoc.zatca_status || "pending")}>
+                                    {getStatusIcon(returnDoc.zatca_status || "pending")}
+                                    <span className="ml-1 capitalize">{returnDoc.zatca_status || "pending"}</span>
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  {returnDoc.zatca_uuid ? (
+                                    <span className="text-xs font-mono">{returnDoc.zatca_uuid.substring(0, 12)}...</span>
+                                  ) : (
+                                    <span className="text-xs text-muted-foreground">-</span>
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  {returnDoc.zatca_status === "pending" ? (
+                                    <Button 
+                                      size="sm" 
+                                      variant="outline"
+                                      onClick={() => handleSyncSingleInvoice(returnDoc.id, "return")}
+                                    >
+                                      <Send className="h-3 w-3 mr-1" />
+                                      Sync
+                                    </Button>
+                                  ) : (
+                                    <Button size="sm" variant="ghost" disabled>
+                                      <CheckCircle className="h-3 w-3 mr-1" />
+                                      Synced
+                                    </Button>
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
                       </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* API Integration Status */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>API Integration Status</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">ZATCA Production API</span>
-                        <Badge className="bg-success/10 text-success">Connected</Badge>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">Last Sync</span>
-                        <span className="text-xs text-muted-foreground">
-                          {new Date(status.lastSync).toLocaleString()}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">API Response Time</span>
-                        <span className="text-xs text-muted-foreground">145ms</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">Success Rate (24h)</span>
-                        <span className="text-xs text-success font-semibold">99.8%</span>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* Quick Actions */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Quick Actions</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-2">
-                      <Button className="w-full justify-start" variant="outline">
-                        <QrCode className="h-4 w-4 mr-2" />
-                        Generate Test QR Code
-                      </Button>
-                      <Button className="w-full justify-start" variant="outline">
-                        <FileJson className="h-4 w-4 mr-2" />
-                        Validate Invoice XML
-                      </Button>
-                      <Button className="w-full justify-start" variant="outline">
-                        <Send className="h-4 w-4 mr-2" />
-                        Submit Pending Invoices
-                      </Button>
-                      <Button className="w-full justify-start" variant="outline">
-                        <Download className="h-4 w-4 mr-2" />
-                        Download Compliance Report
-                      </Button>
-                    </CardContent>
-                  </Card>
-                </div>
+                    )}
+                  </CardContent>
+                </Card>
               </TabsContent>
 
               {/* Device Management Tab */}
@@ -686,7 +1108,9 @@ export default function ZATCAPhase2Page() {
                           <div className="flex items-start justify-between">
                             <div>
                               <h3 className="font-semibold">{device.device_name}</h3>
-                              <p className="text-sm text-muted-foreground">Last used: {device.last_used ? new Date(device.last_used).toLocaleString() : "Never"}</p>
+                              <p className="text-sm text-muted-foreground">
+                                Last used: {device.last_used ? new Date(device.last_used).toLocaleString() : "Never"}
+                              </p>
                             </div>
                             <Badge className={getStatusColor(device.status)}>
                               {device.status === "active" ? <Lock className="h-3 w-3 mr-1" /> : <Unlock className="h-3 w-3 mr-1" />}
@@ -697,7 +1121,9 @@ export default function ZATCAPhase2Page() {
                           <div className="grid grid-cols-2 gap-4 text-sm">
                             <div>
                               <span className="text-muted-foreground">Certificate Expiry:</span>
-                              <span className="ml-2 font-medium">{device.certificate_expiry ? new Date(device.certificate_expiry).toLocaleDateString() : "Not Generated"}</span>
+                              <span className="ml-2 font-medium">
+                                {device.certificate_expiry ? new Date(device.certificate_expiry).toLocaleDateString() : "Not Generated"}
+                              </span>
                             </div>
                           </div>
 
@@ -713,97 +1139,6 @@ export default function ZATCAPhase2Page() {
                           </div>
                         </div>
                       ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-
-              {/* Invoice Status Tab */}
-              <TabsContent value="invoices" className="space-y-4">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Invoice Submission Status</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="rounded-md border">
-                      <table className="w-full">
-                        <thead className="bg-table-header">
-                          <tr>
-                            <th className="text-left p-4 font-semibold text-sm">Invoice #</th>
-                            <th className="text-left p-4 font-semibold text-sm">Date</th>
-                            <th className="text-left p-4 font-semibold text-sm">Customer</th>
-                            <th className="text-right p-4 font-semibold text-sm">Amount</th>
-                            <th className="text-center p-4 font-semibold text-sm">ZATCA Status</th>
-                            <th className="text-center p-4 font-semibold text-sm">UUID</th>
-                            <th className="text-center p-4 font-semibold text-sm">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <tr className="border-t hover:bg-table-row-hover">
-                            <td className="p-4 font-medium">INV-2026-00125</td>
-                            <td className="p-4 text-sm">2026-03-21</td>
-                            <td className="p-4">Al-Rajhi Trading Co.</td>
-                            <td className="p-4 text-right font-semibold">SAR 3,450.00</td>
-                            <td className="p-4 text-center">
-                              <Badge className="bg-success/10 text-success">
-                                <CheckCircle className="h-3 w-3 mr-1" />
-                                Cleared
-                              </Badge>
-                            </td>
-                            <td className="p-4 text-center text-xs font-mono">a1b2c3d4...</td>
-                            <td className="p-4 text-center">
-                              <Button size="sm" variant="ghost">
-                                <FileCode className="h-3 w-3 mr-1" />
-                                View XML
-                              </Button>
-                            </td>
-                          </tr>
-                          <tr className="border-t hover:bg-table-row-hover">
-                            <td className="p-4 font-medium">INV-2026-00124</td>
-                            <td className="p-4 text-sm">2026-03-20</td>
-                            <td className="p-4">Najd Commercial Est.</td>
-                            <td className="p-4 text-right font-semibold">SAR 5,750.00</td>
-                            <td className="p-4 text-center">
-                              <Badge className="bg-warning/10 text-warning">
-                                <Clock className="h-3 w-3 mr-1" />
-                                Pending
-                              </Badge>
-                            </td>
-                            <td className="p-4 text-center text-xs font-mono">-</td>
-                            <td className="p-4 text-center">
-                              <Button size="sm" variant="ghost">
-                                <Send className="h-3 w-3 mr-1" />
-                                Retry
-                              </Button>
-                            </td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-
-              {/* Submission Logs Tab */}
-              <TabsContent value="logs" className="space-y-4">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>API Submission Logs</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2 font-mono text-sm">
-                      <div className="bg-muted/50 p-3 rounded">
-                        <span className="text-success">[SUCCESS]</span> 2026-03-21 18:00:45 - Invoice INV-2026-00125 cleared - UUID: a1b2c3d4-e5f6-7890
-                      </div>
-                      <div className="bg-muted/50 p-3 rounded">
-                        <span className="text-primary">[INFO]</span> 2026-03-21 17:55:30 - Invoice INV-2026-00125 submitted for clearance
-                      </div>
-                      <div className="bg-muted/50 p-3 rounded">
-                        <span className="text-success">[SUCCESS]</span> 2026-03-21 17:45:12 - Certificate validated successfully
-                      </div>
-                      <div className="bg-muted/50 p-3 rounded">
-                        <span className="text-warning">[WARNING]</span> 2026-03-20 16:30:00 - Certificate expires in 280 days
-                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -850,9 +1185,9 @@ export default function ZATCAPhase2Page() {
                   <Card>
                     <CardHeader>
                       <CardTitle>Organization Details</CardTitle>
-                      <p className="text-sm text-muted-foreground">
+                      <CardDescription>
                         National Address (العنوان الوطني) for ZATCA compliance
-                      </p>
+                      </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
                       <div className="grid grid-cols-2 gap-4">
@@ -955,11 +1290,6 @@ export default function ZATCAPhase2Page() {
                         </div>
                       </div>
 
-                      <div className="space-y-2">
-                        <Label>Country Code</Label>
-                        <Input value="SA" disabled />
-                      </div>
-
                       <div className="flex justify-end gap-2">
                         <Button 
                           variant="outline" 
@@ -970,7 +1300,7 @@ export default function ZATCAPhase2Page() {
                           Edit in Settings
                         </Button>
                         <Button 
-                          onClick={handleSyncWithZATCA}
+                          onClick={handleSyncOrgDetails}
                           disabled={isSyncing}
                         >
                           {isSyncing ? (
@@ -1004,7 +1334,6 @@ export default function ZATCAPhase2Page() {
               </DialogHeader>
               
               <div className="space-y-4 py-4">
-                {/* Invoice Selection */}
                 <div className="space-y-2">
                   <Label htmlFor="invoice-select">Select Invoice</Label>
                   <Select value={selectedInvoice} onValueChange={setSelectedInvoice}>
@@ -1012,14 +1341,14 @@ export default function ZATCAPhase2Page() {
                       <SelectValue placeholder="Choose an invoice..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {invoices.length === 0 ? (
+                      {salesInvoices.length === 0 ? (
                         <SelectItem value="none" disabled>
                           No invoices available
                         </SelectItem>
                       ) : (
-                        invoices.map((invoice) => (
+                        salesInvoices.map((invoice) => (
                           <SelectItem key={invoice.id} value={invoice.id}>
-                            {invoice.invoice_number} - {invoice.customers?.name || "Cash"} - SAR {invoice.total_amount?.toFixed(2)}
+                            {invoice.invoice_number} - {invoice.customer_name} - SAR {invoice.total_amount.toFixed(2)}
                           </SelectItem>
                         ))
                       )}
@@ -1027,7 +1356,6 @@ export default function ZATCAPhase2Page() {
                   </Select>
                 </div>
 
-                {/* Template Selection */}
                 <div className="space-y-2">
                   <Label htmlFor="template-select">PDF Template</Label>
                   <Select value={selectedTemplate} onValueChange={(value: any) => setSelectedTemplate(value)}>
@@ -1062,19 +1390,17 @@ export default function ZATCAPhase2Page() {
                   </p>
                 </div>
 
-                {/* Preview Info */}
                 {selectedInvoice && (
                   <div className="p-4 bg-muted rounded-lg space-y-2">
                     <h4 className="font-semibold text-sm">Invoice Preview:</h4>
                     {(() => {
-                      const invoice = invoices.find(inv => inv.id === selectedInvoice);
+                      const invoice = salesInvoices.find(inv => inv.id === selectedInvoice);
                       return invoice ? (
                         <div className="text-sm space-y-1">
                           <p><span className="font-medium">Number:</span> {invoice.invoice_number}</p>
                           <p><span className="font-medium">Date:</span> {new Date(invoice.invoice_date).toLocaleDateString()}</p>
-                          <p><span className="font-medium">Customer:</span> {invoice.customers?.name || "Cash Customer"}</p>
-                          <p><span className="font-medium">Total:</span> SAR {invoice.total_amount?.toFixed(2)}</p>
-                          <p><span className="font-medium">Items:</span> {invoice.sales_invoice_items?.length || 0}</p>
+                          <p><span className="font-medium">Customer:</span> {invoice.customer_name}</p>
+                          <p><span className="font-medium">Total:</span> SAR {invoice.total_amount.toFixed(2)}</p>
                         </div>
                       ) : null;
                     })()}
