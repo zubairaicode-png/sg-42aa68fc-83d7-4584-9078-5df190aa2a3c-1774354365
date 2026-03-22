@@ -248,7 +248,7 @@ export default function AccountingPage() {
 
       // Load revenue accounts (type = 'revenue')
       const { data: revenueAccounts, error: revenueError } = await supabase
-        .from("accounting_accounts")
+        .from("chart_of_accounts")
         .select("*")
         .eq("account_type", "revenue")
         .order("account_code");
@@ -257,7 +257,7 @@ export default function AccountingPage() {
 
       // Load expense accounts (type = 'expense')
       const { data: expenseAccounts, error: expenseError } = await supabase
-        .from("accounting_accounts")
+        .from("chart_of_accounts")
         .select("*")
         .eq("account_type", "expense")
         .order("account_code");
@@ -268,14 +268,14 @@ export default function AccountingPage() {
       const revenueWithBalances = await Promise.all(
         (revenueAccounts || []).map(async (account) => {
           const { data: lines } = await supabase
-            .from("accounting_journal_lines")
-            .select("debit_amount, credit_amount")
+            .from("journal_entry_lines")
+            .select("debit, credit, journal_entries!inner(entry_date)")
             .eq("account_id", account.id)
-            .gte("entry_date", profitLossStartDate)
-            .lte("entry_date", profitLossEndDate);
+            .gte("journal_entries.entry_date", profitLossStartDate)
+            .lte("journal_entries.entry_date", profitLossEndDate);
 
           const balance = (lines || []).reduce((sum, line) => {
-            return sum + (parseFloat(line.credit_amount || "0") - parseFloat(line.debit_amount || "0"));
+            return sum + (parseFloat(line.credit || "0") - parseFloat(line.debit || "0"));
           }, 0);
 
           return { ...account, balance };
@@ -286,14 +286,14 @@ export default function AccountingPage() {
       const expenseWithBalances = await Promise.all(
         (expenseAccounts || []).map(async (account) => {
           const { data: lines } = await supabase
-            .from("accounting_journal_lines")
-            .select("debit_amount, credit_amount")
+            .from("journal_entry_lines")
+            .select("debit, credit, journal_entries!inner(entry_date)")
             .eq("account_id", account.id)
-            .gte("entry_date", profitLossStartDate)
-            .lte("entry_date", profitLossEndDate);
+            .gte("journal_entries.entry_date", profitLossStartDate)
+            .lte("journal_entries.entry_date", profitLossEndDate);
 
           const balance = (lines || []).reduce((sum, line) => {
-            return sum + (parseFloat(line.debit_amount || "0") - parseFloat(line.credit_amount || "0"));
+            return sum + (parseFloat(line.debit || "0") - parseFloat(line.credit || "0"));
           }, 0);
 
           return { ...account, balance };
@@ -305,8 +305,8 @@ export default function AccountingPage() {
       const netProfit = totalRevenue - totalExpenses;
 
       setProfitLoss({
-        revenue: revenueWithBalances,
-        expenses: expenseWithBalances,
+        revenue: revenueWithBalances as any,
+        expenses: expenseWithBalances as any,
         totalRevenue,
         totalExpenses,
         netProfit
@@ -339,7 +339,7 @@ export default function AccountingPage() {
 
       // Get revenue total
       const { data: revenueAccounts } = await supabase
-        .from("accounting_accounts")
+        .from("chart_of_accounts")
         .select("id")
         .eq("account_type", "revenue");
 
@@ -347,21 +347,21 @@ export default function AccountingPage() {
       if (revenueAccounts) {
         for (const account of revenueAccounts) {
           const { data: lines } = await supabase
-            .from("accounting_journal_lines")
-            .select("debit_amount, credit_amount")
+            .from("journal_entry_lines")
+            .select("debit, credit, journal_entries!inner(entry_date)")
             .eq("account_id", account.id)
-            .gte("entry_date", accountingYear.fiscalYearStart)
-            .lte("entry_date", accountingYear.fiscalYearEnd);
+            .gte("journal_entries.entry_date", accountingYear.fiscalYearStart)
+            .lte("journal_entries.entry_date", accountingYear.fiscalYearEnd);
 
           totalRevenue += (lines || []).reduce((sum, line) => {
-            return sum + (parseFloat(line.credit_amount || "0") - parseFloat(line.debit_amount || "0"));
+            return sum + (parseFloat(line.credit || "0") - parseFloat(line.debit || "0"));
           }, 0);
         }
       }
 
       // Get expense total
       const { data: expenseAccounts } = await supabase
-        .from("accounting_accounts")
+        .from("chart_of_accounts")
         .select("id")
         .eq("account_type", "expense");
 
@@ -369,21 +369,21 @@ export default function AccountingPage() {
       if (expenseAccounts) {
         for (const account of expenseAccounts) {
           const { data: lines } = await supabase
-            .from("accounting_journal_lines")
-            .select("debit_amount, credit_amount")
+            .from("journal_entry_lines")
+            .select("debit, credit, journal_entries!inner(entry_date)")
             .eq("account_id", account.id)
-            .gte("entry_date", accountingYear.fiscalYearStart)
-            .lte("entry_date", accountingYear.fiscalYearEnd);
+            .gte("journal_entries.entry_date", accountingYear.fiscalYearStart)
+            .lte("journal_entries.entry_date", accountingYear.fiscalYearEnd);
 
           totalExpenses += (lines || []).reduce((sum, line) => {
-            return sum + (parseFloat(line.debit_amount || "0") - parseFloat(line.credit_amount || "0"));
+            return sum + (parseFloat(line.debit || "0") - parseFloat(line.credit || "0"));
           }, 0);
         }
       }
 
       // Get asset total
       const { data: assetAccounts } = await supabase
-        .from("accounting_accounts")
+        .from("chart_of_accounts")
         .select("id")
         .eq("account_type", "asset");
 
@@ -391,20 +391,20 @@ export default function AccountingPage() {
       if (assetAccounts) {
         for (const account of assetAccounts) {
           const { data: lines } = await supabase
-            .from("accounting_journal_lines")
-            .select("debit_amount, credit_amount")
+            .from("journal_entry_lines")
+            .select("debit, credit, journal_entries!inner(entry_date)")
             .eq("account_id", account.id)
-            .lte("entry_date", accountingYear.fiscalYearEnd);
+            .lte("journal_entries.entry_date", accountingYear.fiscalYearEnd);
 
           totalAssets += (lines || []).reduce((sum, line) => {
-            return sum + (parseFloat(line.debit_amount || "0") - parseFloat(line.credit_amount || "0"));
+            return sum + (parseFloat(line.debit || "0") - parseFloat(line.credit || "0"));
           }, 0);
         }
       }
 
       // Get liability total
       const { data: liabilityAccounts } = await supabase
-        .from("accounting_accounts")
+        .from("chart_of_accounts")
         .select("id")
         .eq("account_type", "liability");
 
@@ -412,20 +412,20 @@ export default function AccountingPage() {
       if (liabilityAccounts) {
         for (const account of liabilityAccounts) {
           const { data: lines } = await supabase
-            .from("accounting_journal_lines")
-            .select("debit_amount, credit_amount")
+            .from("journal_entry_lines")
+            .select("debit, credit, journal_entries!inner(entry_date)")
             .eq("account_id", account.id)
-            .lte("entry_date", accountingYear.fiscalYearEnd);
+            .lte("journal_entries.entry_date", accountingYear.fiscalYearEnd);
 
           totalLiabilities += (lines || []).reduce((sum, line) => {
-            return sum + (parseFloat(line.credit_amount || "0") - parseFloat(line.debit_amount || "0"));
+            return sum + (parseFloat(line.credit || "0") - parseFloat(line.debit || "0"));
           }, 0);
         }
       }
 
       // Get equity total
       const { data: equityAccounts } = await supabase
-        .from("accounting_accounts")
+        .from("chart_of_accounts")
         .select("id")
         .eq("account_type", "equity");
 
@@ -433,26 +433,26 @@ export default function AccountingPage() {
       if (equityAccounts) {
         for (const account of equityAccounts) {
           const { data: lines } = await supabase
-            .from("accounting_journal_lines")
-            .select("debit_amount, credit_amount")
+            .from("journal_entry_lines")
+            .select("debit, credit, journal_entries!inner(entry_date)")
             .eq("account_id", account.id)
-            .lte("entry_date", accountingYear.fiscalYearEnd);
+            .lte("journal_entries.entry_date", accountingYear.fiscalYearEnd);
 
           totalEquity += (lines || []).reduce((sum, line) => {
-            return sum + (parseFloat(line.credit_amount || "0") - parseFloat(line.debit_amount || "0"));
+            return sum + (parseFloat(line.credit || "0") - parseFloat(line.debit || "0"));
           }, 0);
         }
       }
 
       // Get transaction counts
       const { count: transactionCount } = await supabase
-        .from("accounting_journal_lines")
-        .select("*", { count: "exact", head: true })
-        .gte("entry_date", accountingYear.fiscalYearStart)
-        .lte("entry_date", accountingYear.fiscalYearEnd);
+        .from("journal_entry_lines")
+        .select("id, journal_entries!inner(entry_date)", { count: "exact", head: true })
+        .gte("journal_entries.entry_date", accountingYear.fiscalYearStart)
+        .lte("journal_entries.entry_date", accountingYear.fiscalYearEnd);
 
       const { count: journalCount } = await supabase
-        .from("accounting_journal_entries")
+        .from("journal_entries")
         .select("*", { count: "exact", head: true })
         .gte("entry_date", accountingYear.fiscalYearStart)
         .lte("entry_date", accountingYear.fiscalYearEnd);
