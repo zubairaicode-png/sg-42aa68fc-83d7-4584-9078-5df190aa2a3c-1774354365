@@ -301,6 +301,56 @@ export default function SubscriptionsPage() {
     }
   };
 
+  const handleDeletePlan = async (planId: string, planName: string) => {
+    if (!confirm(`Are you sure you want to delete the plan "${planName}"?\n\nThis will also delete all associated customer subscriptions and server information.`)) return;
+
+    try {
+      // First delete all servers linked to subscriptions of this plan
+      const { data: subscriptionsToDelete } = await supabase
+        .from("customer_subscriptions")
+        .select("id")
+        .eq("plan_id", planId);
+
+      if (subscriptionsToDelete && subscriptionsToDelete.length > 0) {
+        const subscriptionIds = subscriptionsToDelete.map(s => s.id);
+        
+        // Delete servers for these subscriptions
+        await supabase
+          .from("subscription_servers")
+          .delete()
+          .in("subscription_id", subscriptionIds);
+
+        // Delete the subscriptions
+        await supabase
+          .from("customer_subscriptions")
+          .delete()
+          .eq("plan_id", planId);
+      }
+
+      // Finally delete the plan
+      const { error } = await supabase
+        .from("subscription_plans")
+        .delete()
+        .eq("id", planId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Subscription plan and all associated data deleted successfully",
+      });
+
+      await loadData();
+    } catch (error) {
+      console.error("Error deleting plan:", error);
+      toast({
+        title: "Error",
+        description: "Failed to delete subscription plan",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleGenerateInvoice = async (subscriptionId: string) => {
     try {
       setGeneratingInvoice(subscriptionId);
@@ -586,7 +636,9 @@ export default function SubscriptionsPage() {
                                 {plan.description}
                               </CardDescription>
                             </div>
-                            {getBillingCycleBadge(plan.billing_cycle)}
+                            <div className="flex gap-2">
+                              {getBillingCycleBadge(plan.billing_cycle)}
+                            </div>
                           </div>
                         </CardHeader>
                         <CardContent className="space-y-4">
@@ -628,12 +680,22 @@ export default function SubscriptionsPage() {
                             </div>
                           )}
 
-                          <Button
-                            className="w-full"
-                            onClick={() => router.push(`/subscriptions/subscribe?plan=${plan.id}`)}
-                          >
-                            Subscribe Customer
-                          </Button>
+                          <div className="flex gap-2">
+                            <Button
+                              className="flex-1"
+                              onClick={() => router.push(`/subscriptions/subscribe?plan=${plan.id}`)}
+                            >
+                              Subscribe Customer
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="icon"
+                              onClick={() => handleDeletePlan(plan.id, plan.name)}
+                              title="Delete Plan"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </CardContent>
                       </Card>
                     ))}
