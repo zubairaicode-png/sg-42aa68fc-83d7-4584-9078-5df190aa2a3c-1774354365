@@ -38,7 +38,7 @@ export const PRODUCT_CATEGORIES = [
 ] as const;
 
 export const CURRENCIES = {
-  SAR: { symbol: "SAR", name: "Saudi Riyal", code: "SAR" },
+  SAR: { symbol: "ر.س", name: "Saudi Riyal", code: "SAR" },
 } as const;
 
 export const DATE_FORMAT = "yyyy-MM-dd";
@@ -80,7 +80,10 @@ export const SAR_SYMBOL_EN = "SAR"; // English abbreviation
  * Format number as Saudi Riyal currency
  * @param amount - The amount to format
  * @param useArabic - Use Arabic symbol (ر.س) or English (SAR)
- * @returns Formatted currency string
+ * @returns Formatted currency string (e.g., "ر.س 1,234.56")
+ * 
+ * Note: For the custom Saudi Riyal icon, use the SaudiRiyalIcon component
+ * from @/components/icons/SaudiRiyalIcon instead of this text-based function
  */
 export function formatSAR(amount: number, useArabic: boolean = true): string {
   const symbol = useArabic ? SAR_SYMBOL : SAR_SYMBOL_EN;

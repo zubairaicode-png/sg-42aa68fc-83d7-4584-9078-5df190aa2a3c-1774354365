@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatSAR } from "@/lib/constants";
+import { CurrencyDisplay } from "@/components/ui/currency-display";
 
 interface StatCardProps {
   title: string;
@@ -151,7 +152,9 @@ export function DashboardOverview() {
                     <div className="text-xs text-muted-foreground mt-1">{invoice.date}</div>
                   </div>
                   <div className="text-right">
-                    <div className="font-semibold">ر.س {invoice.amount.toLocaleString()}</div>
+                    <div className="font-semibold">
+                      <CurrencyDisplay amount={invoice.amount} iconSize={14} />
+                    </div>
                     <span className={cn(
                       "inline-block px-2 py-1 rounded text-xs font-medium mt-1",
                       getStatusColor(invoice.status)

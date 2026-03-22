@@ -11,7 +11,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Plus, Trash2, Save, ArrowLeft, UserPlus } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { SAUDI_VAT_RATE, formatSAR, SAR_SYMBOL } from "@/lib/constants";
+import { SAUDI_VAT_RATE, formatSAR } from "@/lib/constants";
+import { CurrencyDisplay } from "@/components/ui/currency-display";
+import { SaudiRiyalIcon } from "@/components/icons/SaudiRiyalIcon";
 import { productService } from "@/services/productService";
 import type { InvoiceItem } from "@/types";
 import type { Database } from "@/integrations/supabase/types";
@@ -636,35 +638,42 @@ export default function CreateSalesInvoicePage() {
                       
                       <div className="space-y-2">
                         <Label>VAT Amount</Label>
-                        <Input
-                          value={`${SAR_SYMBOL} ${item.taxAmount.toFixed(2)}`}
-                          disabled
-                          className="bg-muted font-medium"
-                        />
+                        <div className="h-10 px-3 py-2 bg-muted rounded-md flex items-center gap-1 font-medium">
+                          <SaudiRiyalIcon size={14} />
+                          <span>{item.taxAmount.toFixed(2)}</span>
+                        </div>
                       </div>
                       
                       <div className="space-y-2">
                         <Label>Total</Label>
-                        <Input
-                          value={`${SAR_SYMBOL} ${item.total.toFixed(2)}`}
-                          disabled
-                          className="bg-muted font-semibold"
-                        />
+                        <div className="h-10 px-3 py-2 bg-muted rounded-md flex items-center gap-1 font-semibold">
+                          <SaudiRiyalIcon size={14} />
+                          <span>{item.total.toFixed(2)}</span>
+                        </div>
                       </div>
                     </div>
                     
                     <div className="grid gap-4 md:grid-cols-3 text-sm">
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Subtotal:</span>
-                        <span className="font-medium">{SAR_SYMBOL} {(item.quantity * item.unitPrice).toFixed(2)}</span>
+                        <span className="font-medium flex items-center gap-1">
+                          <SaudiRiyalIcon size={12} />
+                          {(item.quantity * item.unitPrice).toFixed(2)}
+                        </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Tax ({item.taxRate}%):</span>
-                        <span className="font-medium">{SAR_SYMBOL} {item.taxAmount.toFixed(2)}</span>
+                        <span className="font-medium flex items-center gap-1">
+                          <SaudiRiyalIcon size={12} />
+                          {item.taxAmount.toFixed(2)}
+                        </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Discount:</span>
-                        <span className="font-medium">{SAR_SYMBOL} {((item.quantity * item.unitPrice * item.discount) / 100).toFixed(2)}</span>
+                        <span className="font-medium flex items-center gap-1">
+                          <SaudiRiyalIcon size={12} />
+                          {((item.quantity * item.unitPrice * item.discount) / 100).toFixed(2)}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -675,19 +684,31 @@ export default function CreateSalesInvoicePage() {
                 <div className="max-w-md ml-auto space-y-3">
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Subtotal:</span>
-                    <span className="font-medium">{SAR_SYMBOL} {totals.subtotal.toFixed(2)}</span>
+                    <span className="font-medium flex items-center gap-1">
+                      <SaudiRiyalIcon size={14} />
+                      {totals.subtotal.toFixed(2)}
+                    </span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Discount:</span>
-                    <span className="font-medium text-destructive">-{SAR_SYMBOL} {totals.discountAmount.toFixed(2)}</span>
+                    <span className="font-medium text-destructive flex items-center gap-1">
+                      -<SaudiRiyalIcon size={14} />
+                      {totals.discountAmount.toFixed(2)}
+                    </span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Tax (VAT {SAUDI_VAT_RATE}%):</span>
-                    <span className="font-medium">{SAR_SYMBOL} {totals.taxAmount.toFixed(2)}</span>
+                    <span className="font-medium flex items-center gap-1">
+                      <SaudiRiyalIcon size={14} />
+                      {totals.taxAmount.toFixed(2)}
+                    </span>
                   </div>
                   <div className="flex justify-between text-lg font-bold pt-3 border-t">
                     <span>Total Amount:</span>
-                    <span className="text-primary">{formatSAR(totals.total)}</span>
+                    <span className="text-primary flex items-center gap-1.5">
+                      <SaudiRiyalIcon size={18} />
+                      {totals.total.toFixed(2)}
+                    </span>
                   </div>
                   <div className="flex justify-between text-sm pt-2">
                     <span className="text-muted-foreground">Payment Type:</span>
