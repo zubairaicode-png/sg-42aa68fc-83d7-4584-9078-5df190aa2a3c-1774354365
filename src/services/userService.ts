@@ -1,25 +1,23 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 
-type Profile = Database["public"]["Tables"]["profiles"]["Row"];
-type ProfileInsert = Database["public"]["Tables"]["profiles"]["Insert"];
-type ProfileUpdate = Database["public"]["Tables"]["profiles"]["Update"];
+type User = Database["public"]["Tables"]["profiles"]["Row"];
 
 export const userService = {
-  // Get all users with their profiles
   async getAll() {
     const { data, error } = await supabase
       .from("profiles")
       .select(`
         *,
-        user_locations!user_locations_user_id_fkey(
+        user_locations (
           id,
-          is_primary,
           location_id,
-          business_locations!user_locations_location_id_fkey(
+          is_primary,
+          business_locations (
             id,
-            location_code,
-            location_name
+            location_name,
+            city,
+            country
           )
         )
       `)
@@ -27,26 +25,26 @@ export const userService = {
 
     if (error) {
       console.error("Error fetching users:", error);
-      throw new Error(error.message);
+      throw error;
     }
 
     return data || [];
   },
 
-  // Get user by ID
   async getById(id: string) {
     const { data, error } = await supabase
       .from("profiles")
       .select(`
         *,
-        user_locations!user_locations_user_id_fkey(
+        user_locations (
           id,
-          is_primary,
           location_id,
-          business_locations!user_locations_location_id_fkey(
+          is_primary,
+          business_locations (
             id,
-            location_code,
-            location_name
+            location_name,
+            city,
+            country
           )
         )
       `)
@@ -55,113 +53,61 @@ export const userService = {
 
     if (error) {
       console.error("Error fetching user:", error);
-      throw new Error(error.message);
+      throw error;
     }
 
     return data;
   },
 
-  // Update user profile
-  async update(id: string, data: ProfileUpdate) {
-    const { error } = await supabase
+  async update(id: string, updates: Partial<User>) {
+    const { data, error } = await supabase
       .from("profiles")
-      .update({
-        full_name: data.full_name,
-        email: data.email,
-        role: data.role,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", id);
+      .update(updates)
+      .eq("id", id)
+      .select()
+      .single();
 
     if (error) {
       console.error("Error updating user:", error);
-      throw new Error(error.message);
+      throw error;
     }
+
+    return data;
   },
 
-  // Assign locations to user
-  async assignLocations(userId: string, locationIds: string[], primaryLocationId?: string) {
-    // First, delete existing locations
-    const { error: deleteError } = await supabase
+  async assignLocations(userId: string, locationIds: string[], primaryLocationId: string) {
+    // Delete existing location assignments
+    await supabase
       .from("user_locations")
       .delete()
       .eq("user_id", userId);
 
-    if (deleteError) {
-      console.error("Error deleting user locations:", deleteError);
-      throw new Error(deleteError.message);
-    }
+    // Insert new location assignments
+    const userLocations = locationIds.map(locationId => ({
+      user_id: userId,
+      location_id: locationId,
+      is_primary: locationId === primaryLocationId
+    }));
 
-    // Then insert new locations
-    if (locationIds.length > 0) {
-      const userLocations = locationIds.map(locationId => ({
-        user_id: userId,
-        location_id: locationId,
-        is_primary: locationId === primaryLocationId,
-      }));
-
-      const { error: insertError } = await supabase
-        .from("user_locations")
-        .insert(userLocations);
-
-      if (insertError) {
-        console.error("Error assigning locations:", insertError);
-        throw new Error(insertError.message);
-      }
-    }
-  },
-
-  // Get user's assigned locations
-  async getUserLocations(userId: string) {
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from("user_locations")
-      .select(`
-        *,
-        business_locations!user_locations_location_id_fkey(*)
-      `)
-      .eq("user_id", userId);
+      .insert(userLocations);
 
     if (error) {
-      console.error("Error fetching user locations:", error);
-      throw new Error(error.message);
+      console.error("Error assigning locations:", error);
+      throw error;
     }
-
-    return data || [];
   },
 
-  // Get current user's primary location
-  async getCurrentUserPrimaryLocation() {
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (!user) return null;
-
-    const { data, error } = await supabase
-      .from("user_locations")
-      .select(`
-        business_locations!user_locations_location_id_fkey(*)
-      `)
-      .eq("user_id", user.id)
-      .eq("is_primary", true)
-      .single();
+  async delete(id: string) {
+    const { error } = await supabase
+      .from("profiles")
+      .delete()
+      .eq("id", id);
 
     if (error) {
-      console.error("Error fetching primary location:", error);
-      return null;
+      console.error("Error deleting user:", error);
+      throw error;
     }
-
-    return data?.business_locations || null;
-  },
-
-  // Check if user has access to location
-  async hasLocationAccess(userId: string, locationId: string) {
-    const { data, error } = await supabase
-      .from("user_locations")
-      .select("id")
-      .eq("user_id", userId)
-      .eq("location_id", locationId)
-      .single();
-
-    if (error) return false;
-    return !!data;
-  },
+  }
 };
