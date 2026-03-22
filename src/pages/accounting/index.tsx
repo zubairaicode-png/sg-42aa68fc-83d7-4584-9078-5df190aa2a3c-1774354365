@@ -14,6 +14,7 @@ import { Separator } from "@/components/ui/separator";
 import { CurrencyDisplay } from "@/components/ui/currency-display";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import { BarChart, Bar, LineChart, Line, PieChart as RechartsPieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
 export default function AccountingPage() {
   const [accounts, setAccounts] = useState<AccountWithBalance[]>([]);
@@ -76,6 +77,10 @@ export default function AccountingPage() {
     journalEntries: 0
   });
   const [loadingYearReport, setLoadingYearReport] = useState(false);
+
+  // Chart data state
+  const [monthlyData, setMonthlyData] = useState<any[]>([]);
+  const [expenseCategoryData, setExpenseCategoryData] = useState<any[]>([]);
 
   useEffect(() => {
     loadData();
@@ -470,6 +475,10 @@ export default function AccountingPage() {
         journalEntries: journalCount || 0
       });
 
+      // Load monthly breakdown for charts
+      await loadMonthlyData();
+      await loadExpenseCategoryData();
+
     } catch (error: any) {
       console.error("Error loading year report:", error);
       toast({
@@ -487,6 +496,127 @@ export default function AccountingPage() {
       loadYearReport();
     }
   }, [accountingYear.fiscalYearStart, accountingYear.fiscalYearEnd]);
+
+  const loadMonthlyData = async () => {
+    if (!accountingYear.fiscalYearStart || !accountingYear.fiscalYearEnd) return;
+
+    try {
+      const startDate = new Date(accountingYear.fiscalYearStart);
+      const endDate = new Date(accountingYear.fiscalYearEnd);
+      const months = [];
+
+      // Generate month-by-month data
+      let currentDate = new Date(startDate);
+      while (currentDate <= endDate) {
+        const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+        const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+
+        // Get revenue for this month
+        const { data: revenueAccounts } = await supabase
+          .from("chart_of_accounts")
+          .select("id")
+          .eq("account_type", "revenue");
+
+        let monthRevenue = 0;
+        if (revenueAccounts) {
+          for (const account of revenueAccounts) {
+            const { data: lines } = await supabase
+              .from("journal_entry_lines")
+              .select("debit, credit, journal_entries!inner(entry_date)")
+              .eq("account_id", account.id)
+              .gte("journal_entries.entry_date", monthStart.toISOString().split("T")[0])
+              .lte("journal_entries.entry_date", monthEnd.toISOString().split("T")[0]);
+
+            monthRevenue += (lines || []).reduce((sum, line) => {
+              return sum + (Number(line.credit || 0) - Number(line.debit || 0));
+            }, 0);
+          }
+        }
+
+        // Get expenses for this month
+        const { data: expenseAccounts } = await supabase
+          .from("chart_of_accounts")
+          .select("id")
+          .eq("account_type", "expense");
+
+        let monthExpenses = 0;
+        if (expenseAccounts) {
+          for (const account of expenseAccounts) {
+            const { data: lines } = await supabase
+              .from("journal_entry_lines")
+              .select("debit, credit, journal_entries!inner(entry_date)")
+              .eq("account_id", account.id)
+              .gte("journal_entries.entry_date", monthStart.toISOString().split("T")[0])
+              .lte("journal_entries.entry_date", monthEnd.toISOString().split("T")[0]);
+
+            monthExpenses += (lines || []).reduce((sum, line) => {
+              return sum + (Number(line.debit || 0) - Number(line.credit || 0));
+            }, 0);
+          }
+        }
+
+        months.push({
+          month: currentDate.toLocaleString("en-US", { month: "short", year: "numeric" }),
+          revenue: Math.round(monthRevenue),
+          expenses: Math.round(monthExpenses),
+          profit: Math.round(monthRevenue - monthExpenses)
+        });
+
+        // Move to next month
+        currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1);
+      }
+
+      setMonthlyData(months);
+    } catch (error) {
+      console.error("Error loading monthly data:", error);
+    }
+  };
+
+  const loadExpenseCategoryData = async () => {
+    if (!accountingYear.fiscalYearStart || !accountingYear.fiscalYearEnd) return;
+
+    try {
+      const { data: expenseAccounts } = await supabase
+        .from("chart_of_accounts")
+        .select("*")
+        .eq("account_type", "expense")
+        .order("account_code");
+
+      if (!expenseAccounts || expenseAccounts.length === 0) {
+        setExpenseCategoryData([]);
+        return;
+      }
+
+      const categories = await Promise.all(
+        expenseAccounts.map(async (account) => {
+          const { data: lines } = await supabase
+            .from("journal_entry_lines")
+            .select("debit, credit, journal_entries!inner(entry_date)")
+            .eq("account_id", account.id)
+            .gte("journal_entries.entry_date", accountingYear.fiscalYearStart)
+            .lte("journal_entries.entry_date", accountingYear.fiscalYearEnd);
+
+          const total = (lines || []).reduce((sum, line) => {
+            return sum + (Number(line.debit || 0) - Number(line.credit || 0));
+          }, 0);
+
+          return {
+            name: account.account_name,
+            value: Math.round(total)
+          };
+        })
+      );
+
+      // Filter out zero values and sort by value
+      const filteredCategories = categories
+        .filter(cat => cat.value > 0)
+        .sort((a, b) => b.value - a.value);
+
+      setExpenseCategoryData(filteredCategories);
+    } catch (error) {
+      console.error("Error loading expense category data:", error);
+    }
+  };
 
   const formatCurrency = (value: number | undefined | null): string => {
     return (value || 0).toLocaleString("en-US", { 
@@ -991,84 +1121,232 @@ export default function AccountingPage() {
 
                           {/* Year Report Summary */}
                           {yearReport.transactions > 0 || loadingYearReport ? (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                              {/* Income Statement Summary */}
-                              <Card>
-                                <CardHeader>
-                                  <CardTitle className="text-base">Income Statement</CardTitle>
-                                </CardHeader>
-                                <CardContent className="space-y-2">
-                                  <div className="flex justify-between">
-                                    <span className="text-sm text-muted-foreground">Total Revenue</span>
-                                    <span className="font-semibold text-success">
-                                      <CurrencyDisplay amount={yearReport.totalRevenue} />
-                                    </span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-sm text-muted-foreground">Total Expenses</span>
-                                    <span className="font-semibold text-destructive">
-                                      <CurrencyDisplay amount={yearReport.totalExpenses} />
-                                    </span>
-                                  </div>
-                                  <Separator />
-                                  <div className="flex justify-between">
-                                    <span className="font-semibold">Net Profit/Loss</span>
-                                    <span className={cn("font-bold", yearReport.netProfit >= 0 ? "text-success" : "text-destructive")}>
-                                      <CurrencyDisplay amount={Math.abs(yearReport.netProfit)} />
-                                    </span>
-                                  </div>
-                                </CardContent>
-                              </Card>
+                            <div className="space-y-6">
+                              {/* Summary Cards */}
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {/* Income Statement Summary */}
+                                <Card>
+                                  <CardHeader>
+                                    <CardTitle className="text-base">Income Statement</CardTitle>
+                                  </CardHeader>
+                                  <CardContent className="space-y-2">
+                                    <div className="flex justify-between">
+                                      <span className="text-sm text-muted-foreground">Total Revenue</span>
+                                      <span className="font-semibold text-success">
+                                        <CurrencyDisplay amount={yearReport.totalRevenue} />
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-sm text-muted-foreground">Total Expenses</span>
+                                      <span className="font-semibold text-destructive">
+                                        <CurrencyDisplay amount={yearReport.totalExpenses} />
+                                      </span>
+                                    </div>
+                                    <Separator />
+                                    <div className="flex justify-between">
+                                      <span className="font-semibold">Net Profit/Loss</span>
+                                      <span className={cn("font-bold", yearReport.netProfit >= 0 ? "text-success" : "text-destructive")}>
+                                        <CurrencyDisplay amount={Math.abs(yearReport.netProfit)} />
+                                      </span>
+                                    </div>
+                                  </CardContent>
+                                </Card>
 
-                              {/* Balance Sheet Summary */}
-                              <Card>
-                                <CardHeader>
-                                  <CardTitle className="text-base">Balance Sheet</CardTitle>
-                                </CardHeader>
-                                <CardContent className="space-y-2">
-                                  <div className="flex justify-between">
-                                    <span className="text-sm text-muted-foreground">Total Assets</span>
-                                    <span className="font-semibold">
-                                      <CurrencyDisplay amount={yearReport.totalAssets} />
-                                    </span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-sm text-muted-foreground">Total Liabilities</span>
-                                    <span className="font-semibold">
-                                      <CurrencyDisplay amount={yearReport.totalLiabilities} />
-                                    </span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-sm text-muted-foreground">Total Equity</span>
-                                    <span className="font-semibold">
-                                      <CurrencyDisplay amount={yearReport.totalEquity} />
-                                    </span>
-                                  </div>
-                                </CardContent>
-                              </Card>
+                                {/* Balance Sheet Summary */}
+                                <Card>
+                                  <CardHeader>
+                                    <CardTitle className="text-base">Balance Sheet</CardTitle>
+                                  </CardHeader>
+                                  <CardContent className="space-y-2">
+                                    <div className="flex justify-between">
+                                      <span className="text-sm text-muted-foreground">Total Assets</span>
+                                      <span className="font-semibold">
+                                        <CurrencyDisplay amount={yearReport.totalAssets} />
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-sm text-muted-foreground">Total Liabilities</span>
+                                      <span className="font-semibold">
+                                        <CurrencyDisplay amount={yearReport.totalLiabilities} />
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-sm text-muted-foreground">Total Equity</span>
+                                      <span className="font-semibold">
+                                        <CurrencyDisplay amount={yearReport.totalEquity} />
+                                      </span>
+                                    </div>
+                                  </CardContent>
+                                </Card>
 
-                              {/* Activity Summary */}
-                              <Card>
-                                <CardHeader>
-                                  <CardTitle className="text-base">Activity Summary</CardTitle>
-                                </CardHeader>
-                                <CardContent className="space-y-2">
-                                  <div className="flex justify-between">
-                                    <span className="text-sm text-muted-foreground">Journal Entries</span>
-                                    <span className="font-semibold">{yearReport.journalEntries}</span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-sm text-muted-foreground">Total Transactions</span>
-                                    <span className="font-semibold">{yearReport.transactions}</span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-sm text-muted-foreground">Avg. per Entry</span>
-                                    <span className="font-semibold">
-                                      {yearReport.journalEntries > 0 ? Math.round(yearReport.transactions / yearReport.journalEntries) : 0}
-                                    </span>
-                                  </div>
-                                </CardContent>
-                              </Card>
+                                {/* Activity Summary */}
+                                <Card>
+                                  <CardHeader>
+                                    <CardTitle className="text-base">Activity Summary</CardTitle>
+                                  </CardHeader>
+                                  <CardContent className="space-y-2">
+                                    <div className="flex justify-between">
+                                      <span className="text-sm text-muted-foreground">Journal Entries</span>
+                                      <span className="font-semibold">{yearReport.journalEntries}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-sm text-muted-foreground">Total Transactions</span>
+                                      <span className="font-semibold">{yearReport.transactions}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-sm text-muted-foreground">Avg. per Entry</span>
+                                      <span className="font-semibold">
+                                        {yearReport.journalEntries > 0 ? Math.round(yearReport.transactions / yearReport.journalEntries) : 0}
+                                      </span>
+                                    </div>
+                                  </CardContent>
+                                </Card>
+                              </div>
+
+                              {/* Charts Section */}
+                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                {/* Revenue vs Expenses Chart */}
+                                <Card>
+                                  <CardHeader>
+                                    <CardTitle className="text-base">Revenue vs Expenses (Monthly)</CardTitle>
+                                  </CardHeader>
+                                  <CardContent>
+                                    {monthlyData.length > 0 ? (
+                                      <ResponsiveContainer width="100%" height={300}>
+                                        <BarChart data={monthlyData}>
+                                          <CartesianGrid strokeDasharray="3 3" />
+                                          <XAxis dataKey="month" />
+                                          <YAxis />
+                                          <Tooltip 
+                                            formatter={(value: number) => `SAR ${value.toLocaleString()}`}
+                                            labelStyle={{ color: '#000' }}
+                                          />
+                                          <Legend />
+                                          <Bar dataKey="revenue" fill="#10b981" name="Revenue" />
+                                          <Bar dataKey="expenses" fill="#ef4444" name="Expenses" />
+                                        </BarChart>
+                                      </ResponsiveContainer>
+                                    ) : (
+                                      <div className="flex items-center justify-center h-[300px] text-muted-foreground">
+                                        No monthly data available
+                                      </div>
+                                    )}
+                                  </CardContent>
+                                </Card>
+
+                                {/* Net Profit Trend Chart */}
+                                <Card>
+                                  <CardHeader>
+                                    <CardTitle className="text-base">Net Profit Trend</CardTitle>
+                                  </CardHeader>
+                                  <CardContent>
+                                    {monthlyData.length > 0 ? (
+                                      <ResponsiveContainer width="100%" height={300}>
+                                        <LineChart data={monthlyData}>
+                                          <CartesianGrid strokeDasharray="3 3" />
+                                          <XAxis dataKey="month" />
+                                          <YAxis />
+                                          <Tooltip 
+                                            formatter={(value: number) => `SAR ${value.toLocaleString()}`}
+                                            labelStyle={{ color: '#000' }}
+                                          />
+                                          <Legend />
+                                          <Line 
+                                            type="monotone" 
+                                            dataKey="profit" 
+                                            stroke="#8b5cf6" 
+                                            strokeWidth={2}
+                                            name="Net Profit"
+                                            dot={{ fill: '#8b5cf6', r: 4 }}
+                                          />
+                                        </LineChart>
+                                      </ResponsiveContainer>
+                                    ) : (
+                                      <div className="flex items-center justify-center h-[300px] text-muted-foreground">
+                                        No profit trend data available
+                                      </div>
+                                    )}
+                                  </CardContent>
+                                </Card>
+
+                                {/* Financial Position Pie Chart */}
+                                <Card>
+                                  <CardHeader>
+                                    <CardTitle className="text-base">Financial Position</CardTitle>
+                                  </CardHeader>
+                                  <CardContent>
+                                    {yearReport.totalAssets > 0 || yearReport.totalLiabilities > 0 || yearReport.totalEquity > 0 ? (
+                                      <ResponsiveContainer width="100%" height={300}>
+                                        <RechartsPieChart>
+                                          <Pie
+                                            data={[
+                                              { name: 'Assets', value: Math.round(yearReport.totalAssets) },
+                                              { name: 'Liabilities', value: Math.round(yearReport.totalLiabilities) },
+                                              { name: 'Equity', value: Math.round(yearReport.totalEquity) }
+                                            ]}
+                                            cx="50%"
+                                            cy="50%"
+                                            labelLine={false}
+                                            label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                                            outerRadius={80}
+                                            fill="#8884d8"
+                                            dataKey="value"
+                                          >
+                                            <Cell fill="#3b82f6" />
+                                            <Cell fill="#ef4444" />
+                                            <Cell fill="#10b981" />
+                                          </Pie>
+                                          <Tooltip 
+                                            formatter={(value: number) => `SAR ${value.toLocaleString()}`}
+                                          />
+                                          <Legend />
+                                        </RechartsPieChart>
+                                      </ResponsiveContainer>
+                                    ) : (
+                                      <div className="flex items-center justify-center h-[300px] text-muted-foreground">
+                                        No financial position data available
+                                      </div>
+                                    )}
+                                  </CardContent>
+                                </Card>
+
+                                {/* Expense Breakdown Pie Chart */}
+                                <Card>
+                                  <CardHeader>
+                                    <CardTitle className="text-base">Expense Categories</CardTitle>
+                                  </CardHeader>
+                                  <CardContent>
+                                    {expenseCategoryData.length > 0 ? (
+                                      <ResponsiveContainer width="100%" height={300}>
+                                        <RechartsPieChart>
+                                          <Pie
+                                            data={expenseCategoryData}
+                                            cx="50%"
+                                            cy="50%"
+                                            labelLine={false}
+                                            label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                                            outerRadius={80}
+                                            fill="#8884d8"
+                                            dataKey="value"
+                                          >
+                                            {expenseCategoryData.map((entry, index) => (
+                                              <Cell key={`cell-${index}`} fill={`hsl(${index * 45}, 70%, 50%)`} />
+                                            ))}
+                                          </Pie>
+                                          <Tooltip 
+                                            formatter={(value: number) => `SAR ${value.toLocaleString()}`}
+                                          />
+                                          <Legend />
+                                        </RechartsPieChart>
+                                      </ResponsiveContainer>
+                                    ) : (
+                                      <div className="flex items-center justify-center h-[300px] text-muted-foreground">
+                                        No expense data available
+                                      </div>
+                                    )}
+                                  </CardContent>
+                                </Card>
+                              </div>
                             </div>
                           ) : (
                             <div className="text-center py-8 text-muted-foreground">
