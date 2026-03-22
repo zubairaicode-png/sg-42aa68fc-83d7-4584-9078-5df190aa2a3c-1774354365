@@ -2,8 +2,14 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 
 type ChartOfAccount = Database["public"]["Tables"]["chart_of_accounts"]["Row"];
+type ChartOfAccountInsert = Database["public"]["Tables"]["chart_of_accounts"]["Insert"];
+type ChartOfAccountUpdate = Database["public"]["Tables"]["chart_of_accounts"]["Update"];
+
 type JournalEntry = Database["public"]["Tables"]["journal_entries"]["Row"];
+type JournalEntryInsert = Database["public"]["Tables"]["journal_entries"]["Insert"];
+
 type JournalEntryLine = Database["public"]["Tables"]["journal_entry_lines"]["Row"];
+type JournalEntryLineInsert = Database["public"]["Tables"]["journal_entry_lines"]["Insert"];
 
 export interface AccountWithBalance extends ChartOfAccount {
   debit: number;
@@ -50,14 +56,14 @@ export const accountingService = {
     // Calculate balances for each account
     return accounts.map(account => {
       const accountLines = lines?.filter(line => line.account_id === account.id) || [];
-      const debit = accountLines.reduce((sum, line) => sum + (line.debit || 0), 0);
-      const credit = accountLines.reduce((sum, line) => sum + (line.credit || 0), 0);
+      const debit = accountLines.reduce((sum, line) => sum + Number(line.debit || 0), 0);
+      const credit = accountLines.reduce((sum, line) => sum + Number(line.credit || 0), 0);
 
       return {
         ...account,
         debit,
         credit,
-        current_balance: account.opening_balance + debit - credit
+        current_balance: Number(account.opening_balance || 0) + debit - credit
       };
     });
   },
@@ -79,7 +85,7 @@ export const accountingService = {
   },
 
   // Create account
-  async createAccount(account: Partial<ChartOfAccount>): Promise<ChartOfAccount> {
+  async createAccount(account: ChartOfAccountInsert): Promise<ChartOfAccount> {
     const { data, error } = await supabase
       .from("chart_of_accounts")
       .insert(account)
@@ -95,7 +101,7 @@ export const accountingService = {
   },
 
   // Update account
-  async updateAccount(id: string, account: Partial<ChartOfAccount>): Promise<ChartOfAccount> {
+  async updateAccount(id: string, account: ChartOfAccountUpdate): Promise<ChartOfAccount> {
     const { data, error } = await supabase
       .from("chart_of_accounts")
       .update({ ...account, updated_at: new Date().toISOString() })
@@ -119,7 +125,7 @@ export const accountingService = {
       .order("entry_date", { ascending: false });
 
     if (entriesError) {
-      console.error("Error fetching journal entries:", error);
+      console.error("Error fetching journal entries:", entriesError);
       throw entriesError;
     }
 
@@ -139,8 +145,8 @@ export const accountingService = {
     // Combine entries with their lines
     return entries.map(entry => {
       const entryLines = lines?.filter(line => line.journal_entry_id === entry.id) || [];
-      const totalDebit = entryLines.reduce((sum, line) => sum + (line.debit || 0), 0);
-      const totalCredit = entryLines.reduce((sum, line) => sum + (line.credit || 0), 0);
+      const totalDebit = entryLines.reduce((sum, line) => sum + Number(line.debit || 0), 0);
+      const totalCredit = entryLines.reduce((sum, line) => sum + Number(line.credit || 0), 0);
 
       return {
         ...entry,
@@ -153,8 +159,8 @@ export const accountingService = {
 
   // Create journal entry
   async createJournalEntry(
-    entry: Partial<JournalEntry>,
-    lines: Partial<JournalEntryLine>[]
+    entry: Omit<JournalEntryInsert, "entry_number">,
+    lines: Omit<JournalEntryLineInsert, "journal_entry_id">[]
   ): Promise<JournalEntry> {
     // Generate entry number
     const { data: lastEntry } = await supabase
@@ -167,13 +173,15 @@ export const accountingService = {
     let entryNumber = "JE-0001";
     if (lastEntry?.entry_number) {
       const lastNum = parseInt(lastEntry.entry_number.split("-")[1]);
-      entryNumber = `JE-${String(lastNum + 1).padStart(4, "0")}`;
+      if (!isNaN(lastNum)) {
+        entryNumber = `JE-${String(lastNum + 1).padStart(4, "0")}`;
+      }
     }
 
     // Create entry
     const { data: newEntry, error: entryError } = await supabase
       .from("journal_entries")
-      .insert({ ...entry, entry_number: entryNumber })
+      .insert({ ...entry, entry_number: entryNumber } as JournalEntryInsert)
       .select()
       .single();
 
@@ -186,7 +194,7 @@ export const accountingService = {
     const linesWithEntryId = lines.map(line => ({
       ...line,
       journal_entry_id: newEntry.id
-    }));
+    })) as JournalEntryLineInsert[];
 
     const { error: linesError } = await supabase
       .from("journal_entry_lines")
@@ -206,23 +214,23 @@ export const accountingService = {
 
     const totalAssets = accounts
       .filter(a => a.account_type === "asset")
-      .reduce((sum, a) => sum + (a.current_balance || 0), 0);
+      .reduce((sum, a) => sum + Number(a.current_balance || 0), 0);
 
     const totalLiabilities = accounts
       .filter(a => a.account_type === "liability")
-      .reduce((sum, a) => sum + (a.current_balance || 0), 0);
+      .reduce((sum, a) => sum + Number(a.current_balance || 0), 0);
 
     const totalEquity = accounts
       .filter(a => a.account_type === "equity")
-      .reduce((sum, a) => sum + (a.current_balance || 0), 0);
+      .reduce((sum, a) => sum + Number(a.current_balance || 0), 0);
 
     const totalRevenue = accounts
       .filter(a => a.account_type === "revenue")
-      .reduce((sum, a) => sum + (a.current_balance || 0), 0);
+      .reduce((sum, a) => sum + Number(a.current_balance || 0), 0);
 
     const totalExpenses = accounts
       .filter(a => a.account_type === "expense")
-      .reduce((sum, a) => sum + (a.current_balance || 0), 0);
+      .reduce((sum, a) => sum + Number(a.current_balance || 0), 0);
 
     const netIncome = totalRevenue - totalExpenses;
 

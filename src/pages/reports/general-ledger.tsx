@@ -1,277 +1,151 @@
 import { useState, useEffect } from "react";
-import { SEO } from "@/components/SEO";
+import Head from "next/head";
 import { DashboardLayout } from "@/components/layouts/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { BookOpen, Download, Printer, Calendar } from "lucide-react";
-import { ACCOUNTS } from "@/lib/constants";
-
-interface JournalEntry {
-  id: string;
-  entryNumber: string;
-  date: string;
-  description: string;
-  reference: string;
-  lines: Array<{
-    account: string;
-    description: string;
-    debit: number;
-    credit: number;
-  }>;
-}
-
-interface LedgerLine {
-  date: string;
-  reference: string;
-  description: string;
-  debit: number;
-  credit: number;
-  balance: number;
-}
+import { Button } from "@/components/ui/button";
+import { Printer, Download, Filter } from "lucide-react";
+import { accountingService, type JournalEntryWithLines, type AccountWithBalance } from "@/services/accountingService";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function GeneralLedgerReport() {
-  const [dateFrom, setDateFrom] = useState("2026-01-01");
-  const [dateTo, setDateTo] = useState("2026-12-31");
-  const [selectedAccount, setSelectedAccount] = useState("1100");
-  const [ledgerData, setLedgerData] = useState<LedgerLine[]>([]);
-  const [accountName, setAccountName] = useState("");
-  const [openingBalance, setOpeningBalance] = useState(0);
-  const [closingBalance, setClosingBalance] = useState(0);
+  const [entries, setEntries] = useState<JournalEntryWithLines[]>([]);
+  const [accounts, setAccounts] = useState<AccountWithBalance[]>([]);
+  const [selectedAccount, setSelectedAccount] = useState<string>("all");
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    generateLedger();
-  }, [selectedAccount, dateFrom, dateTo]);
+    loadData();
+  }, []);
 
-  const generateLedger = () => {
-    // Get account name
-    const account = ACCOUNTS.find(acc => acc.code === selectedAccount);
-    setAccountName(account ? `${account.code} - ${account.name}` : "");
-
-    // Get journal entries from localStorage
-    const entriesData = localStorage.getItem("journalEntries");
-    const entries: JournalEntry[] = entriesData ? JSON.parse(entriesData) : [];
-
-    // Filter entries by date range
-    const filteredEntries = entries.filter(entry => {
-      const entryDate = new Date(entry.date);
-      return entryDate >= new Date(dateFrom) && entryDate <= new Date(dateTo);
-    });
-
-    // Extract lines for selected account
-    const ledgerLines: LedgerLine[] = [];
-    let runningBalance = openingBalance;
-
-    filteredEntries.forEach(entry => {
-      entry.lines.forEach(line => {
-        if (line.account === selectedAccount) {
-          const debit = line.debit || 0;
-          const credit = line.credit || 0;
-          
-          // For assets and expenses, debits increase balance
-          // For liabilities, equity, and revenue, credits increase balance
-          const accountType = selectedAccount.charAt(0);
-          if (accountType === '1' || accountType === '5') { // Assets or Expenses
-            runningBalance = runningBalance + debit - credit;
-          } else { // Liabilities, Equity, Revenue
-            runningBalance = runningBalance + credit - debit;
-          }
-
-          ledgerLines.push({
-            date: entry.date,
-            reference: entry.entryNumber,
-            description: line.description || entry.description,
-            debit,
-            credit,
-            balance: runningBalance
-          });
-        }
-      });
-    });
-
-    setLedgerData(ledgerLines);
-    setClosingBalance(runningBalance);
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      const [accountsData, entriesData] = await Promise.all([
+        accountingService.getAccountsWithBalances(),
+        accountingService.getAllJournalEntries()
+      ]);
+      setAccounts(accountsData);
+      setEntries(entriesData);
+    } catch (error) {
+      console.error("Error loading general ledger:", error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handlePrint = () => {
-    window.print();
+  const formatCurrency = (amount: number | null | undefined) => {
+    return (amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
 
-  const totalDebits = ledgerData.reduce((sum, line) => sum + line.debit, 0);
-  const totalCredits = ledgerData.reduce((sum, line) => sum + line.credit, 0);
+  // Filter entries based on selected account
+  const filteredEntries = selectedAccount === "all" 
+    ? entries 
+    : entries.filter(entry => entry.lines.some(line => line.account_id === selectedAccount));
 
   return (
     <>
-      <SEO 
-        title="General Ledger - Reports"
-        description="View detailed general ledger for any account"
-      />
+      <Head>
+        <title>General Ledger - Accounting</title>
+      </Head>
       <DashboardLayout>
         <div className="space-y-6">
-          <div className="flex justify-between items-center no-print">
+          <div className="flex justify-between items-center">
             <div>
-              <h1 className="text-3xl font-bold font-heading flex items-center gap-2">
-                <BookOpen className="h-8 w-8" />
-                General Ledger
-              </h1>
-              <p className="text-muted-foreground mt-1">دفتر الأستاذ العام - Account transaction history</p>
+              <h1 className="text-3xl font-bold tracking-tight">General Ledger</h1>
+              <p className="text-muted-foreground">Detailed view of all account transactions</p>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={handlePrint}>
+              <Button variant="outline" onClick={() => window.print()}>
                 <Printer className="mr-2 h-4 w-4" />
                 Print
               </Button>
-              <Button>
+              <Button variant="outline">
                 <Download className="mr-2 h-4 w-4" />
-                Export PDF
+                Export CSV
               </Button>
             </div>
           </div>
 
-          <Card className="no-print">
+          <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Calendar className="h-5 w-5" />
-                Report Filters
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4 md:grid-cols-4">
-                <div className="space-y-2">
-                  <Label htmlFor="account">Account</Label>
+              <div className="flex justify-between items-center">
+                <CardTitle>Transaction History</CardTitle>
+                <div className="flex items-center gap-2">
+                  <Filter className="h-4 w-4 text-muted-foreground" />
                   <Select value={selectedAccount} onValueChange={setSelectedAccount}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select account" />
+                    <SelectTrigger className="w-[250px]">
+                      <SelectValue placeholder="Filter by Account" />
                     </SelectTrigger>
                     <SelectContent>
-                      {ACCOUNTS.map((account) => (
-                        <SelectItem key={account.code} value={account.code}>
-                          {account.code} - {account.name}
+                      <SelectItem value="all">All Accounts</SelectItem>
+                      {accounts.map(account => (
+                        <SelectItem key={account.id} value={account.id}>
+                          {account.account_code} - {account.account_name}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="dateFrom">From Date</Label>
-                  <Input
-                    id="dateFrom"
-                    type="date"
-                    value={dateFrom}
-                    onChange={(e) => setDateFrom(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="dateTo">To Date</Label>
-                  <Input
-                    id="dateTo"
-                    type="date"
-                    value={dateTo}
-                    onChange={(e) => setDateTo(e.target.value)}
-                  />
-                </div>
-                <div className="flex items-end">
-                  <Button className="w-full" onClick={generateLedger}>
-                    Generate Report
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="print-full-width">
-            <CardHeader className="print-header">
-              <div className="text-center space-y-2">
-                <h2 className="text-2xl font-bold">General Ledger Report</h2>
-                <p className="text-lg font-semibold">{accountName}</p>
-                <p className="text-sm text-muted-foreground">
-                  Period: {new Date(dateFrom).toLocaleDateString()} to {new Date(dateTo).toLocaleDateString()}
-                </p>
               </div>
             </CardHeader>
             <CardContent>
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Reference</TableHead>
-                      <TableHead>Description</TableHead>
-                      <TableHead className="text-right">Debit (SAR)</TableHead>
-                      <TableHead className="text-right">Credit (SAR)</TableHead>
-                      <TableHead className="text-right">Balance (SAR)</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {openingBalance !== 0 && (
-                      <TableRow className="font-semibold bg-muted/50">
-                        <TableCell colSpan={3}>Opening Balance</TableCell>
-                        <TableCell></TableCell>
-                        <TableCell></TableCell>
-                        <TableCell className="text-right">
-                          {openingBalance.toFixed(2)}
-                        </TableCell>
-                      </TableRow>
-                    )}
-                    {ledgerData.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                          No transactions found for the selected period
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      ledgerData.map((line, idx) => (
-                        <TableRow key={idx}>
-                          <TableCell>{new Date(line.date).toLocaleDateString()}</TableCell>
-                          <TableCell>{line.reference}</TableCell>
-                          <TableCell>{line.description}</TableCell>
-                          <TableCell className="text-right">
-                            {line.debit > 0 ? line.debit.toFixed(2) : "-"}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {line.credit > 0 ? line.credit.toFixed(2) : "-"}
-                          </TableCell>
-                          <TableCell className="text-right font-medium">
-                            {line.balance.toFixed(2)}
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                    {ledgerData.length > 0 && (
-                      <TableRow className="font-bold bg-muted">
-                        <TableCell colSpan={3}>Totals</TableCell>
-                        <TableCell className="text-right">{totalDebits.toFixed(2)}</TableCell>
-                        <TableCell className="text-right">{totalCredits.toFixed(2)}</TableCell>
-                        <TableCell className="text-right">{closingBalance.toFixed(2)}</TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
+              {loading ? (
+                <div className="py-8 text-center">Loading transactions...</div>
+              ) : (
+                <div className="space-y-8">
+                  {filteredEntries.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">No transactions found.</div>
+                  ) : (
+                    filteredEntries.map(entry => (
+                      <div key={entry.id} className="border rounded-md overflow-hidden">
+                        <div className="bg-muted/50 p-3 border-b flex justify-between items-center">
+                          <div>
+                            <span className="font-semibold">{entry.entry_number}</span>
+                            <span className="text-muted-foreground ml-4">{new Date(entry.entry_date).toLocaleDateString()}</span>
+                          </div>
+                          <div className="text-sm font-medium">{entry.description}</div>
+                        </div>
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Account</TableHead>
+                              <TableHead>Description</TableHead>
+                              <TableHead className="text-right">Debit</TableHead>
+                              <TableHead className="text-right">Credit</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {entry.lines
+                              .filter(line => selectedAccount === "all" || line.account_id === selectedAccount)
+                              .map(line => {
+                                const account = accounts.find(a => a.id === line.account_id);
+                                return (
+                                  <TableRow key={line.id}>
+                                    <TableCell className="font-medium">
+                                      {account ? `${account.account_code} - ${account.account_name}` : "Unknown Account"}
+                                    </TableCell>
+                                    <TableCell>{line.description || entry.description}</TableCell>
+                                    <TableCell className="text-right">
+                                      {(line.debit || 0) > 0 ? formatCurrency(line.debit) : ""}
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                      {(line.credit || 0) > 0 ? formatCurrency(line.credit) : ""}
+                                    </TableCell>
+                                  </TableRow>
+                                );
+                              })}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
       </DashboardLayout>
-
-      <style jsx global>{`
-        @media print {
-          .no-print {
-            display: none !important;
-          }
-          .print-full-width {
-            width: 100%;
-            box-shadow: none;
-            border: none;
-          }
-          .print-header {
-            border-bottom: 2px solid #000;
-            margin-bottom: 1rem;
-          }
-        }
-      `}</style>
     </>
   );
 }

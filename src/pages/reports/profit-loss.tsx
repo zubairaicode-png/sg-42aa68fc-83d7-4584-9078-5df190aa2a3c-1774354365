@@ -1,331 +1,130 @@
 import { useState, useEffect } from "react";
-import { SEO } from "@/components/SEO";
+import Head from "next/head";
 import { DashboardLayout } from "@/components/layouts/DashboardLayout";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { ArrowLeft, Download, TrendingUp, TrendingDown } from "lucide-react";
-import Link from "next/link";
-import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
-import { AuthGuard } from "@/components/AuthGuard";
+import { Button } from "@/components/ui/button";
+import { Printer, Download } from "lucide-react";
+import { accountingService, type AccountWithBalance } from "@/services/accountingService";
 
-interface ProfitLossData {
-  revenue: {
-    sales: number;
-    returns: number;
-    netRevenue: number;
-  };
-  cogs: {
-    purchases: number;
-    grossProfit: number;
-  };
-  expenses: {
-    operating: number;
-    other: number;
-    totalExpenses: number;
-  };
-  netProfit: number;
-  profitMargin: number;
-}
-
-export default function ProfitLossPage() {
-  const { toast } = useToast();
-  const [dateFrom, setDateFrom] = useState("2026-03-01");
-  const [dateTo, setDateTo] = useState("2026-03-21");
-  const [loading, setLoading] = useState(false);
-  const [data, setData] = useState<ProfitLossData>({
-    revenue: { sales: 0, returns: 0, netRevenue: 0 },
-    cogs: { purchases: 0, grossProfit: 0 },
-    expenses: { operating: 0, other: 0, totalExpenses: 0 },
-    netProfit: 0,
-    profitMargin: 0,
-  });
+export default function ProfitLossReport() {
+  const [revenueAccounts, setRevenueAccounts] = useState<AccountWithBalance[]>([]);
+  const [expenseAccounts, setExpenseAccounts] = useState<AccountWithBalance[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchProfitLossData();
-  }, [dateFrom, dateTo]);
+    loadData();
+  }, []);
 
-  const fetchProfitLossData = async () => {
+  const loadData = async () => {
     try {
       setLoading(true);
-
-      // Fetch sales revenue
-      const { data: salesData, error: salesError } = await (supabase as any)
-        .from("sales_invoices")
-        .select("total_amount")
-        .gte("invoice_date", dateFrom)
-        .lte("invoice_date", dateTo)
-        .eq("status", "paid");
-
-      if (salesError) throw salesError;
-
-      // Fetch sales returns
-      const { data: returnsData, error: returnsError } = await (supabase as any)
-        .from("sales_returns")
-        .select("total_amount")
-        .gte("return_date", dateFrom)
-        .lte("return_date", dateTo);
-
-      if (returnsError) throw returnsError;
-
-      // Fetch expenses (using as COGS and Operating Expenses)
-      const { data: expensesData, error: expensesError } = await (supabase as any)
-        .from("expenses")
-        .select("amount, category")
-        .gte("expense_date", dateFrom)
-        .lte("expense_date", dateTo);
-
-      if (expensesError) throw expensesError;
-
-      // Calculate totals
-      const totalSales = salesData?.reduce((sum: number, inv: any) => sum + inv.total_amount, 0) || 0;
-      const totalReturns = returnsData?.reduce((sum: number, ret: any) => sum + ret.total_amount, 0) || 0;
-      const netRevenue = totalSales - totalReturns;
-
-      // Split expenses into COGS (Inventory/Purchases) and Operating Expenses
-      const cogsExpenses = expensesData?.filter((e: any) => e.category?.toLowerCase().includes('inventory') || e.category?.toLowerCase().includes('purchase')) || [];
-      const operatingExpenses = expensesData?.filter((e: any) => !e.category?.toLowerCase().includes('inventory') && !e.category?.toLowerCase().includes('purchase')) || [];
-
-      let totalPurchases = 0;
-      if (cogsExpenses) {
-        for (const exp of cogsExpenses) {
-          totalPurchases += Number(exp.amount || 0);
-        }
-      }
-
-      const grossProfit = netRevenue - totalPurchases;
-
-      let totalOperatingExpenses = 0;
-      if (operatingExpenses) {
-        for (const exp of operatingExpenses) {
-          totalOperatingExpenses += Number(exp.amount || 0);
-        }
-      }
-
-      const netProfit = grossProfit - totalOperatingExpenses;
-      const profitMargin = netRevenue > 0 ? (netProfit / netRevenue) * 100 : 0;
-
-      setData({
-        revenue: {
-          sales: totalSales,
-          returns: totalReturns,
-          netRevenue,
-        },
-        cogs: {
-          purchases: totalPurchases,
-          grossProfit,
-        },
-        expenses: {
-          operating: totalOperatingExpenses,
-          other: 0,
-          totalExpenses: totalOperatingExpenses,
-        },
-        netProfit,
-        profitMargin,
-      });
+      const accounts = await accountingService.getAccountsWithBalances();
+      
+      setRevenueAccounts(accounts.filter(a => a.account_type === "revenue" && Number(a.current_balance || 0) !== 0));
+      setExpenseAccounts(accounts.filter(a => a.account_type === "expense" && Number(a.current_balance || 0) !== 0));
     } catch (error) {
-      console.error("Error fetching profit & loss data:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load profit & loss statement",
-        variant: "destructive",
-      });
+      console.error("Error loading P&L:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleExport = () => {
-    toast({
-      title: "Export Started",
-      description: "Generating PDF report...",
-    });
-    // TODO: Implement PDF export
+  const totalRevenue = revenueAccounts.reduce((sum, account) => sum + Number(account.current_balance || 0), 0);
+  const totalExpenses = expenseAccounts.reduce((sum, account) => sum + Number(account.current_balance || 0), 0);
+  const netIncome = totalRevenue - totalExpenses;
+
+  const formatCurrency = (amount: number | null | undefined) => {
+    return (amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
 
   return (
     <>
-      <SEO 
-        title="Profit & Loss Statement - Saudi ERP System"
-        description="View your profit and loss statement"
-      />
-      <AuthGuard>
-        <DashboardLayout>
-          <div className="space-y-6">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <Link href="/reports">
-                  <Button variant="outline" size="icon">
-                    <ArrowLeft className="h-4 w-4" />
-                  </Button>
-                </Link>
-                <div>
-                  <h1 className="text-3xl font-bold font-heading">Profit & Loss Statement</h1>
-                  <p className="text-muted-foreground mt-1">Income statement showing revenue, expenses, and net profit</p>
-                </div>
-              </div>
-              <Button onClick={handleExport}>
-                <Download className="h-4 w-4 mr-2" />
-                Export PDF
+      <Head>
+        <title>Profit & Loss - Accounting</title>
+      </Head>
+      <DashboardLayout>
+        <div className="space-y-6">
+          <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">Profit & Loss</h1>
+              <p className="text-muted-foreground">Income statement summary</p>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => window.print()}>
+                <Printer className="mr-2 h-4 w-4" />
+                Print
+              </Button>
+              <Button variant="outline">
+                <Download className="mr-2 h-4 w-4" />
+                Export CSV
               </Button>
             </div>
-
-            {/* Date Range Filter */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Report Period</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-4 md:grid-cols-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="dateFrom">From Date</Label>
-                    <Input
-                      id="dateFrom"
-                      type="date"
-                      value={dateFrom}
-                      onChange={(e) => setDateFrom(e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="dateTo">To Date</Label>
-                    <Input
-                      id="dateTo"
-                      type="date"
-                      value={dateTo}
-                      onChange={(e) => setDateTo(e.target.value)}
-                    />
-                  </div>
-                  <div className="flex items-end">
-                    <Button onClick={fetchProfitLossData} className="w-full" disabled={loading}>
-                      {loading ? "Loading..." : "Generate Report"}
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Summary Cards */}
-            <div className="grid gap-4 md:grid-cols-4">
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Net Revenue</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold font-heading text-primary">SAR {data.revenue.netRevenue.toLocaleString()}</div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Gross Profit</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold font-heading text-success">SAR {data.cogs.grossProfit.toLocaleString()}</div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Total Expenses</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold font-heading text-destructive">SAR {data.expenses.totalExpenses.toLocaleString()}</div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Net Profit</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className={`text-2xl font-bold font-heading flex items-center gap-2 ${data.netProfit >= 0 ? "text-success" : "text-destructive"}`}>
-                    {data.netProfit >= 0 ? <TrendingUp className="h-5 w-5" /> : <TrendingDown className="h-5 w-5" />}
-                    SAR {data.netProfit.toLocaleString()}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Profit & Loss Statement */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Statement Details</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-6">
-                  {/* Revenue Section */}
-                  <div className="space-y-3">
-                    <h3 className="font-semibold text-lg border-b pb-2">Revenue</h3>
-                    <div className="space-y-2 pl-4">
-                      <div className="flex justify-between">
-                        <span>Sales</span>
-                        <span className="font-medium">SAR {data.revenue.sales.toLocaleString()}</span>
-                      </div>
-                      <div className="flex justify-between text-destructive">
-                        <span>Less: Sales Returns</span>
-                        <span className="font-medium">SAR ({data.revenue.returns.toLocaleString()})</span>
-                      </div>
-                      <div className="flex justify-between font-bold border-t pt-2">
-                        <span>Net Revenue</span>
-                        <span>SAR {data.revenue.netRevenue.toLocaleString()}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Cost of Goods Sold */}
-                  <div className="space-y-3">
-                    <h3 className="font-semibold text-lg border-b pb-2">Cost of Goods Sold (COGS)</h3>
-                    <div className="space-y-2 pl-4">
-                      <div className="flex justify-between">
-                        <span>Purchases</span>
-                        <span className="font-medium">SAR {data.cogs.purchases.toLocaleString()}</span>
-                      </div>
-                      <div className="flex justify-between font-bold border-t pt-2 text-success">
-                        <span>Gross Profit</span>
-                        <span>SAR {data.cogs.grossProfit.toLocaleString()}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Operating Expenses */}
-                  <div className="space-y-3">
-                    <h3 className="font-semibold text-lg border-b pb-2">Operating Expenses</h3>
-                    <div className="space-y-2 pl-4">
-                      <div className="flex justify-between">
-                        <span>Operating Expenses</span>
-                        <span className="font-medium">SAR {data.expenses.operating.toLocaleString()}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Other Expenses</span>
-                        <span className="font-medium">SAR {data.expenses.other.toLocaleString()}</span>
-                      </div>
-                      <div className="flex justify-between font-bold border-t pt-2">
-                        <span>Total Expenses</span>
-                        <span>SAR {data.expenses.totalExpenses.toLocaleString()}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Net Profit */}
-                  <div className="bg-primary/5 p-4 rounded-lg">
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <h3 className="font-bold text-xl">Net Profit / (Loss)</h3>
-                        <p className="text-sm text-muted-foreground">
-                          Profit Margin: {data.profitMargin.toFixed(2)}%
-                        </p>
-                      </div>
-                      <div className={`text-3xl font-bold font-heading ${data.netProfit >= 0 ? "text-success" : "text-destructive"}`}>
-                        SAR {data.netProfit.toLocaleString()}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
           </div>
-        </DashboardLayout>
-      </AuthGuard>
+
+          <Card className="max-w-4xl mx-auto">
+            <CardHeader className="text-center pb-8 border-b">
+              <CardTitle className="text-2xl">ZATCA Accounting System</CardTitle>
+              <div className="text-muted-foreground">Profit & Loss Statement</div>
+              <div className="text-sm text-muted-foreground">For the period ending {new Date().toLocaleDateString()}</div>
+            </CardHeader>
+            <CardContent className="pt-6">
+              {loading ? (
+                <div className="py-8 text-center">Loading data...</div>
+              ) : (
+                <div className="space-y-8">
+                  {/* Revenue Section */}
+                  <div>
+                    <h3 className="text-lg font-bold border-b pb-2 mb-4 text-green-700">Revenue</h3>
+                    <div className="space-y-3">
+                      {revenueAccounts.length > 0 ? revenueAccounts.map((account) => (
+                        <div key={account.id} className="flex justify-between text-sm">
+                          <span>{account.account_code} - {account.account_name}</span>
+                          <span>{formatCurrency(account.current_balance)}</span>
+                        </div>
+                      )) : (
+                        <div className="text-sm text-muted-foreground">No revenue recorded yet.</div>
+                      )}
+                      <div className="flex justify-between font-bold pt-3 border-t">
+                        <span>Total Revenue</span>
+                        <span>SAR {formatCurrency(totalRevenue)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Expenses Section */}
+                  <div>
+                    <h3 className="text-lg font-bold border-b pb-2 mb-4 text-red-700">Expenses</h3>
+                    <div className="space-y-3">
+                      {expenseAccounts.length > 0 ? expenseAccounts.map((account) => (
+                        <div key={account.id} className="flex justify-between text-sm">
+                          <span>{account.account_code} - {account.account_name}</span>
+                          <span>{formatCurrency(account.current_balance)}</span>
+                        </div>
+                      )) : (
+                        <div className="text-sm text-muted-foreground">No expenses recorded yet.</div>
+                      )}
+                      <div className="flex justify-between font-bold pt-3 border-t">
+                        <span>Total Expenses</span>
+                        <span>SAR {formatCurrency(totalExpenses)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Net Income Section */}
+                  <div className="mt-8 p-4 bg-muted/50 rounded-lg border">
+                    <div className="flex justify-between items-center text-xl font-bold">
+                      <span>Net Income</span>
+                      <span className={netIncome >= 0 ? "text-green-600" : "text-red-600"}>
+                        SAR {formatCurrency(netIncome)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </DashboardLayout>
     </>
   );
 }
