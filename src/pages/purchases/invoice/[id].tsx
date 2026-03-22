@@ -113,7 +113,7 @@ export default function PurchaseInvoiceViewPage() {
       }
 
       console.log("Purchase invoice loaded:", data);
-      setInvoice(data as InvoiceData);
+      setInvoice(data as unknown as InvoiceData);
     } catch (error: any) {
       console.error("Error loading purchase invoice:", error);
       toast({

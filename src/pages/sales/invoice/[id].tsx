@@ -114,7 +114,7 @@ export default function InvoiceViewPage() {
       }
 
       console.log("Invoice loaded:", data);
-      setInvoice(data as InvoiceData);
+      setInvoice(data as unknown as InvoiceData);
     } catch (error: any) {
       console.error("Error loading invoice:", error);
       toast({
