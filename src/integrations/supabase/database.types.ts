@@ -1751,6 +1751,100 @@ export type Database = {
         }
         Relationships: []
       }
+      subscription_servers: {
+        Row: {
+          backup: boolean | null
+          backup_option: string | null
+          contact_domain: string | null
+          cpu_cores: number | null
+          created_at: string | null
+          created_by: string | null
+          customer_id: string
+          disk_gb: number | null
+          id: string
+          notes: string | null
+          os_type: string | null
+          pc_name: string | null
+          port: number | null
+          ram_gb: number | null
+          rdp_port: number | null
+          server_ip: string
+          software_version: string | null
+          status: string | null
+          subscription_date: string
+          subscription_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          backup?: boolean | null
+          backup_option?: string | null
+          contact_domain?: string | null
+          cpu_cores?: number | null
+          created_at?: string | null
+          created_by?: string | null
+          customer_id: string
+          disk_gb?: number | null
+          id?: string
+          notes?: string | null
+          os_type?: string | null
+          pc_name?: string | null
+          port?: number | null
+          ram_gb?: number | null
+          rdp_port?: number | null
+          server_ip: string
+          software_version?: string | null
+          status?: string | null
+          subscription_date: string
+          subscription_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          backup?: boolean | null
+          backup_option?: string | null
+          contact_domain?: string | null
+          cpu_cores?: number | null
+          created_at?: string | null
+          created_by?: string | null
+          customer_id?: string
+          disk_gb?: number | null
+          id?: string
+          notes?: string | null
+          os_type?: string | null
+          pc_name?: string | null
+          port?: number | null
+          ram_gb?: number | null
+          rdp_port?: number | null
+          server_ip?: string
+          software_version?: string | null
+          status?: string | null
+          subscription_date?: string
+          subscription_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscription_servers_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_servers_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_servers_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "customer_subscriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       suppliers: {
         Row: {
           address: string | null
