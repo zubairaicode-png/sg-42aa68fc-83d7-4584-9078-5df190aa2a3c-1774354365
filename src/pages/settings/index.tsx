@@ -67,15 +67,6 @@ export default function SettingsPage() {
     layout_name: "Default Layout"
   });
 
-  // Accounting Year State
-  const [accountingYear, setAccountingYear] = useState({
-    fiscalYearStart: "01-01", // MM-DD format
-    fiscalYearEnd: "12-31",
-    currentYear: new Date().getFullYear().toString(),
-    lockPreviousPeriods: false,
-    allowPostingToPreviousYear: false,
-  });
-
   // Business Locations State
   const [businessLocations, setBusinessLocations] = useState([
     {
@@ -175,12 +166,6 @@ export default function SettingsPage() {
     if (savedInvoiceDesign) {
       setInvoiceDesign(JSON.parse(savedInvoiceDesign));
     }
-
-    // Load accounting year
-    const savedAccountingYear = localStorage.getItem("accountingYear");
-    if (savedAccountingYear) {
-      setAccountingYear(JSON.parse(savedAccountingYear));
-    }
   };
 
   const handleSaveCompany = () => {
@@ -218,19 +203,6 @@ export default function SettingsPage() {
       toast({
         title: "Invoice Design Saved",
         description: "Invoice template preferences have been updated successfully",
-      });
-    }, 1000);
-  };
-
-  const handleSaveAccountingYear = () => {
-    setLoading(true);
-    localStorage.setItem("accountingYear", JSON.stringify(accountingYear));
-    
-    setTimeout(() => {
-      setLoading(false);
-      toast({
-        title: "Accounting Year Saved",
-        description: "Fiscal year settings have been updated successfully",
       });
     }, 1000);
   };
@@ -697,7 +669,6 @@ export default function SettingsPage() {
                 <TabsTrigger value="company">Company Information</TabsTrigger>
                 <TabsTrigger value="tax">Tax Settings</TabsTrigger>
                 <TabsTrigger value="invoice">Invoice Design</TabsTrigger>
-                <TabsTrigger value="accounting-year">Accounting Year</TabsTrigger>
                 <TabsTrigger value="locations">Business Locations</TabsTrigger>
                 <TabsTrigger value="backup">Backup & Restore</TabsTrigger>
               </TabsList>
@@ -1212,157 +1183,6 @@ export default function SettingsPage() {
                 </Card>
               </TabsContent>
 
-              <TabsContent value="accounting-year">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <DollarSign className="h-5 w-5" />
-                      Accounting Year & Fiscal Period Settings
-                    </CardTitle>
-                    <CardDescription>
-                      Configure your fiscal year dates and accounting period controls
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
-                    {/* Current Accounting Year */}
-                    <div className="space-y-4">
-                      <h3 className="text-sm font-semibold">Current Accounting Year</h3>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="currentYear">Current Fiscal Year *</Label>
-                          <Input
-                            id="currentYear"
-                            type="number"
-                            value={accountingYear.currentYear}
-                            onChange={(e) => setAccountingYear({ ...accountingYear, currentYear: e.target.value })}
-                            placeholder="2026"
-                            min="2020"
-                            max="2099"
-                          />
-                          <p className="text-xs text-muted-foreground">
-                            Enter the current fiscal year (e.g., 2026)
-                          </p>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="fiscalYearStart">Fiscal Year Start (Month-Day) *</Label>
-                          <Input
-                            id="fiscalYearStart"
-                            value={accountingYear.fiscalYearStart}
-                            onChange={(e) => setAccountingYear({ ...accountingYear, fiscalYearStart: e.target.value })}
-                            placeholder="01-01"
-                            maxLength={5}
-                          />
-                          <p className="text-xs text-muted-foreground">
-                            Format: MM-DD (e.g., 01-01 for January 1st)
-                          </p>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="fiscalYearEnd">Fiscal Year End (Month-Day) *</Label>
-                          <Input
-                            id="fiscalYearEnd"
-                            value={accountingYear.fiscalYearEnd}
-                            onChange={(e) => setAccountingYear({ ...accountingYear, fiscalYearEnd: e.target.value })}
-                            placeholder="12-31"
-                            maxLength={5}
-                          />
-                          <p className="text-xs text-muted-foreground">
-                            Format: MM-DD (e.g., 12-31 for December 31st)
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Fiscal Period Display */}
-                    <div className="bg-muted p-4 rounded-lg">
-                      <h4 className="font-semibold mb-2">Current Fiscal Period</h4>
-                      <div className="space-y-1 text-sm">
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Period Start:</span>
-                          <span className="font-medium">
-                            {accountingYear.fiscalYearStart.split('-')[1]}/{accountingYear.fiscalYearStart.split('-')[0]}/{accountingYear.currentYear}
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Period End:</span>
-                          <span className="font-medium">
-                            {accountingYear.fiscalYearEnd.split('-')[1]}/{accountingYear.fiscalYearEnd.split('-')[0]}/{parseInt(accountingYear.currentYear) + (accountingYear.fiscalYearEnd < accountingYear.fiscalYearStart ? 1 : 0)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between border-t pt-2 mt-2">
-                          <span className="text-muted-foreground">Fiscal Year Type:</span>
-                          <span className="font-medium">
-                            {accountingYear.fiscalYearStart === "01-01" && accountingYear.fiscalYearEnd === "12-31" 
-                              ? "Calendar Year" 
-                              : "Custom Fiscal Year"}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Period Controls */}
-                    <div className="space-y-4">
-                      <h3 className="text-sm font-semibold">Period Controls & Restrictions</h3>
-                      
-                      <div className="flex items-center justify-between p-4 border rounded-lg">
-                        <div className="space-y-1">
-                          <Label htmlFor="lockPreviousPeriods" className="font-medium">
-                            Lock Previous Periods
-                          </Label>
-                          <p className="text-sm text-muted-foreground">
-                            Prevent posting to closed accounting periods
-                          </p>
-                        </div>
-                        <Switch
-                          id="lockPreviousPeriods"
-                          checked={accountingYear.lockPreviousPeriods}
-                          onCheckedChange={(checked) => 
-                            setAccountingYear({ ...accountingYear, lockPreviousPeriods: checked })
-                          }
-                        />
-                      </div>
-
-                      <div className="flex items-center justify-between p-4 border rounded-lg">
-                        <div className="space-y-1">
-                          <Label htmlFor="allowPostingToPreviousYear" className="font-medium">
-                            Allow Posting to Previous Year
-                          </Label>
-                          <p className="text-sm text-muted-foreground">
-                            Allow transactions to be posted to the previous fiscal year
-                          </p>
-                        </div>
-                        <Switch
-                          id="allowPostingToPreviousYear"
-                          checked={accountingYear.allowPostingToPreviousYear}
-                          onCheckedChange={(checked) => 
-                            setAccountingYear({ ...accountingYear, allowPostingToPreviousYear: checked })
-                          }
-                        />
-                      </div>
-                    </div>
-
-                    {/* Helper Text */}
-                    <div className="border-t pt-6">
-                      <h3 className="text-sm font-semibold mb-2">Fiscal Year Setup Guide</h3>
-                      <div className="space-y-2 text-sm text-muted-foreground">
-                        <p>• <strong>Calendar Year:</strong> Use 01-01 to 12-31 (most common in Saudi Arabia)</p>
-                        <p>• <strong>Hijri Year:</strong> Adjust dates to match Hijri calendar months</p>
-                        <p>• <strong>Custom Year:</strong> Set any start/end dates that match your business cycle</p>
-                        <p>• <strong>Period Locking:</strong> Enable to prevent changes to closed periods (recommended for audit compliance)</p>
-                      </div>
-                    </div>
-
-                    <div className="flex justify-end">
-                      <Button onClick={handleSaveAccountingYear} disabled={loading}>
-                        <Save className="mr-2 h-4 w-4" />
-                        {loading ? "Saving..." : "Save Accounting Year Settings"}
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-
               <TabsContent value="locations">
                 <Card>
                   <CardHeader>
@@ -1560,6 +1380,7 @@ export default function SettingsPage() {
                 </Card>
               </TabsContent>
 
+              {/* Backup & Restore */}
               <TabsContent value="backup">
                 <Card>
                   <CardHeader>

@@ -8,6 +8,12 @@ import { Plus, TrendingUp, TrendingDown, DollarSign, PieChart, RefreshCw } from 
 import Link from "next/link";
 import { accountingService, type AccountWithBalance, type JournalEntryWithLines } from "@/services/accountingService";
 import { useToast } from "@/hooks/use-toast";
+import { Input } from "@/components/ui/input";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Separator } from "@/components/ui/separator";
+import { CurrencyDisplay } from "@/components/ui/currency-display";
+import { supabase } from "@/integrations/supabase/client";
+import { cn } from "@/lib/utils";
 
 export default function AccountingPage() {
   const [accounts, setAccounts] = useState<AccountWithBalance[]>([]);
@@ -32,7 +38,7 @@ export default function AccountingPage() {
   });
 
   // Balance Sheet State
-  const [balanceSheetDate, setBalanceSheetDate] = useState(new Date().toISOString().split('T')[0]);
+  const [balanceSheetDate, setBalanceSheetDate] = useState(new Date().toISOString().split("T")[0]);
   const [balanceSheet, setBalanceSheet] = useState({
     assets: [] as AccountWithBalance[],
     liabilities: [] as AccountWithBalance[],
@@ -43,13 +49,48 @@ export default function AccountingPage() {
   });
   const [loadingBalanceSheet, setLoadingBalanceSheet] = useState(false);
 
+  // Profit & Loss state
+  const [profitLossStartDate, setProfitLossStartDate] = useState("");
+  const [profitLossEndDate, setProfitLossEndDate] = useState("");
+  const [profitLoss, setProfitLoss] = useState({
+    revenue: [] as (AccountWithBalance & { balance: number })[],
+    expenses: [] as (AccountWithBalance & { balance: number })[],
+    totalRevenue: 0,
+    totalExpenses: 0,
+    netProfit: 0
+  });
+  const [loadingProfitLoss, setLoadingProfitLoss] = useState(false);
+
+  // Accounting Year Report state
+  const [yearReportYear, setYearReportYear] = useState(new Date().getFullYear().toString());
+  const [yearReport, setYearReport] = useState({
+    fiscalYearStart: "",
+    fiscalYearEnd: "",
+    totalRevenue: 0,
+    totalExpenses: 0,
+    netProfit: 0,
+    totalAssets: 0,
+    totalLiabilities: 0,
+    totalEquity: 0,
+    transactions: 0,
+    journalEntries: 0
+  });
+  const [loadingYearReport, setLoadingYearReport] = useState(false);
+
   useEffect(() => {
     loadData();
     
     // Load accounting year settings from localStorage
     const savedAccountingYear = localStorage.getItem("accountingYear");
     if (savedAccountingYear) {
-      setAccountingYear(JSON.parse(savedAccountingYear));
+      const parsedYear = JSON.parse(savedAccountingYear);
+      setAccountingYear(parsedYear);
+      
+      // Set default P&L dates from fiscal year
+      if (parsedYear.fiscalYearStart && parsedYear.fiscalYearEnd) {
+        setProfitLossStartDate(parsedYear.fiscalYearStart);
+        setProfitLossEndDate(parsedYear.fiscalYearEnd);
+      }
     }
   }, []);
 
@@ -109,26 +150,26 @@ export default function AccountingPage() {
     }
   };
 
-  const handleSaveAccountingYear = () => {
+  const saveAccountingYear = () => {
     try {
-      // Validate dates
+      // Validation
       if (!accountingYear.fiscalYearStart || !accountingYear.fiscalYearEnd) {
         toast({
           title: "Validation Error",
-          description: "Please set both fiscal year start and end dates",
-          variant: "destructive"
+          description: "Please select both fiscal year start and end dates",
+          variant: "destructive",
         });
         return;
       }
 
-      const start = new Date(accountingYear.fiscalYearStart);
-      const end = new Date(accountingYear.fiscalYearEnd);
+      const startDate = new Date(accountingYear.fiscalYearStart);
+      const endDate = new Date(accountingYear.fiscalYearEnd);
 
-      if (end <= start) {
+      if (endDate <= startDate) {
         toast({
           title: "Validation Error",
           description: "Fiscal year end date must be after start date",
-          variant: "destructive"
+          variant: "destructive",
         });
         return;
       }
@@ -138,14 +179,14 @@ export default function AccountingPage() {
 
       toast({
         title: "Success",
-        description: "Accounting year settings saved successfully"
+        description: "Accounting year settings saved successfully",
       });
     } catch (error) {
       console.error("Error saving accounting year:", error);
       toast({
         title: "Error",
         description: "Failed to save accounting year settings",
-        variant: "destructive"
+        variant: "destructive",
       });
     }
   };
@@ -191,6 +232,261 @@ export default function AccountingPage() {
       loadBalanceSheet();
     }
   }, [balanceSheetDate]);
+
+  const loadProfitLoss = async () => {
+    if (!profitLossStartDate || !profitLossEndDate) {
+      toast({
+        title: "Validation Error",
+        description: "Please select start and end dates",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setLoadingProfitLoss(true);
+
+      // Load revenue accounts (type = 'revenue')
+      const { data: revenueAccounts, error: revenueError } = await supabase
+        .from("accounting_accounts")
+        .select("*")
+        .eq("account_type", "revenue")
+        .order("account_code");
+
+      if (revenueError) throw revenueError;
+
+      // Load expense accounts (type = 'expense')
+      const { data: expenseAccounts, error: expenseError } = await supabase
+        .from("accounting_accounts")
+        .select("*")
+        .eq("account_type", "expense")
+        .order("account_code");
+
+      if (expenseError) throw expenseError;
+
+      // Calculate balances for each revenue account
+      const revenueWithBalances = await Promise.all(
+        (revenueAccounts || []).map(async (account) => {
+          const { data: lines } = await supabase
+            .from("accounting_journal_lines")
+            .select("debit_amount, credit_amount")
+            .eq("account_id", account.id)
+            .gte("entry_date", profitLossStartDate)
+            .lte("entry_date", profitLossEndDate);
+
+          const balance = (lines || []).reduce((sum, line) => {
+            return sum + (parseFloat(line.credit_amount || "0") - parseFloat(line.debit_amount || "0"));
+          }, 0);
+
+          return { ...account, balance };
+        })
+      );
+
+      // Calculate balances for each expense account
+      const expenseWithBalances = await Promise.all(
+        (expenseAccounts || []).map(async (account) => {
+          const { data: lines } = await supabase
+            .from("accounting_journal_lines")
+            .select("debit_amount, credit_amount")
+            .eq("account_id", account.id)
+            .gte("entry_date", profitLossStartDate)
+            .lte("entry_date", profitLossEndDate);
+
+          const balance = (lines || []).reduce((sum, line) => {
+            return sum + (parseFloat(line.debit_amount || "0") - parseFloat(line.credit_amount || "0"));
+          }, 0);
+
+          return { ...account, balance };
+        })
+      );
+
+      const totalRevenue = revenueWithBalances.reduce((sum, acc) => sum + acc.balance, 0);
+      const totalExpenses = expenseWithBalances.reduce((sum, acc) => sum + acc.balance, 0);
+      const netProfit = totalRevenue - totalExpenses;
+
+      setProfitLoss({
+        revenue: revenueWithBalances,
+        expenses: expenseWithBalances,
+        totalRevenue,
+        totalExpenses,
+        netProfit
+      });
+
+    } catch (error: any) {
+      console.error("Error loading profit & loss:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load profit & loss statement",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingProfitLoss(false);
+    }
+  };
+
+  const loadYearReport = async () => {
+    if (!accountingYear.fiscalYearStart || !accountingYear.fiscalYearEnd) {
+      toast({
+        title: "Configuration Required",
+        description: "Please configure fiscal year in Accounting Year tab first",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setLoadingYearReport(true);
+
+      // Get revenue total
+      const { data: revenueAccounts } = await supabase
+        .from("accounting_accounts")
+        .select("id")
+        .eq("account_type", "revenue");
+
+      let totalRevenue = 0;
+      if (revenueAccounts) {
+        for (const account of revenueAccounts) {
+          const { data: lines } = await supabase
+            .from("accounting_journal_lines")
+            .select("debit_amount, credit_amount")
+            .eq("account_id", account.id)
+            .gte("entry_date", accountingYear.fiscalYearStart)
+            .lte("entry_date", accountingYear.fiscalYearEnd);
+
+          totalRevenue += (lines || []).reduce((sum, line) => {
+            return sum + (parseFloat(line.credit_amount || "0") - parseFloat(line.debit_amount || "0"));
+          }, 0);
+        }
+      }
+
+      // Get expense total
+      const { data: expenseAccounts } = await supabase
+        .from("accounting_accounts")
+        .select("id")
+        .eq("account_type", "expense");
+
+      let totalExpenses = 0;
+      if (expenseAccounts) {
+        for (const account of expenseAccounts) {
+          const { data: lines } = await supabase
+            .from("accounting_journal_lines")
+            .select("debit_amount, credit_amount")
+            .eq("account_id", account.id)
+            .gte("entry_date", accountingYear.fiscalYearStart)
+            .lte("entry_date", accountingYear.fiscalYearEnd);
+
+          totalExpenses += (lines || []).reduce((sum, line) => {
+            return sum + (parseFloat(line.debit_amount || "0") - parseFloat(line.credit_amount || "0"));
+          }, 0);
+        }
+      }
+
+      // Get asset total
+      const { data: assetAccounts } = await supabase
+        .from("accounting_accounts")
+        .select("id")
+        .eq("account_type", "asset");
+
+      let totalAssets = 0;
+      if (assetAccounts) {
+        for (const account of assetAccounts) {
+          const { data: lines } = await supabase
+            .from("accounting_journal_lines")
+            .select("debit_amount, credit_amount")
+            .eq("account_id", account.id)
+            .lte("entry_date", accountingYear.fiscalYearEnd);
+
+          totalAssets += (lines || []).reduce((sum, line) => {
+            return sum + (parseFloat(line.debit_amount || "0") - parseFloat(line.credit_amount || "0"));
+          }, 0);
+        }
+      }
+
+      // Get liability total
+      const { data: liabilityAccounts } = await supabase
+        .from("accounting_accounts")
+        .select("id")
+        .eq("account_type", "liability");
+
+      let totalLiabilities = 0;
+      if (liabilityAccounts) {
+        for (const account of liabilityAccounts) {
+          const { data: lines } = await supabase
+            .from("accounting_journal_lines")
+            .select("debit_amount, credit_amount")
+            .eq("account_id", account.id)
+            .lte("entry_date", accountingYear.fiscalYearEnd);
+
+          totalLiabilities += (lines || []).reduce((sum, line) => {
+            return sum + (parseFloat(line.credit_amount || "0") - parseFloat(line.debit_amount || "0"));
+          }, 0);
+        }
+      }
+
+      // Get equity total
+      const { data: equityAccounts } = await supabase
+        .from("accounting_accounts")
+        .select("id")
+        .eq("account_type", "equity");
+
+      let totalEquity = 0;
+      if (equityAccounts) {
+        for (const account of equityAccounts) {
+          const { data: lines } = await supabase
+            .from("accounting_journal_lines")
+            .select("debit_amount, credit_amount")
+            .eq("account_id", account.id)
+            .lte("entry_date", accountingYear.fiscalYearEnd);
+
+          totalEquity += (lines || []).reduce((sum, line) => {
+            return sum + (parseFloat(line.credit_amount || "0") - parseFloat(line.debit_amount || "0"));
+          }, 0);
+        }
+      }
+
+      // Get transaction counts
+      const { count: transactionCount } = await supabase
+        .from("accounting_journal_lines")
+        .select("*", { count: "exact", head: true })
+        .gte("entry_date", accountingYear.fiscalYearStart)
+        .lte("entry_date", accountingYear.fiscalYearEnd);
+
+      const { count: journalCount } = await supabase
+        .from("accounting_journal_entries")
+        .select("*", { count: "exact", head: true })
+        .gte("entry_date", accountingYear.fiscalYearStart)
+        .lte("entry_date", accountingYear.fiscalYearEnd);
+
+      setYearReport({
+        fiscalYearStart: accountingYear.fiscalYearStart,
+        fiscalYearEnd: accountingYear.fiscalYearEnd,
+        totalRevenue,
+        totalExpenses,
+        netProfit: totalRevenue - totalExpenses,
+        totalAssets,
+        totalLiabilities,
+        totalEquity,
+        transactions: transactionCount || 0,
+        journalEntries: journalCount || 0
+      });
+
+    } catch (error: any) {
+      console.error("Error loading year report:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load accounting year report",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingYearReport(false);
+    }
+  };
+
+  useEffect(() => {
+    if (accountingYear.fiscalYearStart && accountingYear.fiscalYearEnd) {
+      loadYearReport();
+    }
+  }, [accountingYear.fiscalYearStart, accountingYear.fiscalYearEnd]);
 
   const formatCurrency = (value: number | undefined | null): string => {
     return (value || 0).toLocaleString("en-US", { 
@@ -295,8 +591,10 @@ export default function AccountingPage() {
                 <TabsList>
                   <TabsTrigger value="accounts">Chart of Accounts</TabsTrigger>
                   <TabsTrigger value="journal">Journal Entries</TabsTrigger>
-                  <TabsTrigger value="trial">Trial Balance</TabsTrigger>
+                  <TabsTrigger value="trial-balance">Trial Balance</TabsTrigger>
                   <TabsTrigger value="accounting-year">Accounting Year</TabsTrigger>
+                  <TabsTrigger value="profit-loss">Profit & Loss</TabsTrigger>
+                  <TabsTrigger value="year-report">Accounting Year Report</TabsTrigger>
                   <TabsTrigger value="balance-sheet">Balance Sheet</TabsTrigger>
                 </TabsList>
 
@@ -404,7 +702,7 @@ export default function AccountingPage() {
                   </Card>
                 </TabsContent>
 
-                <TabsContent value="trial" className="space-y-4">
+                <TabsContent value="trial-balance" className="space-y-4">
                   <Card>
                     <CardHeader>
                       <CardTitle>Trial Balance</CardTitle>
@@ -535,7 +833,7 @@ export default function AccountingPage() {
                       </div>
 
                       <div className="flex justify-end">
-                        <Button onClick={handleSaveAccountingYear}>
+                        <Button onClick={saveAccountingYear}>
                           Save Accounting Year Settings
                         </Button>
                       </div>
@@ -543,6 +841,259 @@ export default function AccountingPage() {
                   </Card>
                 </TabsContent>
 
+                {/* Profit & Loss */}
+                <TabsContent value="profit-loss" className="space-y-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Profit & Loss Statement</CardTitle>
+                      <p className="text-sm text-muted-foreground">
+                        View revenue and expenses for a specific period
+                      </p>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {/* Date Range Selection */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                          <label className="text-sm font-medium">Start Date</label>
+                          <Input
+                            type="date"
+                            value={profitLossStartDate}
+                            onChange={(e) => setProfitLossStartDate(e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium">End Date</label>
+                          <Input
+                            type="date"
+                            value={profitLossEndDate}
+                            onChange={(e) => setProfitLossEndDate(e.target.value)}
+                          />
+                        </div>
+                        <div className="flex items-end">
+                          <Button onClick={loadProfitLoss} disabled={loadingProfitLoss}>
+                            {loadingProfitLoss ? "Loading..." : "Generate Report"}
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* P&L Statement */}
+                      {profitLoss.revenue.length > 0 || profitLoss.expenses.length > 0 ? (
+                        <div className="space-y-6">
+                          {/* Revenue Section */}
+                          <div>
+                            <h3 className="text-lg font-semibold mb-3">Revenue</h3>
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Account Code</TableHead>
+                                  <TableHead>Account Name</TableHead>
+                                  <TableHead className="text-right">Amount (SAR)</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {profitLoss.revenue.map((account) => (
+                                  <TableRow key={account.id}>
+                                    <TableCell>{account.account_code}</TableCell>
+                                    <TableCell>{account.account_name}</TableCell>
+                                    <TableCell className="text-right">
+                                      <CurrencyDisplay amount={account.balance} />
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                                <TableRow className="font-semibold bg-muted">
+                                  <TableCell colSpan={2}>Total Revenue</TableCell>
+                                  <TableCell className="text-right">
+                                    <CurrencyDisplay amount={profitLoss.totalRevenue} />
+                                  </TableCell>
+                                </TableRow>
+                              </TableBody>
+                            </Table>
+                          </div>
+
+                          {/* Expenses Section */}
+                          <div>
+                            <h3 className="text-lg font-semibold mb-3">Expenses</h3>
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Account Code</TableHead>
+                                  <TableHead>Account Name</TableHead>
+                                  <TableHead className="text-right">Amount (SAR)</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {profitLoss.expenses.map((account) => (
+                                  <TableRow key={account.id}>
+                                    <TableCell>{account.account_code}</TableCell>
+                                    <TableCell>{account.account_name}</TableCell>
+                                    <TableCell className="text-right">
+                                      <CurrencyDisplay amount={account.balance} />
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                                <TableRow className="font-semibold bg-muted">
+                                  <TableCell colSpan={2}>Total Expenses</TableCell>
+                                  <TableCell className="text-right">
+                                    <CurrencyDisplay amount={profitLoss.totalExpenses} />
+                                  </TableCell>
+                                </TableRow>
+                              </TableBody>
+                            </Table>
+                          </div>
+
+                          {/* Net Profit/Loss */}
+                          <div className="pt-4 border-t">
+                            <div className="flex justify-between items-center text-xl font-bold">
+                              <span>Net {profitLoss.netProfit >= 0 ? "Profit" : "Loss"}</span>
+                              <span className={profitLoss.netProfit >= 0 ? "text-success" : "text-destructive"}>
+                                <CurrencyDisplay amount={Math.abs(profitLoss.netProfit)} />
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-center py-8 text-muted-foreground">
+                          Select dates and click "Generate Report" to view Profit & Loss statement
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                {/* Accounting Year Report */}
+                <TabsContent value="year-report" className="space-y-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Accounting Year Report</CardTitle>
+                      <p className="text-sm text-muted-foreground">
+                        Comprehensive financial summary for the fiscal year
+                      </p>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {accountingYear.fiscalYearStart && accountingYear.fiscalYearEnd ? (
+                        <>
+                          {/* Fiscal Year Info */}
+                          <div className="bg-muted p-4 rounded-lg">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <p className="text-sm text-muted-foreground">Fiscal Year Period</p>
+                                <p className="font-semibold">
+                                  {new Date(accountingYear.fiscalYearStart).toLocaleDateString()} - {new Date(accountingYear.fiscalYearEnd).toLocaleDateString()}
+                                </p>
+                              </div>
+                              <div className="flex items-end justify-end">
+                                <Button onClick={loadYearReport} disabled={loadingYearReport}>
+                                  {loadingYearReport ? "Loading..." : "Generate Year Report"}
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Year Report Summary */}
+                          {yearReport.transactions > 0 || loadingYearReport ? (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                              {/* Income Statement Summary */}
+                              <Card>
+                                <CardHeader>
+                                  <CardTitle className="text-base">Income Statement</CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-2">
+                                  <div className="flex justify-between">
+                                    <span className="text-sm text-muted-foreground">Total Revenue</span>
+                                    <span className="font-semibold text-success">
+                                      <CurrencyDisplay amount={yearReport.totalRevenue} />
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-sm text-muted-foreground">Total Expenses</span>
+                                    <span className="font-semibold text-destructive">
+                                      <CurrencyDisplay amount={yearReport.totalExpenses} />
+                                    </span>
+                                  </div>
+                                  <Separator />
+                                  <div className="flex justify-between">
+                                    <span className="font-semibold">Net Profit/Loss</span>
+                                    <span className={cn("font-bold", yearReport.netProfit >= 0 ? "text-success" : "text-destructive")}>
+                                      <CurrencyDisplay amount={Math.abs(yearReport.netProfit)} />
+                                    </span>
+                                  </div>
+                                </CardContent>
+                              </Card>
+
+                              {/* Balance Sheet Summary */}
+                              <Card>
+                                <CardHeader>
+                                  <CardTitle className="text-base">Balance Sheet</CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-2">
+                                  <div className="flex justify-between">
+                                    <span className="text-sm text-muted-foreground">Total Assets</span>
+                                    <span className="font-semibold">
+                                      <CurrencyDisplay amount={yearReport.totalAssets} />
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-sm text-muted-foreground">Total Liabilities</span>
+                                    <span className="font-semibold">
+                                      <CurrencyDisplay amount={yearReport.totalLiabilities} />
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-sm text-muted-foreground">Total Equity</span>
+                                    <span className="font-semibold">
+                                      <CurrencyDisplay amount={yearReport.totalEquity} />
+                                    </span>
+                                  </div>
+                                </CardContent>
+                              </Card>
+
+                              {/* Activity Summary */}
+                              <Card>
+                                <CardHeader>
+                                  <CardTitle className="text-base">Activity Summary</CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-2">
+                                  <div className="flex justify-between">
+                                    <span className="text-sm text-muted-foreground">Journal Entries</span>
+                                    <span className="font-semibold">{yearReport.journalEntries}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-sm text-muted-foreground">Total Transactions</span>
+                                    <span className="font-semibold">{yearReport.transactions}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-sm text-muted-foreground">Avg. per Entry</span>
+                                    <span className="font-semibold">
+                                      {yearReport.journalEntries > 0 ? Math.round(yearReport.transactions / yearReport.journalEntries) : 0}
+                                    </span>
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            </div>
+                          ) : (
+                            <div className="text-center py-8 text-muted-foreground">
+                              Click "Generate Year Report" to view comprehensive fiscal year summary
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div className="text-center py-8">
+                          <p className="text-muted-foreground mb-4">
+                            Please configure your fiscal year first
+                          </p>
+                          <Button onClick={() => {
+                            const tabs = document.querySelector('[value="accounting-year"]') as HTMLElement;
+                            tabs?.click();
+                          }}>
+                            Go to Accounting Year Settings
+                          </Button>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                {/* Balance Sheet */}
                 <TabsContent value="balance-sheet" className="space-y-4">
                   <Card>
                     <CardHeader>
