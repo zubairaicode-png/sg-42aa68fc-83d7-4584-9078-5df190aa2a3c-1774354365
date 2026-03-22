@@ -79,7 +79,14 @@ export default function ExpenseReportPage() {
 
       if (error) throw error;
 
-      setExpenses(data || []);
+      const formattedData = (data || []).map((e: any) => ({
+        ...e,
+        vat_amount: e.vat_amount || e.tax_amount || 0,
+        vendor: e.vendor || e.vendor_name || "-",
+        total_amount: e.total_amount || (Number(e.amount || 0) + Number(e.vat_amount || e.tax_amount || 0))
+      }));
+
+      setExpenses(formattedData as Expense[]);
     } catch (error: any) {
       console.error("Error loading expenses:", error);
       toast({

@@ -56,8 +56,15 @@ export default function StockReport() {
 
       if (error) throw error;
 
-      const productsList = data || [];
-      setProducts(productsList);
+      const productsList = (data || []).map((p: any) => ({
+        ...p,
+        sku: p.product_code || p.barcode || "N/A",
+        unit_price: p.unit_price || p.price || 0,
+        quantity_in_stock: p.stock_quantity || p.quantity_in_stock || 0,
+        minimum_stock_level: p.reorder_level || p.minimum_stock_level || 0
+      }));
+      
+      setProducts(productsList as Product[]);
 
       const totalValue = productsList.reduce((sum, p) => 
         sum + (Number(p.quantity_in_stock) * Number(p.cost_price)), 0
