@@ -6,19 +6,21 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { FileText, Download, Printer, Calendar, TrendingUp, PieChart } from "lucide-react";
+import { FileText, Download, Printer, TrendingUp, PieChart } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 interface Expense {
   id: string;
-  expenseNumber: string;
-  date: string;
+  expense_number: string;
+  expense_date: string;
   category: string;
   description: string;
   amount: number;
-  vatAmount: number;
-  totalAmount: number;
-  paymentMethod: string;
+  vat_amount: number;
+  total_amount: number;
+  payment_method: string;
   vendor: string;
   status: string;
 }
@@ -33,6 +35,8 @@ interface CategorySummary {
 }
 
 export default function ExpenseReportPage() {
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(false);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
@@ -44,27 +48,51 @@ export default function ExpenseReportPage() {
     const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
     setFromDate(firstDay.toISOString().split("T")[0]);
     setToDate(now.toISOString().split("T")[0]);
-    loadExpenses();
   }, []);
 
-  const loadExpenses = () => {
-    const expensesData = localStorage.getItem("expenses");
-    if (expensesData) {
-      setExpenses(JSON.parse(expensesData));
+  useEffect(() => {
+    if (fromDate && toDate) {
+      loadExpenses();
+    }
+  }, [fromDate, toDate, selectedCategory, selectedStatus]);
+
+  const loadExpenses = async () => {
+    try {
+      setLoading(true);
+
+      let query = supabase
+        .from("expenses")
+        .select("*")
+        .gte("expense_date", fromDate)
+        .lte("expense_date", toDate)
+        .order("expense_date", { ascending: false });
+
+      if (selectedCategory !== "all") {
+        query = query.eq("category", selectedCategory);
+      }
+
+      if (selectedStatus !== "all") {
+        query = query.eq("status", selectedStatus);
+      }
+
+      const { data, error } = await query;
+
+      if (error) throw error;
+
+      setExpenses(data || []);
+    } catch (error: any) {
+      console.error("Error loading expenses:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load expenses",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
-  const filteredExpenses = expenses.filter(expense => {
-    const expenseDate = new Date(expense.date);
-    const from = fromDate ? new Date(fromDate) : new Date(0);
-    const to = toDate ? new Date(toDate) : new Date();
-
-    const dateMatch = expenseDate >= from && expenseDate <= to;
-    const categoryMatch = selectedCategory === "all" || expense.category === selectedCategory;
-    const statusMatch = selectedStatus === "all" || expense.status === selectedStatus;
-
-    return dateMatch && categoryMatch && statusMatch;
-  });
+  const filteredExpenses = expenses;
 
   const calculateCategorySummary = (): CategorySummary[] => {
     const categoryMap = new Map<string, { count: number; amount: number; vatAmount: number; totalAmount: number }>();
@@ -73,9 +101,9 @@ export default function ExpenseReportPage() {
       const existing = categoryMap.get(expense.category) || { count: 0, amount: 0, vatAmount: 0, totalAmount: 0 };
       categoryMap.set(expense.category, {
         count: existing.count + 1,
-        amount: existing.amount + expense.amount,
-        vatAmount: existing.vatAmount + expense.vatAmount,
-        totalAmount: existing.totalAmount + expense.totalAmount,
+        amount: existing.amount + Number(expense.amount),
+        vatAmount: existing.vatAmount + Number(expense.vat_amount),
+        totalAmount: existing.totalAmount + Number(expense.total_amount),
       });
     });
 
@@ -94,9 +122,9 @@ export default function ExpenseReportPage() {
 
   const totals = {
     count: filteredExpenses.length,
-    amount: filteredExpenses.reduce((sum, e) => sum + e.amount, 0),
-    vatAmount: filteredExpenses.reduce((sum, e) => sum + e.vatAmount, 0),
-    totalAmount: filteredExpenses.reduce((sum, e) => sum + e.totalAmount, 0),
+    amount: filteredExpenses.reduce((sum, e) => sum + Number(e.amount), 0),
+    vatAmount: filteredExpenses.reduce((sum, e) => sum + Number(e.vat_amount), 0),
+    totalAmount: filteredExpenses.reduce((sum, e) => sum + Number(e.total_amount), 0),
   };
 
   const categories = Array.from(new Set(expenses.map(e => e.category)));
@@ -323,7 +351,13 @@ export default function ExpenseReportPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {filteredExpenses.length === 0 ? (
+                        {loading ? (
+                          <tr>
+                            <td colSpan={8} className="text-center py-8 text-muted-foreground">
+                              Loading expenses...
+                            </td>
+                          </tr>
+                        ) : filteredExpenses.length === 0 ? (
                           <tr>
                             <td colSpan={8} className="text-center py-8 text-muted-foreground">
                               No expenses found for selected period
@@ -332,14 +366,14 @@ export default function ExpenseReportPage() {
                         ) : (
                           filteredExpenses.map((expense) => (
                             <tr key={expense.id} className="border-t hover:bg-table-row-hover">
-                              <td className="p-4 font-medium">{expense.expenseNumber}</td>
-                              <td className="p-4">{expense.date}</td>
+                              <td className="p-4 font-medium">{expense.expense_number}</td>
+                              <td className="p-4">{new Date(expense.expense_date).toLocaleDateString()}</td>
                               <td className="p-4">{expense.category}</td>
                               <td className="p-4">{expense.description}</td>
                               <td className="p-4">{expense.vendor || "-"}</td>
-                              <td className="p-4 text-right">SAR {expense.amount.toLocaleString()}</td>
-                              <td className="p-4 text-right">SAR {expense.vatAmount.toFixed(2)}</td>
-                              <td className="p-4 text-right font-semibold">SAR {expense.totalAmount.toLocaleString()}</td>
+                              <td className="p-4 text-right">SAR {Number(expense.amount).toLocaleString()}</td>
+                              <td className="p-4 text-right">SAR {Number(expense.vat_amount).toFixed(2)}</td>
+                              <td className="p-4 text-right font-semibold">SAR {Number(expense.total_amount).toLocaleString()}</td>
                             </tr>
                           ))
                         )}

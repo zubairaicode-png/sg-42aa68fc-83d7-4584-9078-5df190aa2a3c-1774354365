@@ -8,7 +8,13 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Building2, Download, Printer, Calendar } from "lucide-react";
-import type { Supplier } from "@/types";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+
+interface Supplier {
+  id: string;
+  name: string;
+}
 
 interface Transaction {
   date: string;
@@ -21,8 +27,10 @@ interface Transaction {
 }
 
 export default function SupplierLedgerReport() {
-  const [dateFrom, setDateFrom] = useState("2026-01-01");
-  const [dateTo, setDateTo] = useState("2026-12-31");
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(false);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [selectedSupplier, setSelectedSupplier] = useState<string>("");
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -31,75 +39,107 @@ export default function SupplierLedgerReport() {
   const [closingBalance, setClosingBalance] = useState(0);
 
   useEffect(() => {
+    const today = new Date();
+    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+    setDateFrom(firstDay.toISOString().split("T")[0]);
+    setDateTo(today.toISOString().split("T")[0]);
     loadSuppliers();
   }, []);
 
   useEffect(() => {
-    if (selectedSupplier) {
+    if (selectedSupplier && dateFrom && dateTo) {
       generateLedger();
     }
   }, [selectedSupplier, dateFrom, dateTo]);
 
-  const loadSuppliers = () => {
-    const suppliersData = localStorage.getItem("suppliers");
-    const suppliersList: Supplier[] = suppliersData ? JSON.parse(suppliersData) : [];
-    setSuppliers(suppliersList);
-    if (suppliersList.length > 0) {
-      setSelectedSupplier(suppliersList[0].id);
+  const loadSuppliers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("suppliers")
+        .select("id, name")
+        .order("name");
+
+      if (error) throw error;
+
+      setSuppliers(data || []);
+      if (data && data.length > 0) {
+        setSelectedSupplier(data[0].id);
+      }
+    } catch (error: any) {
+      console.error("Error loading suppliers:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load suppliers",
+        variant: "destructive"
+      });
     }
   };
 
-  const generateLedger = () => {
-    const supplier = suppliers.find(s => s.id === selectedSupplier);
-    if (!supplier) return;
+  const generateLedger = async () => {
+    try {
+      setLoading(true);
 
-    setSupplierName(supplier.name);
-    setOpeningBalance(0);
+      const supplier = suppliers.find(s => s.id === selectedSupplier);
+      if (!supplier) return;
 
-    const invoicesData = localStorage.getItem("purchaseInvoices");
-    const invoices = invoicesData ? JSON.parse(invoicesData) : [];
+      setSupplierName(supplier.name);
+      setOpeningBalance(0);
 
-    const filteredInvoices = invoices.filter((inv: any) => {
-      return inv.supplierId === selectedSupplier &&
-             new Date(inv.date) >= new Date(dateFrom) &&
-             new Date(inv.date) <= new Date(dateTo);
-    });
+      // Fetch purchase invoices for this supplier
+      const { data: invoices, error: invoicesError } = await supabase
+        .from("purchase_invoices")
+        .select("*")
+        .eq("supplier_id", selectedSupplier)
+        .gte("invoice_date", dateFrom)
+        .lte("invoice_date", dateTo)
+        .order("invoice_date", { ascending: true });
 
-    const txns: Transaction[] = [];
-    let balance = openingBalance;
+      if (invoicesError) throw invoicesError;
 
-    filteredInvoices.forEach((inv: any) => {
-      const totalAmount = inv.total || 0;
-      balance += totalAmount;
+      const txns: Transaction[] = [];
+      let balance = openingBalance;
 
-      txns.push({
-        date: inv.date,
-        type: "Purchase Invoice",
-        reference: inv.invoiceNumber,
-        description: inv.notes || "Purchase Invoice",
-        debit: 0,
-        credit: totalAmount,
-        balance
-      });
+      (invoices || []).forEach((inv: any) => {
+        const totalAmount = Number(inv.total_amount) || 0;
+        balance += totalAmount;
 
-      if (inv.payments && inv.payments.length > 0) {
-        inv.payments.forEach((payment: any) => {
-          balance -= payment.amount;
+        txns.push({
+          date: inv.invoice_date,
+          type: "Purchase Invoice",
+          reference: inv.invoice_number,
+          description: inv.notes || "Purchase Invoice",
+          debit: 0,
+          credit: totalAmount,
+          balance
+        });
+
+        // Handle payments if payment info exists
+        if (inv.paid_amount && Number(inv.paid_amount) > 0) {
+          balance -= Number(inv.paid_amount);
           txns.push({
-            date: payment.date,
+            date: inv.payment_date || inv.invoice_date,
             type: "Payment",
-            reference: payment.reference || inv.invoiceNumber,
-            description: `Payment - ${payment.method}`,
-            debit: payment.amount,
+            reference: inv.invoice_number,
+            description: `Payment - ${inv.payment_method || "Cash"}`,
+            debit: Number(inv.paid_amount),
             credit: 0,
             balance
           });
-        });
-      }
-    });
+        }
+      });
 
-    setTransactions(txns);
-    setClosingBalance(balance);
+      setTransactions(txns);
+      setClosingBalance(balance);
+    } catch (error: any) {
+      console.error("Error generating ledger:", error);
+      toast({
+        title: "Error",
+        description: "Failed to generate supplier ledger",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handlePrint = () => {
@@ -180,8 +220,12 @@ export default function SupplierLedgerReport() {
                   />
                 </div>
                 <div className="flex items-end">
-                  <Button className="w-full" onClick={generateLedger}>
-                    Generate Report
+                  <Button 
+                    className="w-full" 
+                    onClick={generateLedger}
+                    disabled={loading}
+                  >
+                    {loading ? "Generating..." : "Generate Report"}
                   </Button>
                 </div>
               </div>
@@ -194,7 +238,7 @@ export default function SupplierLedgerReport() {
                 <h2 className="text-2xl font-bold">Supplier Account Statement</h2>
                 <p className="text-lg font-semibold">{supplierName}</p>
                 <p className="text-sm text-muted-foreground">
-                  Period: {new Date(dateFrom).toLocaleDateString()} to {new Date(dateTo).toLocaleDateString()}
+                  Period: {dateFrom ? new Date(dateFrom).toLocaleDateString() : ""} to {dateTo ? new Date(dateTo).toLocaleDateString() : ""}
                 </p>
               </div>
             </CardHeader>

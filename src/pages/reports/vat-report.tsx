@@ -8,6 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Receipt, Download, Printer, Calendar } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 interface VATSummary {
   salesVAT: number;
@@ -26,8 +28,10 @@ interface VATDetail {
 }
 
 export default function VATReport() {
-  const [dateFrom, setDateFrom] = useState("2026-01-01");
-  const [dateTo, setDateTo] = useState("2026-12-31");
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(false);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [summary, setSummary] = useState<VATSummary>({
     salesVAT: 0,
     purchaseVAT: 0,
@@ -39,59 +43,105 @@ export default function VATReport() {
   const [purchaseDetails, setPurchaseDetails] = useState<VATDetail[]>([]);
 
   useEffect(() => {
-    generateReport();
+    const today = new Date();
+    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+    setDateFrom(firstDay.toISOString().split("T")[0]);
+    setDateTo(today.toISOString().split("T")[0]);
+  }, []);
+
+  useEffect(() => {
+    if (dateFrom && dateTo) {
+      generateReport();
+    }
   }, [dateFrom, dateTo]);
 
-  const generateReport = () => {
-    // Sales VAT
-    const salesData = localStorage.getItem("salesInvoices");
-    const salesInvoices = salesData ? JSON.parse(salesData) : [];
-    
-    const filteredSales = salesInvoices.filter((inv: any) => {
-      const invDate = new Date(inv.date);
-      return invDate >= new Date(dateFrom) && invDate <= new Date(dateTo);
-    });
+  const generateReport = async () => {
+    try {
+      setLoading(true);
 
-    const salesVATDetails: VATDetail[] = filteredSales.map((inv: any) => ({
-      date: inv.date,
-      reference: inv.invoiceNumber,
-      party: inv.customerName,
-      taxableAmount: inv.subtotal || 0,
-      vatAmount: inv.vat || 0
-    }));
+      // Fetch sales invoices
+      const { data: salesInvoices, error: salesError } = await supabase
+        .from("sales_invoices")
+        .select(`
+          invoice_number,
+          invoice_date,
+          customer_name,
+          subtotal,
+          vat_amount,
+          total_amount
+        `)
+        .gte("invoice_date", dateFrom)
+        .lte("invoice_date", dateTo)
+        .order("invoice_date", { ascending: true });
 
-    // Purchase VAT
-    const purchaseData = localStorage.getItem("purchaseInvoices");
-    const purchaseInvoices = purchaseData ? JSON.parse(purchaseData) : [];
+      if (salesError) throw salesError;
 
-    const filteredPurchases = purchaseInvoices.filter((inv: any) => {
-      const invDate = new Date(inv.date);
-      return invDate >= new Date(dateFrom) && invDate <= new Date(dateTo);
-    });
+      // Fetch purchase invoices
+      const { data: purchaseInvoices, error: purchaseError } = await supabase
+        .from("purchase_invoices")
+        .select(`
+          invoice_number,
+          invoice_date,
+          supplier_name,
+          subtotal,
+          vat_amount,
+          total_amount
+        `)
+        .gte("invoice_date", dateFrom)
+        .lte("invoice_date", dateTo)
+        .order("invoice_date", { ascending: true });
 
-    const purchaseVATDetails: VATDetail[] = filteredPurchases.map((inv: any) => ({
-      date: inv.date,
-      reference: inv.invoiceNumber,
-      party: inv.supplierName,
-      taxableAmount: inv.subtotal || 0,
-      vatAmount: inv.vat || 0
-    }));
+      if (purchaseError) throw purchaseError;
 
-    setSalesDetails(salesVATDetails);
-    setPurchaseDetails(purchaseVATDetails);
+      // Process sales data
+      const salesVATDetails: VATDetail[] = (salesInvoices || []).map((inv: any) => ({
+        date: inv.invoice_date,
+        reference: inv.invoice_number,
+        party: inv.customer_name || "Unknown Customer",
+        taxableAmount: Number(inv.subtotal) || 0,
+        vatAmount: Number(inv.vat_amount) || 0
+      }));
 
-    const totalSalesVAT = salesVATDetails.reduce((sum, item) => sum + item.vatAmount, 0);
-    const totalPurchaseVAT = purchaseVATDetails.reduce((sum, item) => sum + item.vatAmount, 0);
-    const totalSalesAmount = salesVATDetails.reduce((sum, item) => sum + item.taxableAmount, 0);
-    const totalPurchaseAmount = purchaseVATDetails.reduce((sum, item) => sum + item.taxableAmount, 0);
+      // Process purchase data
+      const purchaseVATDetails: VATDetail[] = (purchaseInvoices || []).map((inv: any) => ({
+        date: inv.invoice_date,
+        reference: inv.invoice_number,
+        party: inv.supplier_name || "Unknown Supplier",
+        taxableAmount: Number(inv.subtotal) || 0,
+        vatAmount: Number(inv.vat_amount) || 0
+      }));
 
-    setSummary({
-      salesVAT: totalSalesVAT,
-      purchaseVAT: totalPurchaseVAT,
-      netVAT: totalSalesVAT - totalPurchaseVAT,
-      totalSales: totalSalesAmount,
-      totalPurchases: totalPurchaseAmount
-    });
+      setSalesDetails(salesVATDetails);
+      setPurchaseDetails(purchaseVATDetails);
+
+      // Calculate totals
+      const totalSalesVAT = salesVATDetails.reduce((sum, item) => sum + item.vatAmount, 0);
+      const totalPurchaseVAT = purchaseVATDetails.reduce((sum, item) => sum + item.vatAmount, 0);
+      const totalSalesAmount = salesVATDetails.reduce((sum, item) => sum + item.taxableAmount, 0);
+      const totalPurchaseAmount = purchaseVATDetails.reduce((sum, item) => sum + item.taxableAmount, 0);
+
+      setSummary({
+        salesVAT: totalSalesVAT,
+        purchaseVAT: totalPurchaseVAT,
+        netVAT: totalSalesVAT - totalPurchaseVAT,
+        totalSales: totalSalesAmount,
+        totalPurchases: totalPurchaseAmount
+      });
+
+      toast({
+        title: "Success",
+        description: "VAT report generated successfully"
+      });
+    } catch (error: any) {
+      console.error("Error generating VAT report:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to generate VAT report",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handlePrint = () => {
@@ -154,8 +204,12 @@ export default function VATReport() {
                   />
                 </div>
                 <div className="flex items-end">
-                  <Button className="w-full" onClick={generateReport}>
-                    Generate Report
+                  <Button 
+                    className="w-full" 
+                    onClick={generateReport}
+                    disabled={loading}
+                  >
+                    {loading ? "Generating..." : "Generate Report"}
                   </Button>
                 </div>
               </div>
@@ -168,7 +222,7 @@ export default function VATReport() {
                 <h2 className="text-2xl font-bold">VAT Return Report</h2>
                 <h3 className="text-xl font-semibold text-muted-foreground">إقرار ضريبة القيمة المضافة</h3>
                 <p className="text-sm text-muted-foreground">
-                  Period: {new Date(dateFrom).toLocaleDateString()} to {new Date(dateTo).toLocaleDateString()}
+                  Period: {dateFrom ? new Date(dateFrom).toLocaleDateString() : ""} to {dateTo ? new Date(dateTo).toLocaleDateString() : ""}
                 </p>
               </div>
             </CardHeader>

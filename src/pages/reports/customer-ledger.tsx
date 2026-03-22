@@ -8,7 +8,13 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Users, Download, Printer, Calendar } from "lucide-react";
-import type { Customer } from "@/types";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+
+interface Customer {
+  id: string;
+  name: string;
+}
 
 interface Transaction {
   date: string;
@@ -21,8 +27,10 @@ interface Transaction {
 }
 
 export default function CustomerLedgerReport() {
-  const [dateFrom, setDateFrom] = useState("2026-01-01");
-  const [dateTo, setDateTo] = useState("2026-12-31");
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(false);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<string>("");
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -31,75 +39,107 @@ export default function CustomerLedgerReport() {
   const [closingBalance, setClosingBalance] = useState(0);
 
   useEffect(() => {
+    const today = new Date();
+    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+    setDateFrom(firstDay.toISOString().split("T")[0]);
+    setDateTo(today.toISOString().split("T")[0]);
     loadCustomers();
   }, []);
 
   useEffect(() => {
-    if (selectedCustomer) {
+    if (selectedCustomer && dateFrom && dateTo) {
       generateLedger();
     }
   }, [selectedCustomer, dateFrom, dateTo]);
 
-  const loadCustomers = () => {
-    const customersData = localStorage.getItem("customers");
-    const customersList: Customer[] = customersData ? JSON.parse(customersData) : [];
-    setCustomers(customersList);
-    if (customersList.length > 0) {
-      setSelectedCustomer(customersList[0].id);
+  const loadCustomers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("customers")
+        .select("id, name")
+        .order("name");
+
+      if (error) throw error;
+
+      setCustomers(data || []);
+      if (data && data.length > 0) {
+        setSelectedCustomer(data[0].id);
+      }
+    } catch (error: any) {
+      console.error("Error loading customers:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load customers",
+        variant: "destructive"
+      });
     }
   };
 
-  const generateLedger = () => {
-    const customer = customers.find(c => c.id === selectedCustomer);
-    if (!customer) return;
+  const generateLedger = async () => {
+    try {
+      setLoading(true);
 
-    setCustomerName(customer.name);
-    setOpeningBalance(0);
+      const customer = customers.find(c => c.id === selectedCustomer);
+      if (!customer) return;
 
-    const invoicesData = localStorage.getItem("salesInvoices");
-    const invoices = invoicesData ? JSON.parse(invoicesData) : [];
+      setCustomerName(customer.name);
+      setOpeningBalance(0);
 
-    const filteredInvoices = invoices.filter((inv: any) => {
-      return inv.customerId === selectedCustomer &&
-             new Date(inv.date) >= new Date(dateFrom) &&
-             new Date(inv.date) <= new Date(dateTo);
-    });
+      // Fetch sales invoices for this customer
+      const { data: invoices, error: invoicesError } = await supabase
+        .from("sales_invoices")
+        .select("*")
+        .eq("customer_id", selectedCustomer)
+        .gte("invoice_date", dateFrom)
+        .lte("invoice_date", dateTo)
+        .order("invoice_date", { ascending: true });
 
-    const txns: Transaction[] = [];
-    let balance = openingBalance;
+      if (invoicesError) throw invoicesError;
 
-    filteredInvoices.forEach((inv: any) => {
-      const totalAmount = inv.total || 0;
-      balance += totalAmount;
+      const txns: Transaction[] = [];
+      let balance = openingBalance;
 
-      txns.push({
-        date: inv.date,
-        type: "Sales Invoice",
-        reference: inv.invoiceNumber,
-        description: inv.notes || "Sales Invoice",
-        debit: totalAmount,
-        credit: 0,
-        balance
-      });
+      (invoices || []).forEach((inv: any) => {
+        const totalAmount = Number(inv.total_amount) || 0;
+        balance += totalAmount;
 
-      if (inv.payments && inv.payments.length > 0) {
-        inv.payments.forEach((payment: any) => {
-          balance -= payment.amount;
+        txns.push({
+          date: inv.invoice_date,
+          type: "Sales Invoice",
+          reference: inv.invoice_number,
+          description: inv.notes || "Sales Invoice",
+          debit: totalAmount,
+          credit: 0,
+          balance
+        });
+
+        // Handle payments if payment info exists
+        if (inv.paid_amount && Number(inv.paid_amount) > 0) {
+          balance -= Number(inv.paid_amount);
           txns.push({
-            date: payment.date,
+            date: inv.payment_date || inv.invoice_date,
             type: "Payment",
-            reference: payment.reference || inv.invoiceNumber,
-            description: `Payment - ${payment.method}`,
+            reference: inv.invoice_number,
+            description: `Payment - ${inv.payment_method || "Cash"}`,
             debit: 0,
-            credit: payment.amount,
+            credit: Number(inv.paid_amount),
             balance
           });
-        });
-      }
-    });
+        }
+      });
 
-    setTransactions(txns);
-    setClosingBalance(balance);
+      setTransactions(txns);
+      setClosingBalance(balance);
+    } catch (error: any) {
+      console.error("Error generating ledger:", error);
+      toast({
+        title: "Error",
+        description: "Failed to generate customer ledger",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handlePrint = () => {
@@ -180,8 +220,12 @@ export default function CustomerLedgerReport() {
                   />
                 </div>
                 <div className="flex items-end">
-                  <Button className="w-full" onClick={generateLedger}>
-                    Generate Report
+                  <Button 
+                    className="w-full" 
+                    onClick={generateLedger}
+                    disabled={loading}
+                  >
+                    {loading ? "Generating..." : "Generate Report"}
                   </Button>
                 </div>
               </div>
@@ -194,7 +238,7 @@ export default function CustomerLedgerReport() {
                 <h2 className="text-2xl font-bold">Customer Account Statement</h2>
                 <p className="text-lg font-semibold">{customerName}</p>
                 <p className="text-sm text-muted-foreground">
-                  Period: {new Date(dateFrom).toLocaleDateString()} to {new Date(dateTo).toLocaleDateString()}
+                  Period: {dateFrom ? new Date(dateFrom).toLocaleDateString() : ""} to {dateTo ? new Date(dateTo).toLocaleDateString() : ""}
                 </p>
               </div>
             </CardHeader>

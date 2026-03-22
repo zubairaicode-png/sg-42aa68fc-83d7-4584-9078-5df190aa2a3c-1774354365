@@ -8,7 +8,19 @@ import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Package, Download, Printer, AlertTriangle } from "lucide-react";
-import type { Product } from "@/types";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+
+interface Product {
+  id: string;
+  sku: string;
+  name: string;
+  category: string;
+  unit_price: number;
+  cost_price: number;
+  quantity_in_stock: number;
+  minimum_stock_level: number;
+}
 
 interface StockSummary {
   totalProducts: number;
@@ -18,6 +30,8 @@ interface StockSummary {
 }
 
 export default function StockReport() {
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [summary, setSummary] = useState<StockSummary>({
     totalProducts: 0,
@@ -31,21 +45,50 @@ export default function StockReport() {
     loadProducts();
   }, []);
 
-  const loadProducts = () => {
-    const productsData = localStorage.getItem("products");
-    const productsList: Product[] = productsData ? JSON.parse(productsData) : [];
-    setProducts(productsList);
+  const loadProducts = async () => {
+    try {
+      setLoading(true);
 
-    const totalValue = productsList.reduce((sum, p) => sum + (p.stock * p.costPrice), 0);
-    const lowStock = productsList.filter(p => p.stock > 0 && p.stock <= p.minStock).length;
-    const outOfStock = productsList.filter(p => p.stock === 0).length;
+      const { data, error } = await supabase
+        .from("products")
+        .select("*")
+        .order("name");
 
-    setSummary({
-      totalProducts: productsList.length,
-      totalValue,
-      lowStockCount: lowStock,
-      outOfStockCount: outOfStock
-    });
+      if (error) throw error;
+
+      const productsList = data || [];
+      setProducts(productsList);
+
+      const totalValue = productsList.reduce((sum, p) => 
+        sum + (Number(p.quantity_in_stock) * Number(p.cost_price)), 0
+      );
+      const lowStock = productsList.filter(p => 
+        Number(p.quantity_in_stock) > 0 && 
+        Number(p.quantity_in_stock) <= Number(p.minimum_stock_level)
+      ).length;
+      const outOfStock = productsList.filter(p => Number(p.quantity_in_stock) === 0).length;
+
+      setSummary({
+        totalProducts: productsList.length,
+        totalValue,
+        lowStockCount: lowStock,
+        outOfStockCount: outOfStock
+      });
+
+      toast({
+        title: "Success",
+        description: "Stock report loaded successfully"
+      });
+    } catch (error: any) {
+      console.error("Error loading products:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load stock report",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handlePrint = () => {
@@ -57,8 +100,11 @@ export default function StockReport() {
     p.sku.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const lowStockProducts = filteredProducts.filter(p => p.stock > 0 && p.stock <= p.minStock);
-  const outOfStockProducts = filteredProducts.filter(p => p.stock === 0);
+  const lowStockProducts = filteredProducts.filter(p => 
+    Number(p.quantity_in_stock) > 0 && 
+    Number(p.quantity_in_stock) <= Number(p.minimum_stock_level)
+  );
+  const outOfStockProducts = filteredProducts.filter(p => Number(p.quantity_in_stock) === 0);
 
   return (
     <>
@@ -179,7 +225,13 @@ export default function StockReport() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {filteredProducts.length === 0 ? (
+                        {loading ? (
+                          <TableRow>
+                            <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                              Loading products...
+                            </TableCell>
+                          </TableRow>
+                        ) : filteredProducts.length === 0 ? (
                           <TableRow>
                             <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                               No products found
@@ -188,9 +240,12 @@ export default function StockReport() {
                         ) : (
                           <>
                             {filteredProducts.map((product) => {
-                              const stockValue = product.stock * product.costPrice;
-                              const isLowStock = product.stock > 0 && product.stock <= product.minStock;
-                              const isOutOfStock = product.stock === 0;
+                              const stock = Number(product.quantity_in_stock) || 0;
+                              const costPrice = Number(product.cost_price) || 0;
+                              const minStock = Number(product.minimum_stock_level) || 0;
+                              const stockValue = stock * costPrice;
+                              const isLowStock = stock > 0 && stock <= minStock;
+                              const isOutOfStock = stock === 0;
 
                               return (
                                 <TableRow key={product.id}>
@@ -201,9 +256,9 @@ export default function StockReport() {
                                       {product.category}
                                     </span>
                                   </TableCell>
-                                  <TableCell className="text-right">{product.costPrice.toFixed(2)}</TableCell>
-                                  <TableCell className="text-right font-medium">{product.stock}</TableCell>
-                                  <TableCell className="text-right">{product.minStock}</TableCell>
+                                  <TableCell className="text-right">{costPrice.toFixed(2)}</TableCell>
+                                  <TableCell className="text-right font-medium">{stock}</TableCell>
+                                  <TableCell className="text-right">{minStock}</TableCell>
                                   <TableCell className="text-right font-semibold">{stockValue.toFixed(2)}</TableCell>
                                   <TableCell>
                                     {isOutOfStock ? (
@@ -257,17 +312,21 @@ export default function StockReport() {
                             </TableCell>
                           </TableRow>
                         ) : (
-                          lowStockProducts.map((product) => (
-                            <TableRow key={product.id}>
-                              <TableCell className="font-medium">{product.sku}</TableCell>
-                              <TableCell>{product.name}</TableCell>
-                              <TableCell className="text-right text-yellow-600 font-bold">{product.stock}</TableCell>
-                              <TableCell className="text-right">{product.minStock}</TableCell>
-                              <TableCell className="text-right font-semibold">
-                                {product.minStock - product.stock + 20}
-                              </TableCell>
-                            </TableRow>
-                          ))
+                          lowStockProducts.map((product) => {
+                            const stock = Number(product.quantity_in_stock) || 0;
+                            const minStock = Number(product.minimum_stock_level) || 0;
+                            return (
+                              <TableRow key={product.id}>
+                                <TableCell className="font-medium">{product.sku}</TableCell>
+                                <TableCell>{product.name}</TableCell>
+                                <TableCell className="text-right text-yellow-600 font-bold">{stock}</TableCell>
+                                <TableCell className="text-right">{minStock}</TableCell>
+                                <TableCell className="text-right font-semibold">
+                                  {minStock - stock + 20}
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })
                         )}
                       </TableBody>
                     </Table>
@@ -294,17 +353,21 @@ export default function StockReport() {
                             </TableCell>
                           </TableRow>
                         ) : (
-                          outOfStockProducts.map((product) => (
-                            <TableRow key={product.id} className="bg-red-50">
-                              <TableCell className="font-medium">{product.sku}</TableCell>
-                              <TableCell>{product.name}</TableCell>
-                              <TableCell>{product.category}</TableCell>
-                              <TableCell className="text-right">{product.costPrice.toFixed(2)}</TableCell>
-                              <TableCell className="text-right font-semibold">
-                                {product.minStock + 20}
-                              </TableCell>
-                            </TableRow>
-                          ))
+                          outOfStockProducts.map((product) => {
+                            const minStock = Number(product.minimum_stock_level) || 0;
+                            const costPrice = Number(product.cost_price) || 0;
+                            return (
+                              <TableRow key={product.id} className="bg-red-50">
+                                <TableCell className="font-medium">{product.sku}</TableCell>
+                                <TableCell>{product.name}</TableCell>
+                                <TableCell>{product.category}</TableCell>
+                                <TableCell className="text-right">{costPrice.toFixed(2)}</TableCell>
+                                <TableCell className="text-right font-semibold">
+                                  {minStock + 20}
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })
                         )}
                       </TableBody>
                     </Table>
