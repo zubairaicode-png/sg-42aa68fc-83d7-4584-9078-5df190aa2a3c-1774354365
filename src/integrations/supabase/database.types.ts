@@ -198,48 +198,66 @@ export type Database = {
       }
       business_locations: {
         Row: {
+          additional_number: string | null
           address: string | null
+          building_number: string | null
           city: string | null
           country: string | null
           created_at: string | null
           created_by: string | null
+          district: string | null
           email: string | null
           id: string
           is_default: boolean | null
           location_code: string
           location_name: string
+          location_name_ar: string | null
           phone: string | null
+          postal_code: string | null
           status: string | null
+          street_name: string | null
           updated_at: string | null
         }
         Insert: {
+          additional_number?: string | null
           address?: string | null
+          building_number?: string | null
           city?: string | null
           country?: string | null
           created_at?: string | null
           created_by?: string | null
+          district?: string | null
           email?: string | null
           id?: string
           is_default?: boolean | null
           location_code: string
           location_name: string
+          location_name_ar?: string | null
           phone?: string | null
+          postal_code?: string | null
           status?: string | null
+          street_name?: string | null
           updated_at?: string | null
         }
         Update: {
+          additional_number?: string | null
           address?: string | null
+          building_number?: string | null
           city?: string | null
           country?: string | null
           created_at?: string | null
           created_by?: string | null
+          district?: string | null
           email?: string | null
           id?: string
           is_default?: boolean | null
           location_code?: string
           location_name?: string
+          location_name_ar?: string | null
           phone?: string | null
+          postal_code?: string | null
           status?: string | null
+          street_name?: string | null
           updated_at?: string | null
         }
         Relationships: [

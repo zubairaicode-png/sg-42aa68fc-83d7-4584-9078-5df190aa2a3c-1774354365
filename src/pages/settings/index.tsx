@@ -248,6 +248,7 @@ export default function SettingsPage() {
       const { data, error } = await supabase
         .from("business_locations")
         .insert({
+          location_code: `LOC-${Date.now().toString().slice(-6)}`,
           location_name: newLocation.name,
           location_name_ar: newLocation.name_ar,
           building_number: newLocation.buildingNumber,
