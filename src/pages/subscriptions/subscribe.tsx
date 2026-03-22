@@ -61,7 +61,7 @@ export default function SubscribeCustomerPage() {
     try {
       const [plansData, customersData] = await Promise.all([
         subscriptionService.getPlans(),
-        customerService.getCustomers(),
+        customerService.getAll(),
       ]);
 
       setPlans(plansData.filter(p => p.is_active));

@@ -15,7 +15,7 @@ export const subscriptionService = {
       throw error;
     }
 
-    return data || [];
+    return (data as unknown) as SubscriptionPlan[];
   },
 
   async getPlanById(id: string): Promise<SubscriptionPlan | null> {
@@ -30,7 +30,7 @@ export const subscriptionService = {
       throw error;
     }
 
-    return data;
+    return (data as unknown) as SubscriptionPlan | null;
   },
 
   async createPlan(plan: Omit<SubscriptionPlan, "id" | "created_at" | "updated_at">): Promise<SubscriptionPlan> {
@@ -39,7 +39,7 @@ export const subscriptionService = {
 
     const { data, error } = await supabase
       .from("subscription_plans")
-      .insert([plan])
+      .insert([plan as any])
       .select()
       .single();
 
@@ -48,13 +48,13 @@ export const subscriptionService = {
       throw error;
     }
 
-    return data;
+    return (data as unknown) as SubscriptionPlan;
   },
 
   async updatePlan(id: string, updates: Partial<SubscriptionPlan>): Promise<SubscriptionPlan> {
     const { data, error } = await supabase
       .from("subscription_plans")
-      .update(updates)
+      .update(updates as any)
       .eq("id", id)
       .select()
       .single();
@@ -64,7 +64,7 @@ export const subscriptionService = {
       throw error;
     }
 
-    return data;
+    return (data as unknown) as SubscriptionPlan;
   },
 
   async deletePlan(id: string): Promise<void> {
@@ -96,7 +96,7 @@ export const subscriptionService = {
       throw error;
     }
 
-    return data || [];
+    return (data as unknown) as CustomerSubscription[];
   },
 
   async getSubscriptionById(id: string): Promise<CustomerSubscription | null> {
@@ -115,7 +115,7 @@ export const subscriptionService = {
       throw error;
     }
 
-    return data;
+    return (data as unknown) as CustomerSubscription | null;
   },
 
   async getCustomerSubscriptions(customerId: string): Promise<CustomerSubscription[]> {
@@ -133,7 +133,7 @@ export const subscriptionService = {
       throw error;
     }
 
-    return data || [];
+    return (data as unknown) as CustomerSubscription[];
   },
 
   async createSubscription(subscription: Omit<CustomerSubscription, "id" | "created_at" | "updated_at">): Promise<CustomerSubscription> {
@@ -142,7 +142,7 @@ export const subscriptionService = {
 
     const { data, error } = await supabase
       .from("customer_subscriptions")
-      .insert([subscription])
+      .insert([subscription as any])
       .select()
       .single();
 
@@ -151,13 +151,13 @@ export const subscriptionService = {
       throw error;
     }
 
-    return data;
+    return (data as unknown) as CustomerSubscription;
   },
 
   async updateSubscription(id: string, updates: Partial<CustomerSubscription>): Promise<CustomerSubscription> {
     const { data, error } = await supabase
       .from("customer_subscriptions")
-      .update(updates)
+      .update(updates as any)
       .eq("id", id)
       .select()
       .single();
@@ -167,7 +167,7 @@ export const subscriptionService = {
       throw error;
     }
 
-    return data;
+    return (data as unknown) as CustomerSubscription;
   },
 
   async cancelSubscription(id: string): Promise<CustomerSubscription> {
@@ -191,7 +191,11 @@ export const subscriptionService = {
   async getMetrics() {
     const { data: subscriptions, error } = await supabase
       .from("customer_subscriptions")
-      .select("status, price, billing_cycle");
+      .select(`
+        status, 
+        price,
+        plan:subscription_plans(billing_cycle)
+      `);
 
     if (error) {
       console.error("Error fetching subscription metrics:", error);
@@ -199,18 +203,19 @@ export const subscriptionService = {
     }
 
     const total = subscriptions?.length || 0;
-    const active = subscriptions?.filter(s => s.status === "active").length || 0;
-    const trial = subscriptions?.filter(s => s.status === "trial").length || 0;
-    const suspended = subscriptions?.filter(s => s.status === "suspended").length || 0;
-    const cancelled = subscriptions?.filter(s => s.status === "cancelled").length || 0;
+    const active = subscriptions?.filter((s: any) => s.status === "active").length || 0;
+    const trial = subscriptions?.filter((s: any) => s.status === "trial").length || 0;
+    const suspended = subscriptions?.filter((s: any) => s.status === "suspended").length || 0;
+    const cancelled = subscriptions?.filter((s: any) => s.status === "cancelled").length || 0;
 
     // Calculate MRR (Monthly Recurring Revenue)
     let mrr = 0;
-    subscriptions?.forEach(sub => {
+    subscriptions?.forEach((sub: any) => {
       if (sub.status === "active" || sub.status === "trial") {
-        const monthlyPrice = sub.billing_cycle === "monthly" ? sub.price :
-                           sub.billing_cycle === "quarterly" ? sub.price / 3 :
-                           sub.price / 12;
+        const cycle = sub.plan?.billing_cycle || "monthly";
+        const monthlyPrice = cycle === "monthly" ? Number(sub.price) :
+                           cycle === "quarterly" ? Number(sub.price) / 3 :
+                           Number(sub.price) / 12;
         mrr += monthlyPrice;
       }
     });
