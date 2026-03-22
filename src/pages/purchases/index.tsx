@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { SEO } from "@/components/SEO";
 import { DashboardLayout } from "@/components/layouts/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -6,66 +6,101 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Plus, Search, Filter, Download, Eye, Edit, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Invoice, InvoiceStatus } from "@/types";
+import { InvoiceStatus } from "@/types";
+import { purchaseService } from "@/services/purchaseService";
+import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
 
 export default function PurchasesPage() {
+  const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
-  
-  const purchaseInvoices: Invoice[] = [
-    {
-      id: "1",
-      invoiceNumber: "PINV-2026-00045",
-      type: "purchase",
-      supplierId: "1",
-      date: "2026-03-20",
-      dueDate: "2026-04-20",
-      items: [],
-      subtotal: 25000,
-      taxAmount: 3750,
-      discountAmount: 0,
-      total: 28750,
-      paid: 28750,
-      balance: 0,
-      status: "paid",
-      createdAt: "2026-03-20T09:00:00Z",
-      updatedAt: "2026-03-20T09:00:00Z",
-    },
-    {
-      id: "2",
-      invoiceNumber: "PINV-2026-00044",
-      type: "purchase",
-      supplierId: "2",
-      date: "2026-03-18",
-      dueDate: "2026-04-18",
-      items: [],
-      subtotal: 15000,
-      taxAmount: 2250,
-      discountAmount: 500,
-      total: 16750,
-      paid: 0,
-      balance: 16750,
-      status: "pending",
-      createdAt: "2026-03-18T11:30:00Z",
-      updatedAt: "2026-03-18T11:30:00Z",
-    },
-  ];
+  const [purchaseInvoices, setPurchaseInvoices] = useState<any[]>([]);
+  const [filteredInvoices, setFilteredInvoices] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const getStatusColor = (status: InvoiceStatus) => {
-    switch (status) {
-      case "paid": return "text-success bg-success/10";
-      case "pending": return "text-warning bg-warning/10";
-      case "overdue": return "text-destructive bg-destructive/10";
-      case "draft": return "text-muted-foreground bg-muted";
-      case "cancelled": return "text-muted-foreground bg-muted/50";
+  useEffect(() => {
+    loadPurchaseInvoices();
+  }, []);
+
+  useEffect(() => {
+    if (searchQuery.trim() === "") {
+      setFilteredInvoices(purchaseInvoices);
+    } else {
+      const query = searchQuery.toLowerCase();
+      const filtered = purchaseInvoices.filter(
+        (invoice) =>
+          invoice.invoice_number?.toLowerCase().includes(query) ||
+          invoice.supplier_name?.toLowerCase().includes(query) ||
+          invoice.payment_status?.toLowerCase().includes(query)
+      );
+      setFilteredInvoices(filtered);
+    }
+  }, [searchQuery, purchaseInvoices]);
+
+  const loadPurchaseInvoices = async () => {
+    try {
+      setLoading(true);
+      console.log("Loading purchase invoices...");
+      const data = await purchaseService.getAll();
+      console.log("Purchase invoices loaded:", data);
+      setPurchaseInvoices(data);
+      setFilteredInvoices(data);
+    } catch (error: any) {
+      console.error("Error loading purchase invoices:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load purchase invoices",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
+  const handleDelete = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this purchase invoice?")) {
+      return;
+    }
+
+    try {
+      await purchaseService.delete(id);
+      toast({
+        title: "Success",
+        description: "Purchase invoice deleted successfully",
+      });
+      loadPurchaseInvoices();
+    } catch (error: any) {
+      console.error("Error deleting purchase invoice:", error);
+      toast({
+        title: "Error",
+        description: "Failed to delete purchase invoice",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "paid": return "text-success bg-success/10";
+      case "unpaid": 
+      case "pending": return "text-warning bg-warning/10";
+      case "overdue": return "text-destructive bg-destructive/10";
+      case "partial": return "text-blue-500 bg-blue-500/10";
+      case "draft": return "text-muted-foreground bg-muted";
+      case "cancelled": return "text-muted-foreground bg-muted/50";
+      default: return "text-muted-foreground bg-muted";
+    }
+  };
+
+  const formatStatus = (status: string) => {
+    return status.charAt(0).toUpperCase() + status.slice(1);
+  };
+
   const stats = {
-    totalPurchases: purchaseInvoices.reduce((sum, inv) => sum + inv.total, 0),
-    paidAmount: purchaseInvoices.reduce((sum, inv) => sum + inv.paid, 0),
-    pendingAmount: purchaseInvoices.filter(inv => inv.status === "pending").reduce((sum, inv) => sum + inv.balance, 0),
-    overdueAmount: purchaseInvoices.filter(inv => inv.status === "overdue").reduce((sum, inv) => sum + inv.balance, 0),
+    totalPurchases: filteredInvoices.reduce((sum, inv) => sum + (inv.total_amount || 0), 0),
+    paidAmount: filteredInvoices.filter(inv => inv.payment_status === "paid").reduce((sum, inv) => sum + (inv.total_amount || 0), 0),
+    pendingAmount: filteredInvoices.filter(inv => inv.payment_status === "unpaid" || inv.payment_status === "pending").reduce((sum, inv) => sum + (inv.total_amount || 0), 0),
+    overdueAmount: filteredInvoices.filter(inv => inv.payment_status === "overdue").reduce((sum, inv) => sum + (inv.total_amount || 0), 0),
   };
 
   return (
@@ -158,45 +193,74 @@ export default function PurchasesPage() {
                         <th className="text-left p-4 font-semibold text-sm">Date</th>
                         <th className="text-left p-4 font-semibold text-sm">Due Date</th>
                         <th className="text-right p-4 font-semibold text-sm">Total</th>
-                        <th className="text-right p-4 font-semibold text-sm">Paid</th>
-                        <th className="text-right p-4 font-semibold text-sm">Balance</th>
                         <th className="text-center p-4 font-semibold text-sm">Status</th>
                         <th className="text-center p-4 font-semibold text-sm">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {purchaseInvoices.map((invoice) => (
-                        <tr key={invoice.id} className="border-t hover:bg-table-row-hover transition-colors">
-                          <td className="p-4 font-medium">{invoice.invoiceNumber}</td>
-                          <td className="p-4">Tech Supplies Co.</td>
-                          <td className="p-4 text-sm">{invoice.date}</td>
-                          <td className="p-4 text-sm">{invoice.dueDate}</td>
-                          <td className="p-4 text-right font-semibold">SAR {invoice.total.toLocaleString()}</td>
-                          <td className="p-4 text-right">SAR {invoice.paid.toLocaleString()}</td>
-                          <td className="p-4 text-right font-medium">SAR {invoice.balance.toLocaleString()}</td>
-                          <td className="p-4 text-center">
-                            <span className={cn(
-                              "inline-block px-3 py-1 rounded-full text-xs font-medium",
-                              getStatusColor(invoice.status)
-                            )}>
-                              {invoice.status}
-                            </span>
-                          </td>
-                          <td className="p-4">
+                      {loading ? (
+                        <tr>
+                          <td colSpan={7} className="p-8 text-center">
                             <div className="flex items-center justify-center gap-2">
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive">
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
+                              <div className="h-5 w-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                              <span className="text-muted-foreground">Loading purchase invoices...</span>
                             </div>
                           </td>
                         </tr>
-                      ))}
+                      ) : filteredInvoices.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="p-8 text-center text-muted-foreground">
+                            {searchQuery ? "No purchase invoices found matching your search" : "No purchase invoices yet"}
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredInvoices.map((invoice) => (
+                          <tr key={invoice.id} className="border-t hover:bg-table-row-hover transition-colors">
+                            <td className="p-4 font-medium">{invoice.invoice_number}</td>
+                            <td className="p-4">
+                              <div>
+                                <div className="font-medium">{invoice.supplier_name}</div>
+                                {invoice.supplier_vat && (
+                                  <div className="text-xs text-muted-foreground">VAT: {invoice.supplier_vat}</div>
+                                )}
+                              </div>
+                            </td>
+                            <td className="p-4 text-sm">{new Date(invoice.invoice_date).toLocaleDateString()}</td>
+                            <td className="p-4 text-sm">{new Date(invoice.due_date).toLocaleDateString()}</td>
+                            <td className="p-4 text-right font-semibold">SAR {invoice.total_amount?.toLocaleString() || "0"}</td>
+                            <td className="p-4 text-center">
+                              <span className={cn(
+                                "inline-block px-3 py-1 rounded-full text-xs font-medium",
+                                getStatusColor(invoice.payment_status)
+                              )}>
+                                {formatStatus(invoice.payment_status)}
+                              </span>
+                            </td>
+                            <td className="p-4">
+                              <div className="flex items-center justify-center gap-2">
+                                <Link href={`/purchases/invoice/${invoice.id}`}>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
+                                </Link>
+                                <Link href={`/purchases/edit/${invoice.id}`}>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                                    <Edit className="h-4 w-4" />
+                                  </Button>
+                                </Link>
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  className="h-8 w-8 text-destructive hover:text-destructive"
+                                  onClick={() => handleDelete(invoice.id)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>
