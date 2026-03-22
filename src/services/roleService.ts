@@ -1,14 +1,14 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 
-type Role = Database["public"]["Tables"]["roles"]["Row"];
-type RoleInsert = Database["public"]["Tables"]["roles"]["Insert"];
-type RoleUpdate = Database["public"]["Tables"]["roles"]["Update"];
+type Role = Database["public"]["Tables"]["user_roles"]["Row"];
+type RoleInsert = Database["public"]["Tables"]["user_roles"]["Insert"];
+type RoleUpdate = Database["public"]["Tables"]["user_roles"]["Update"];
 
 export const roleService = {
   async getAll() {
     const { data, error } = await supabase
-      .from("roles")
+      .from("user_roles")
       .select("*")
       .order("created_at", { ascending: false });
 
@@ -24,7 +24,7 @@ export const roleService = {
 
   async getById(id: string) {
     const { data, error } = await supabase
-      .from("roles")
+      .from("user_roles")
       .select("*")
       .eq("id", id)
       .single();
@@ -41,7 +41,7 @@ export const roleService = {
 
   async create(role: RoleInsert) {
     const { data, error } = await supabase
-      .from("roles")
+      .from("user_roles")
       .insert(role)
       .select()
       .single();
@@ -58,7 +58,7 @@ export const roleService = {
 
   async update(id: string, updates: RoleUpdate) {
     const { data, error } = await supabase
-      .from("roles")
+      .from("user_roles")
       .update(updates)
       .eq("id", id)
       .select()
@@ -76,7 +76,7 @@ export const roleService = {
 
   async delete(id: string) {
     const { error } = await supabase
-      .from("roles")
+      .from("user_roles")
       .delete()
       .eq("id", id);
 
