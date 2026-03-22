@@ -297,9 +297,11 @@ export default function SalesPage() {
                                     <Eye className="h-4 w-4" />
                                   </Button>
                                 </Link>
-                                <Button variant="ghost" size="icon" className="h-8 w-8">
-                                  <Edit className="h-4 w-4" />
-                                </Button>
+                                <Link href={`/sales/edit/${invoice.id}`}>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                                    <Edit className="h-4 w-4" />
+                                  </Button>
+                                </Link>
                                 {invoice.payment_status !== "paid" && (
                                   <Button 
                                     variant="ghost" 

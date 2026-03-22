@@ -100,13 +100,17 @@ export default function UsersPage() {
             <span className="text-sm font-medium">
               {primaryLocation.business_locations?.location_name}
             </span>
+            <span className="text-xs text-primary">(Primary)</span>
           </div>
         )}
-        {otherLocations.length > 0 && (
-          <span className="text-xs text-muted-foreground">
-            +{otherLocations.length} more location{otherLocations.length > 1 ? "s" : ""}
-          </span>
-        )}
+        {otherLocations.map((ul: any, idx: number) => (
+          <div key={idx} className="flex items-center gap-1 ml-4">
+            <MapPin className="h-3 w-3 text-muted-foreground" />
+            <span className="text-xs text-muted-foreground">
+              {ul.business_locations?.location_name}
+            </span>
+          </div>
+        ))}
       </div>
     );
   };
