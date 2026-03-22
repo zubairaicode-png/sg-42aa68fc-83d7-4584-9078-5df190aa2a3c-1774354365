@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { SEO } from "@/components/SEO";
 import { DashboardLayout } from "@/components/layouts/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -12,56 +12,170 @@ import { Save, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { PRODUCT_CATEGORIES, PRODUCT_UNITS } from "@/lib/constants";
+import { productService } from "@/services/productService";
+import { useToast } from "@/hooks/use-toast";
 
 interface ProductFormData {
-  sku: string;
+  product_code: string;
   name: string;
-  nameAr: string;
+  name_ar: string;
   description: string;
   category: string;
   unit: string;
-  costPrice: number;
-  sellingPrice: number;
-  stock: number;
-  minStock: number;
-  maxStock: number;
+  cost_price: number;
+  selling_price: number;
+  stock_quantity: number;
+  reorder_level: number;
+  max_stock_level: number;
   taxable: boolean;
   barcode: string;
 }
 
 export default function CreateProductPage() {
   const router = useRouter();
+  const { toast } = useToast();
+  const { id } = router.query;
+  const isEditMode = !!id;
+  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<ProductFormData>({
-    sku: "",
+    product_code: "",
     name: "",
-    nameAr: "",
+    name_ar: "",
     description: "",
     category: "",
     unit: "pcs",
-    costPrice: 0,
-    sellingPrice: 0,
-    stock: 0,
-    minStock: 0,
-    maxStock: 0,
+    cost_price: 0,
+    selling_price: 0,
+    stock_quantity: 0,
+    reorder_level: 0,
+    max_stock_level: 0,
     taxable: true,
     barcode: "",
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    console.log("Product data:", formData);
-    router.push("/inventory");
+  useEffect(() => {
+    if (isEditMode && typeof id === "string") {
+      loadProduct(id);
+    }
+  }, [id, isEditMode]);
+
+  const loadProduct = async (productId: string) => {
+    try {
+      setLoading(true);
+      const product = await productService.getById(productId);
+      if (product) {
+        setFormData({
+          product_code: product.product_code || "",
+          name: product.name || "",
+          name_ar: product.name_ar || "",
+          description: product.description || "",
+          category: product.category || "",
+          unit: product.unit || "pcs",
+          cost_price: product.cost_price || 0,
+          selling_price: product.selling_price || 0,
+          stock_quantity: product.stock_quantity || 0,
+          reorder_level: product.reorder_level || 0,
+          max_stock_level: product.max_stock_level || 0,
+          taxable: product.taxable ?? true,
+          barcode: product.barcode || "",
+        });
+      }
+    } catch (error) {
+      console.error("Error loading product:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load product details",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const margin = formData.sellingPrice > 0 
-    ? (((formData.sellingPrice - formData.costPrice) / formData.sellingPrice) * 100).toFixed(2)
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // Validation
+    if (!formData.product_code.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Product code is required",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (!formData.name.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Product name is required",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (!formData.category) {
+      toast({
+        title: "Validation Error",
+        description: "Category is required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setLoading(true);
+      
+      if (isEditMode && typeof id === "string") {
+        // Update existing product
+        await productService.update(id, formData);
+        toast({
+          title: "Success",
+          description: "Product updated successfully",
+        });
+      } else {
+        // Create new product
+        await productService.create(formData);
+        toast({
+          title: "Success",
+          description: "Product created successfully",
+        });
+      }
+      
+      router.push("/inventory");
+    } catch (error: any) {
+      console.error("Error saving product:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to save product",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const margin = formData.selling_price > 0 
+    ? (((formData.selling_price - formData.cost_price) / formData.selling_price) * 100).toFixed(2)
     : "0";
+
+  if (loading && isEditMode) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <div className="text-lg font-semibold">Loading product...</div>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <>
       <SEO 
-        title="Add Product - Saudi ERP System"
-        description="Add new product to inventory"
+        title={`${isEditMode ? "Edit" : "Add"} Product - Saudi ERP System`}
+        description={`${isEditMode ? "Edit" : "Add new"} product to inventory`}
       />
       <DashboardLayout>
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -73,17 +187,21 @@ export default function CreateProductPage() {
                 </Button>
               </Link>
               <div>
-                <h1 className="text-3xl font-bold font-heading">Add New Product</h1>
-                <p className="text-muted-foreground mt-1">Enter product details</p>
+                <h1 className="text-3xl font-bold font-heading">
+                  {isEditMode ? "Edit Product" : "Add New Product"}
+                </h1>
+                <p className="text-muted-foreground mt-1">
+                  {isEditMode ? "Update product details" : "Enter product details"}
+                </p>
               </div>
             </div>
             <div className="flex gap-2">
               <Link href="/inventory">
                 <Button type="button" variant="outline">Cancel</Button>
               </Link>
-              <Button type="submit">
+              <Button type="submit" disabled={loading}>
                 <Save className="h-4 w-4 mr-2" />
-                Save Product
+                {loading ? "Saving..." : isEditMode ? "Update Product" : "Save Product"}
               </Button>
             </div>
           </div>
@@ -95,11 +213,11 @@ export default function CreateProductPage() {
             <CardContent className="space-y-4">
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="sku">SKU / Product Code *</Label>
+                  <Label htmlFor="product_code">SKU / Product Code *</Label>
                   <Input
-                    id="sku"
-                    value={formData.sku}
-                    onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
+                    id="product_code"
+                    value={formData.product_code}
+                    onChange={(e) => setFormData({ ...formData, product_code: e.target.value })}
                     placeholder="e.g., PRN-001"
                     required
                   />
@@ -127,11 +245,11 @@ export default function CreateProductPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="nameAr">Product Name (Arabic)</Label>
+                  <Label htmlFor="name_ar">Product Name (Arabic)</Label>
                   <Input
-                    id="nameAr"
-                    value={formData.nameAr}
-                    onChange={(e) => setFormData({ ...formData, nameAr: e.target.value })}
+                    id="name_ar"
+                    value={formData.name_ar}
+                    onChange={(e) => setFormData({ ...formData, name_ar: e.target.value })}
                     placeholder="اسم المنتج بالعربي"
                     dir="rtl"
                   />
@@ -192,27 +310,27 @@ export default function CreateProductPage() {
             <CardContent className="space-y-4">
               <div className="grid gap-4 md:grid-cols-3">
                 <div className="space-y-2">
-                  <Label htmlFor="costPrice">Cost Price (SAR) *</Label>
+                  <Label htmlFor="cost_price">Cost Price (SAR) *</Label>
                   <Input
-                    id="costPrice"
+                    id="cost_price"
                     type="number"
                     min="0"
                     step="0.01"
-                    value={formData.costPrice}
-                    onChange={(e) => setFormData({ ...formData, costPrice: parseFloat(e.target.value) || 0 })}
+                    value={formData.cost_price}
+                    onChange={(e) => setFormData({ ...formData, cost_price: parseFloat(e.target.value) || 0 })}
                     required
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="sellingPrice">Selling Price (SAR) *</Label>
+                  <Label htmlFor="selling_price">Selling Price (SAR) *</Label>
                   <Input
-                    id="sellingPrice"
+                    id="selling_price"
                     type="number"
                     min="0"
                     step="0.01"
-                    value={formData.sellingPrice}
-                    onChange={(e) => setFormData({ ...formData, sellingPrice: parseFloat(e.target.value) || 0 })}
+                    value={formData.selling_price}
+                    onChange={(e) => setFormData({ ...formData, selling_price: parseFloat(e.target.value) || 0 })}
                     required
                   />
                 </div>
@@ -247,38 +365,38 @@ export default function CreateProductPage() {
             <CardContent className="space-y-4">
               <div className="grid gap-4 md:grid-cols-3">
                 <div className="space-y-2">
-                  <Label htmlFor="stock">Current Stock *</Label>
+                  <Label htmlFor="stock_quantity">Current Stock *</Label>
                   <Input
-                    id="stock"
+                    id="stock_quantity"
                     type="number"
                     min="0"
-                    value={formData.stock}
-                    onChange={(e) => setFormData({ ...formData, stock: parseFloat(e.target.value) || 0 })}
+                    value={formData.stock_quantity}
+                    onChange={(e) => setFormData({ ...formData, stock_quantity: parseFloat(e.target.value) || 0 })}
                     required
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="minStock">Minimum Stock Level *</Label>
+                  <Label htmlFor="reorder_level">Minimum Stock Level *</Label>
                   <Input
-                    id="minStock"
+                    id="reorder_level"
                     type="number"
                     min="0"
-                    value={formData.minStock}
-                    onChange={(e) => setFormData({ ...formData, minStock: parseFloat(e.target.value) || 0 })}
+                    value={formData.reorder_level}
+                    onChange={(e) => setFormData({ ...formData, reorder_level: parseFloat(e.target.value) || 0 })}
                     required
                   />
                   <p className="text-xs text-muted-foreground">Alert when stock falls below this level</p>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="maxStock">Maximum Stock Level *</Label>
+                  <Label htmlFor="max_stock_level">Maximum Stock Level *</Label>
                   <Input
-                    id="maxStock"
+                    id="max_stock_level"
                     type="number"
                     min="0"
-                    value={formData.maxStock}
-                    onChange={(e) => setFormData({ ...formData, maxStock: parseFloat(e.target.value) || 0 })}
+                    value={formData.max_stock_level}
+                    onChange={(e) => setFormData({ ...formData, max_stock_level: parseFloat(e.target.value) || 0 })}
                     required
                   />
                   <p className="text-xs text-muted-foreground">Maximum inventory capacity</p>

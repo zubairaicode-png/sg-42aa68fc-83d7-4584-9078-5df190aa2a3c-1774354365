@@ -13,92 +13,78 @@ import { excelService } from "@/services/excelService";
 import { useToast } from "@/hooks/use-toast";
 import { productService } from "@/services/productService";
 import { Label } from "@/components/ui/label";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function InventoryPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(false);
-  
-  const products: Product[] = [
-    {
-      id: "1",
-      sku: "PRN-001",
-      name: "HP LaserJet Printer",
-      category: "Electronics",
-      unit: "pcs",
-      costPrice: 1200,
-      sellingPrice: 1500,
-      stock: 15,
-      minStock: 10,
-      maxStock: 50,
-      taxable: true,
-      createdAt: "2026-03-01T10:00:00Z",
-    },
-    {
-      id: "2",
-      sku: "FUR-045",
-      name: "Office Chair Executive",
-      category: "Office Supplies",
-      unit: "pcs",
-      costPrice: 350,
-      sellingPrice: 480,
-      stock: 8,
-      minStock: 15,
-      maxStock: 40,
-      taxable: true,
-      createdAt: "2026-03-05T14:30:00Z",
-    },
-    {
-      id: "3",
-      sku: "STA-012",
-      name: "Whiteboard Markers Set",
-      category: "Office Supplies",
-      unit: "pack",
-      costPrice: 25,
-      sellingPrice: 35,
-      stock: 45,
-      minStock: 50,
-      maxStock: 200,
-      taxable: true,
-      createdAt: "2026-03-10T09:15:00Z",
-    },
-    {
-      id: "4",
-      sku: "STA-001",
-      name: "A4 Paper Ream",
-      category: "Office Supplies",
-      unit: "box",
-      costPrice: 18,
-      sellingPrice: 25,
-      stock: 120,
-      minStock: 30,
-      maxStock: 300,
-      taxable: true,
-      createdAt: "2026-02-15T11:20:00Z",
-    },
-  ];
+  const [products, setProducts] = useState<any[]>([]);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [productToDelete, setProductToDelete] = useState<string | null>(null);
+
+  useEffect(() => {
+    loadProducts();
+  }, []);
+
+  const loadProducts = async () => {
+    try {
+      setLoading(true);
+      const data = await productService.getAll();
+      setProducts(data);
+    } catch (error) {
+      console.error("Error loading products:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load products",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredProducts = products.filter(product => {
+    const query = searchQuery.toLowerCase();
+    return (
+      product.product_code?.toLowerCase().includes(query) ||
+      product.name?.toLowerCase().includes(query) ||
+      product.category?.toLowerCase().includes(query) ||
+      product.barcode?.toLowerCase().includes(query)
+    );
+  });
 
   const stats = {
     totalProducts: products.length,
-    totalValue: products.reduce((sum, p) => sum + (p.stock * p.costPrice), 0),
-    lowStockItems: products.filter(p => p.stock <= p.minStock).length,
-    outOfStock: products.filter(p => p.stock === 0).length,
+    totalValue: products.reduce((sum, p) => sum + ((p.stock_quantity || 0) * (p.cost_price || 0)), 0),
+    lowStockItems: products.filter(p => (p.stock_quantity || 0) <= (p.reorder_level || 0)).length,
+    outOfStock: products.filter(p => (p.stock_quantity || 0) === 0).length,
   };
 
-  const getStockStatus = (product: Product) => {
-    if (product.stock === 0) return { label: "Out of Stock", color: "text-destructive bg-destructive/10" };
-    if (product.stock <= product.minStock) return { label: "Low Stock", color: "text-warning bg-warning/10" };
-    if (product.stock >= product.maxStock) return { label: "Overstock", color: "text-muted-foreground bg-muted" };
+  const getStockStatus = (product: any) => {
+    const stock = product.stock_quantity || 0;
+    const min = product.reorder_level || 0;
+    const max = product.max_stock_level || 0;
+    
+    if (stock === 0) return { label: "Out of Stock", color: "text-destructive bg-destructive/10" };
+    if (stock <= min) return { label: "Low Stock", color: "text-warning bg-warning/10" };
+    if (stock >= max) return { label: "Overstock", color: "text-muted-foreground bg-muted" };
     return { label: "In Stock", color: "text-success bg-success/10" };
-  };
-
-  const loadProducts = async () => {
   };
 
   const handleExportExcel = () => {
     try {
-      excelService.exportProducts(products as any);
+      excelService.exportProducts(products);
       toast({
         title: "Success",
         description: "Products exported to Excel successfully",
@@ -118,7 +104,6 @@ export default function InventoryPage() {
       setLoading(true);
       const importedProducts = await excelService.importProducts(file);
       
-      // Import products to database
       for (const product of importedProducts) {
         await productService.create(product as any);
       }
@@ -145,7 +130,34 @@ export default function InventoryPage() {
     excelService.downloadTemplate("products");
   };
 
-  const deleteProduct = async (id: string) => {
+  const confirmDelete = (id: string) => {
+    setProductToDelete(id);
+    setDeleteDialogOpen(true);
+  };
+
+  const deleteProduct = async () => {
+    if (!productToDelete) return;
+
+    try {
+      setLoading(true);
+      await productService.delete(productToDelete);
+      toast({
+        title: "Success",
+        description: "Product deleted successfully",
+      });
+      loadProducts();
+    } catch (error) {
+      console.error("Error deleting product:", error);
+      toast({
+        title: "Error",
+        description: "Failed to delete product",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+      setDeleteDialogOpen(false);
+      setProductToDelete(null);
+    }
   };
 
   return (
@@ -254,76 +266,119 @@ export default function InventoryPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="rounded-md border">
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-table-header">
-                      <tr>
-                        <th className="text-left p-4 font-semibold text-sm">SKU</th>
-                        <th className="text-left p-4 font-semibold text-sm">Product Name</th>
-                        <th className="text-left p-4 font-semibold text-sm">Category</th>
-                        <th className="text-right p-4 font-semibold text-sm">Stock</th>
-                        <th className="text-right p-4 font-semibold text-sm">Min/Max</th>
-                        <th className="text-right p-4 font-semibold text-sm">Cost Price</th>
-                        <th className="text-right p-4 font-semibold text-sm">Selling Price</th>
-                        <th className="text-center p-4 font-semibold text-sm">Status</th>
-                        <th className="text-center p-4 font-semibold text-sm">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {products.map((product) => {
-                        const status = getStockStatus(product);
-                        return (
-                          <tr key={product.id} className="border-t hover:bg-table-row-hover transition-colors">
-                            <td className="p-4 font-medium">{product.sku}</td>
-                            <td className="p-4">{product.name}</td>
-                            <td className="p-4 text-sm">{product.category}</td>
-                            <td className="p-4 text-right">
-                              <div className="flex items-center justify-end gap-1">
-                                {product.stock <= product.minStock && (
-                                  <AlertTriangle className="h-4 w-4 text-warning" />
-                                )}
-                                <span className="font-semibold">{product.stock}</span>
-                                <span className="text-muted-foreground text-sm">{product.unit}</span>
-                              </div>
-                            </td>
-                            <td className="p-4 text-right text-sm text-muted-foreground">
-                              {product.minStock} / {product.maxStock}
-                            </td>
-                            <td className="p-4 text-right">SAR {product.costPrice.toLocaleString()}</td>
-                            <td className="p-4 text-right font-semibold">SAR {product.sellingPrice.toLocaleString()}</td>
-                            <td className="p-4 text-center">
-                              <span className={cn(
-                                "inline-block px-3 py-1 rounded-full text-xs font-medium",
-                                status.color
-                              )}>
-                                {status.label}
-                              </span>
-                            </td>
-                            <td className="p-4">
-                              <div className="flex items-center justify-center gap-2">
-                                <Button variant="ghost" size="icon" className="h-8 w-8">
-                                  <Package className="h-4 w-4" />
-                                </Button>
-                                <Button variant="ghost" size="icon" className="h-8 w-8">
-                                  <Edit className="h-4 w-4" />
-                                </Button>
-                                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive">
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+              {loading ? (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground">Loading products...</p>
                 </div>
-              </div>
+              ) : filteredProducts.length === 0 ? (
+                <div className="text-center py-8">
+                  <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground">
+                    {searchQuery ? "No products found matching your search" : "No products yet. Add your first product to get started."}
+                  </p>
+                  {!searchQuery && (
+                    <Button className="mt-4" onClick={() => router.push("/inventory/create")}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Product
+                    </Button>
+                  )}
+                </div>
+              ) : (
+                <div className="rounded-md border">
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-table-header">
+                        <tr>
+                          <th className="text-left p-4 font-semibold text-sm">SKU</th>
+                          <th className="text-left p-4 font-semibold text-sm">Product Name</th>
+                          <th className="text-left p-4 font-semibold text-sm">Category</th>
+                          <th className="text-right p-4 font-semibold text-sm">Stock</th>
+                          <th className="text-right p-4 font-semibold text-sm">Min/Max</th>
+                          <th className="text-right p-4 font-semibold text-sm">Cost Price</th>
+                          <th className="text-right p-4 font-semibold text-sm">Selling Price</th>
+                          <th className="text-center p-4 font-semibold text-sm">Status</th>
+                          <th className="text-center p-4 font-semibold text-sm">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredProducts.map((product) => {
+                          const status = getStockStatus(product);
+                          return (
+                            <tr key={product.id} className="border-t hover:bg-table-row-hover transition-colors">
+                              <td className="p-4 font-medium">{product.product_code}</td>
+                              <td className="p-4">{product.name}</td>
+                              <td className="p-4 text-sm">{product.category}</td>
+                              <td className="p-4 text-right">
+                                <div className="flex items-center justify-end gap-1">
+                                  {(product.stock_quantity || 0) <= (product.reorder_level || 0) && (
+                                    <AlertTriangle className="h-4 w-4 text-warning" />
+                                  )}
+                                  <span className="font-semibold">{product.stock_quantity || 0}</span>
+                                  <span className="text-muted-foreground text-sm">{product.unit}</span>
+                                </div>
+                              </td>
+                              <td className="p-4 text-right text-sm text-muted-foreground">
+                                {product.reorder_level || 0} / {product.max_stock_level || 0}
+                              </td>
+                              <td className="p-4 text-right">SAR {(product.cost_price || 0).toLocaleString()}</td>
+                              <td className="p-4 text-right font-semibold">SAR {(product.selling_price || 0).toLocaleString()}</td>
+                              <td className="p-4 text-center">
+                                <span className={cn(
+                                  "inline-block px-3 py-1 rounded-full text-xs font-medium",
+                                  status.color
+                                )}>
+                                  {status.label}
+                                </span>
+                              </td>
+                              <td className="p-4">
+                                <div className="flex items-center justify-center gap-2">
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon" 
+                                    className="h-8 w-8"
+                                    onClick={() => router.push(`/inventory/create?id=${product.id}`)}
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                  </Button>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon" 
+                                    className="h-8 w-8 text-destructive hover:text-destructive"
+                                    onClick={() => confirmDelete(product.id)}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
       </DashboardLayout>
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Product</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this product? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={deleteProduct} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
