@@ -22,8 +22,35 @@ export default function AccountingPage() {
   });
   const { toast } = useToast();
 
+  // Accounting Year State
+  const [accountingYear, setAccountingYear] = useState({
+    fiscalYearStart: "",
+    fiscalYearEnd: "",
+    lockPeriodUntil: "",
+    closePreviousPeriods: false,
+    allowPostingToPreviousYear: false,
+  });
+
+  // Balance Sheet State
+  const [balanceSheetDate, setBalanceSheetDate] = useState(new Date().toISOString().split('T')[0]);
+  const [balanceSheet, setBalanceSheet] = useState({
+    assets: [] as AccountWithBalance[],
+    liabilities: [] as AccountWithBalance[],
+    equity: [] as AccountWithBalance[],
+    totalAssets: 0,
+    totalLiabilities: 0,
+    totalEquity: 0
+  });
+  const [loadingBalanceSheet, setLoadingBalanceSheet] = useState(false);
+
   useEffect(() => {
     loadData();
+    
+    // Load accounting year settings from localStorage
+    const savedAccountingYear = localStorage.getItem("accountingYear");
+    if (savedAccountingYear) {
+      setAccountingYear(JSON.parse(savedAccountingYear));
+    }
   }, []);
 
   const loadData = async () => {
@@ -81,6 +108,89 @@ export default function AccountingPage() {
       setSyncing(false);
     }
   };
+
+  const handleSaveAccountingYear = () => {
+    try {
+      // Validate dates
+      if (!accountingYear.fiscalYearStart || !accountingYear.fiscalYearEnd) {
+        toast({
+          title: "Validation Error",
+          description: "Please set both fiscal year start and end dates",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      const start = new Date(accountingYear.fiscalYearStart);
+      const end = new Date(accountingYear.fiscalYearEnd);
+
+      if (end <= start) {
+        toast({
+          title: "Validation Error",
+          description: "Fiscal year end date must be after start date",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Save to localStorage
+      localStorage.setItem("accountingYear", JSON.stringify(accountingYear));
+
+      toast({
+        title: "Success",
+        description: "Accounting year settings saved successfully"
+      });
+    } catch (error) {
+      console.error("Error saving accounting year:", error);
+      toast({
+        title: "Error",
+        description: "Failed to save accounting year settings",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const loadBalanceSheet = async () => {
+    try {
+      setLoadingBalanceSheet(true);
+
+      // Get accounts with balances up to the selected date
+      const accountsData = await accountingService.getAccountsWithBalances();
+
+      // Separate by account type
+      const assets = accountsData.filter(a => a.account_type === 'asset');
+      const liabilities = accountsData.filter(a => a.account_type === 'liability');
+      const equity = accountsData.filter(a => a.account_type === 'equity');
+
+      const totalAssets = assets.reduce((sum, a) => sum + (a.current_balance || 0), 0);
+      const totalLiabilities = liabilities.reduce((sum, a) => sum + (a.current_balance || 0), 0);
+      const totalEquity = equity.reduce((sum, a) => sum + (a.current_balance || 0), 0);
+
+      setBalanceSheet({
+        assets,
+        liabilities,
+        equity,
+        totalAssets,
+        totalLiabilities,
+        totalEquity
+      });
+    } catch (error) {
+      console.error("Error loading balance sheet:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load balance sheet",
+        variant: "destructive"
+      });
+    } finally {
+      setLoadingBalanceSheet(false);
+    }
+  };
+
+  useEffect(() => {
+    if (balanceSheetDate) {
+      loadBalanceSheet();
+    }
+  }, [balanceSheetDate]);
 
   const formatCurrency = (value: number | undefined | null): string => {
     return (value || 0).toLocaleString("en-US", { 
@@ -186,6 +296,8 @@ export default function AccountingPage() {
                   <TabsTrigger value="accounts">Chart of Accounts</TabsTrigger>
                   <TabsTrigger value="journal">Journal Entries</TabsTrigger>
                   <TabsTrigger value="trial">Trial Balance</TabsTrigger>
+                  <TabsTrigger value="accounting-year">Accounting Year</TabsTrigger>
+                  <TabsTrigger value="balance-sheet">Balance Sheet</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="accounts" className="space-y-4">
@@ -339,6 +451,223 @@ export default function AccountingPage() {
                               </tr>
                             </tfoot>
                           </table>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                <TabsContent value="accounting-year" className="space-y-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Accounting Year Settings</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Fiscal Year Start Date *</label>
+                          <input
+                            type="date"
+                            value={accountingYear.fiscalYearStart}
+                            onChange={(e) => setAccountingYear({ ...accountingYear, fiscalYearStart: e.target.value })}
+                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Fiscal Year End Date *</label>
+                          <input
+                            type="date"
+                            value={accountingYear.fiscalYearEnd}
+                            onChange={(e) => setAccountingYear({ ...accountingYear, fiscalYearEnd: e.target.value })}
+                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-4 border-t pt-4">
+                        <h3 className="font-semibold">Posting Restrictions</h3>
+                        
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            id="closePrevious"
+                            checked={accountingYear.closePreviousPeriods}
+                            onChange={(e) => setAccountingYear({ ...accountingYear, closePreviousPeriods: e.target.checked })}
+                            className="h-4 w-4 rounded border-gray-300"
+                          />
+                          <label htmlFor="closePrevious" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                            Close previous periods
+                          </label>
+                        </div>
+                        <p className="text-sm text-muted-foreground ml-6">
+                          Prevent posting transactions dated before the fiscal year start date
+                        </p>
+
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            id="allowPrevious"
+                            checked={accountingYear.allowPostingToPreviousYear}
+                            onChange={(e) => setAccountingYear({ ...accountingYear, allowPostingToPreviousYear: e.target.checked })}
+                            className="h-4 w-4 rounded border-gray-300"
+                          />
+                          <label htmlFor="allowPrevious" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                            Allow posting to previous year
+                          </label>
+                        </div>
+                        <p className="text-sm text-muted-foreground ml-6">
+                          Allow corrections and adjustments to the previous fiscal year
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Lock Period Until</label>
+                        <input
+                          type="date"
+                          value={accountingYear.lockPeriodUntil}
+                          onChange={(e) => setAccountingYear({ ...accountingYear, lockPeriodUntil: e.target.value })}
+                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        />
+                        <p className="text-sm text-muted-foreground">
+                          Block all postings dated before this date
+                        </p>
+                      </div>
+
+                      <div className="flex justify-end">
+                        <Button onClick={handleSaveAccountingYear}>
+                          Save Accounting Year Settings
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                <TabsContent value="balance-sheet" className="space-y-4">
+                  <Card>
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <CardTitle>Balance Sheet</CardTitle>
+                        <div className="flex items-center gap-2">
+                          <label className="text-sm font-medium">As of:</label>
+                          <input
+                            type="date"
+                            value={balanceSheetDate}
+                            onChange={(e) => setBalanceSheetDate(e.target.value)}
+                            className="flex h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+                          />
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      {loadingBalanceSheet ? (
+                        <div className="text-center py-8 text-muted-foreground">
+                          Loading balance sheet...
+                        </div>
+                      ) : (
+                        <div className="space-y-6">
+                          {/* Assets */}
+                          <div>
+                            <h3 className="font-semibold text-lg mb-3">ASSETS</h3>
+                            {balanceSheet.assets.length === 0 ? (
+                              <p className="text-sm text-muted-foreground">No asset accounts found</p>
+                            ) : (
+                              <div className="space-y-2">
+                                {balanceSheet.assets.map((account) => (
+                                  <div key={account.id} className="flex justify-between items-center py-2 border-b">
+                                    <div>
+                                      <div className="font-medium">{account.account_name}</div>
+                                      <div className="text-sm text-muted-foreground">{account.account_code}</div>
+                                    </div>
+                                    <div className="font-semibold">
+                                      SAR {formatCurrency(account.current_balance)}
+                                    </div>
+                                  </div>
+                                ))}
+                                <div className="flex justify-between items-center py-2 font-bold text-lg border-t-2">
+                                  <div>Total Assets</div>
+                                  <div>SAR {formatCurrency(balanceSheet.totalAssets)}</div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Liabilities */}
+                          <div>
+                            <h3 className="font-semibold text-lg mb-3">LIABILITIES</h3>
+                            {balanceSheet.liabilities.length === 0 ? (
+                              <p className="text-sm text-muted-foreground">No liability accounts found</p>
+                            ) : (
+                              <div className="space-y-2">
+                                {balanceSheet.liabilities.map((account) => (
+                                  <div key={account.id} className="flex justify-between items-center py-2 border-b">
+                                    <div>
+                                      <div className="font-medium">{account.account_name}</div>
+                                      <div className="text-sm text-muted-foreground">{account.account_code}</div>
+                                    </div>
+                                    <div className="font-semibold">
+                                      SAR {formatCurrency(account.current_balance)}
+                                    </div>
+                                  </div>
+                                ))}
+                                <div className="flex justify-between items-center py-2 font-bold text-lg border-t-2">
+                                  <div>Total Liabilities</div>
+                                  <div>SAR {formatCurrency(balanceSheet.totalLiabilities)}</div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Equity */}
+                          <div>
+                            <h3 className="font-semibold text-lg mb-3">EQUITY</h3>
+                            {balanceSheet.equity.length === 0 ? (
+                              <p className="text-sm text-muted-foreground">No equity accounts found</p>
+                            ) : (
+                              <div className="space-y-2">
+                                {balanceSheet.equity.map((account) => (
+                                  <div key={account.id} className="flex justify-between items-center py-2 border-b">
+                                    <div>
+                                      <div className="font-medium">{account.account_name}</div>
+                                      <div className="text-sm text-muted-foreground">{account.account_code}</div>
+                                    </div>
+                                    <div className="font-semibold">
+                                      SAR {formatCurrency(account.current_balance)}
+                                    </div>
+                                  </div>
+                                ))}
+                                <div className="flex justify-between items-center py-2 font-bold text-lg border-t-2">
+                                  <div>Total Equity</div>
+                                  <div>SAR {formatCurrency(balanceSheet.totalEquity)}</div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Total Liabilities + Equity */}
+                          <div className="border-t-4 border-primary pt-4">
+                            <div className="flex justify-between items-center py-2 font-bold text-xl">
+                              <div>Total Liabilities & Equity</div>
+                              <div>SAR {formatCurrency(balanceSheet.totalLiabilities + balanceSheet.totalEquity)}</div>
+                            </div>
+                          </div>
+
+                          {/* Balance Check */}
+                          <div className={`p-4 rounded-lg ${
+                            Math.abs(balanceSheet.totalAssets - (balanceSheet.totalLiabilities + balanceSheet.totalEquity)) < 0.01
+                              ? "bg-green-50 text-green-800 border border-green-200"
+                              : "bg-red-50 text-red-800 border border-red-200"
+                          }`}>
+                            <div className="font-semibold mb-1">
+                              {Math.abs(balanceSheet.totalAssets - (balanceSheet.totalLiabilities + balanceSheet.totalEquity)) < 0.01
+                                ? "✓ Balance Sheet is Balanced"
+                                : "⚠ Balance Sheet is Out of Balance"
+                              }
+                            </div>
+                            <div className="text-sm">
+                              Difference: SAR {formatCurrency(Math.abs(balanceSheet.totalAssets - (balanceSheet.totalLiabilities + balanceSheet.totalEquity)))}
+                            </div>
+                          </div>
                         </div>
                       )}
                     </CardContent>
