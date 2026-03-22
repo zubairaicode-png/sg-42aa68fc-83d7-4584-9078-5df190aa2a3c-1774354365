@@ -55,6 +55,7 @@ export default function CreateSalesInvoicePage() {
     ],
     notes: "",
   });
+  const [isManualInvoice, setIsManualInvoice] = useState(false);
 
   const handleAddCustomer = () => {
     if (!newCustomer.name || !newCustomer.email || !newCustomer.phone) {
@@ -201,7 +202,27 @@ export default function CreateSalesInvoicePage() {
           {/* Invoice Details */}
           <Card>
             <CardHeader>
-              <CardTitle>Invoice Information</CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle>Invoice Information</CardTitle>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="manualInvoice"
+                    checked={isManualInvoice}
+                    onChange={(e) => setIsManualInvoice(e.target.checked)}
+                    className="h-4 w-4 rounded border-gray-300"
+                  />
+                  <Label htmlFor="manualInvoice" className="cursor-pointer font-normal">
+                    Manual Invoice (No Stock)
+                  </Label>
+                </div>
+              </div>
+              {isManualInvoice && (
+                <p className="text-sm text-muted-foreground mt-2">
+                  ℹ️ Manual mode enabled: Enter custom item descriptions without stock selection. 
+                  This invoice will not affect inventory levels.
+                </p>
+              )}
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-4 md:grid-cols-2">
@@ -416,27 +437,45 @@ export default function CreateSalesInvoicePage() {
                     </div>
                     
                     <div className="grid gap-4 md:grid-cols-7">
-                      <div className="md:col-span-2 space-y-2">
-                        <Label>Product/Service *</Label>
-                        <Select
-                          value={item.productId}
-                          onValueChange={(value) => {
-                            updateItem(index, "productId", value);
-                            updateItem(index, "productName", "HP LaserJet Printer");
-                            updateItem(index, "unitPrice", 1500);
-                          }}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select product" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="1">HP LaserJet Printer</SelectItem>
-                            <SelectItem value="2">Office Chair Executive</SelectItem>
-                            <SelectItem value="3">Whiteboard Markers</SelectItem>
-                            <SelectItem value="4">A4 Paper Ream</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
+                      {isManualInvoice ? (
+                        <>
+                          <div className="md:col-span-2 space-y-2">
+                            <Label>Item Description *</Label>
+                            <Input
+                              placeholder="Enter item description"
+                              value={item.productName}
+                              onChange={(e) => {
+                                updateItem(index, "productName", e.target.value);
+                                updateItem(index, "productId", `manual-${index}`);
+                              }}
+                            />
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="md:col-span-2 space-y-2">
+                            <Label>Product/Service *</Label>
+                            <Select
+                              value={item.productId}
+                              onValueChange={(value) => {
+                                updateItem(index, "productId", value);
+                                updateItem(index, "productName", "HP LaserJet Printer");
+                                updateItem(index, "unitPrice", 1500);
+                              }}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select product" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="1">HP LaserJet Printer</SelectItem>
+                                <SelectItem value="2">Office Chair Executive</SelectItem>
+                                <SelectItem value="3">Whiteboard Markers</SelectItem>
+                                <SelectItem value="4">A4 Paper Ream</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </>
+                      )}
                       
                       <div className="space-y-2">
                         <Label>Quantity *</Label>
