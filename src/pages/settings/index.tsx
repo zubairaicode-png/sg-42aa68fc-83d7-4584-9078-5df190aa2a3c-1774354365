@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Building2, FileText, DollarSign, Palette, Loader2, Upload, Save, Receipt, Plus, AlertTriangle } from "lucide-react";
+import { Building2, FileText, DollarSign, Palette, Loader2, Upload, Save, Receipt, Plus, AlertTriangle, Download, Trash2, Database } from "lucide-react";
 import { InvoiceLayoutDesigner, LayoutField } from "@/components/InvoiceLayoutDesigner";
 import {
   Select,
@@ -106,6 +106,9 @@ export default function SettingsPage() {
   const [restoreProgress, setRestoreProgress] = useState(0);
   const [backupInProgress, setBackupInProgress] = useState(false);
   const [restoreInProgress, setRestoreInProgress] = useState(false);
+  const [backupPoints, setBackupPoints] = useState<any[]>([]);
+  const [newBackupName, setNewBackupName] = useState("");
+  const [newBackupDescription, setNewBackupDescription] = useState("");
 
   // Layout designer state
   const [layoutFields, setLayoutFields] = useState<LayoutField[]>([]);
@@ -113,6 +116,7 @@ export default function SettingsPage() {
   useEffect(() => {
     loadSettings();
     loadBusinessLocations();
+    loadBackupPoints();
   }, []);
 
   const loadBusinessLocations = async () => {
@@ -648,6 +652,222 @@ export default function SettingsPage() {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const loadBackupPoints = () => {
+    const saved = localStorage.getItem("backupPoints");
+    if (saved) {
+      setBackupPoints(JSON.parse(saved));
+    }
+  };
+
+  const saveBackupPoints = (points: any[]) => {
+    localStorage.setItem("backupPoints", JSON.stringify(points));
+    setBackupPoints(points);
+  };
+
+  const handleCreateBackupPoint = async () => {
+    if (!newBackupName.trim()) {
+      toast({
+        title: "Backup Name Required",
+        description: "Please enter a name for this backup point",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setBackupInProgress(true);
+      setBackupProgress(0);
+
+      const tables = [
+        'customers', 'suppliers', 'products', 'sales_invoices', 'sales_invoice_items',
+        'purchase_invoices', 'purchase_invoice_items', 'expenses', 'quotations', 'quotation_items',
+        'subscription_plans', 'customer_subscriptions', 'subscription_servers',
+        'business_locations', 'fixed_assets', 'bank_reconciliations',
+        'chart_of_accounts', 'journal_entries', 'journal_entry_lines'
+      ];
+
+      const backupData: any = {
+        version: '1.0',
+        timestamp: new Date().toISOString(),
+        name: newBackupName,
+        description: newBackupDescription,
+        tables: {}
+      };
+
+      for (let i = 0; i < tables.length; i++) {
+        const table = tables[i];
+        setBackupProgress(Math.round(((i + 1) / tables.length) * 100));
+
+        try {
+          const { data, error } = await supabase
+            .from(table as any)
+            .select('*');
+
+          if (error) {
+            console.warn(`Warning: Could not backup table ${table}:`, error);
+            backupData.tables[table] = [];
+          } else {
+            backupData.tables[table] = data || [];
+          }
+        } catch (err) {
+          console.warn(`Warning: Could not backup table ${table}:`, err);
+          backupData.tables[table] = [];
+        }
+      }
+
+      backupData.localStorage = {
+        companyInfo: localStorage.getItem('companyInfo'),
+        taxSettings: localStorage.getItem('taxSettings'),
+        invoiceDesign: localStorage.getItem('invoiceDesign'),
+        accountingYear: localStorage.getItem('accountingYear')
+      };
+
+      const newBackupPoint = {
+        id: Date.now().toString(),
+        name: newBackupName,
+        description: newBackupDescription,
+        timestamp: new Date().toISOString(),
+        data: backupData,
+        size: JSON.stringify(backupData).length
+      };
+
+      const updatedPoints = [...backupPoints, newBackupPoint];
+      saveBackupPoints(updatedPoints);
+
+      setNewBackupName("");
+      setNewBackupDescription("");
+
+      toast({
+        title: "Backup Point Created",
+        description: `"${newBackupName}" saved successfully with ${Object.keys(backupData.tables).length} tables`,
+      });
+    } catch (error: any) {
+      console.error("Error creating backup point:", error);
+      toast({
+        title: "Backup Failed",
+        description: error.message || "Failed to create backup point",
+        variant: "destructive",
+      });
+    } finally {
+      setBackupInProgress(false);
+      setBackupProgress(0);
+    }
+  };
+
+  const handleDownloadBackupPoint = (backupPoint: any) => {
+    try {
+      const blob = new Blob([JSON.stringify(backupPoint.data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `backup-${backupPoint.name.replace(/[^a-z0-9]/gi, '-')}-${new Date(backupPoint.timestamp).toISOString().split('T')[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast({
+        title: "Backup Downloaded",
+        description: `"${backupPoint.name}" downloaded successfully`,
+      });
+    } catch (error: any) {
+      console.error("Error downloading backup:", error);
+      toast({
+        title: "Download Failed",
+        description: error.message || "Failed to download backup",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleRestoreBackupPoint = async (backupPoint: any) => {
+    if (!confirm(`⚠️ WARNING: This will RESTORE database to "${backupPoint.name}" backup point. Current data will be replaced. Are you sure?`)) {
+      return;
+    }
+
+    try {
+      setRestoreInProgress(true);
+      setRestoreProgress(0);
+
+      const backupData = backupPoint.data;
+      const tables = Object.keys(backupData.tables);
+      let successCount = 0;
+      let failCount = 0;
+
+      for (let i = 0; i < tables.length; i++) {
+        const table = tables[i];
+        const data = backupData.tables[table];
+        setRestoreProgress(Math.round(((i + 1) / tables.length) * 100));
+
+        if (!data || data.length === 0) continue;
+
+        try {
+          await supabase.from(table as any).delete().neq('id', '00000000-0000-0000-0000-000000000000');
+
+          const batchSize = 100;
+          for (let j = 0; j < data.length; j += batchSize) {
+            const batch = data.slice(j, j + batchSize);
+            const { error } = await supabase.from(table as any).insert(batch);
+            
+            if (error) {
+              console.warn(`Warning restoring ${table}:`, error);
+              failCount++;
+            } else {
+              successCount++;
+            }
+          }
+        } catch (err) {
+          console.warn(`Error restoring table ${table}:`, err);
+          failCount++;
+        }
+      }
+
+      if (backupData.localStorage) {
+        Object.keys(backupData.localStorage).forEach(key => {
+          if (backupData.localStorage[key]) {
+            localStorage.setItem(key, backupData.localStorage[key]);
+          }
+        });
+      }
+
+      toast({
+        title: "Restore Complete",
+        description: `Database restored to "${backupPoint.name}". ${successCount} tables restored, ${failCount} warnings.`,
+      });
+
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
+    } catch (error: any) {
+      console.error("Error restoring backup:", error);
+      toast({
+        title: "Restore Failed",
+        description: error.message || "Failed to restore backup point",
+        variant: "destructive",
+      });
+    } finally {
+      setRestoreInProgress(false);
+      setRestoreProgress(0);
+    }
+  };
+
+  const handleDeleteBackupPoint = (backupId: string) => {
+    const backup = backupPoints.find(b => b.id === backupId);
+    if (!backup) return;
+
+    if (!confirm(`Are you sure you want to delete backup "${backup.name}"? This cannot be undone.`)) {
+      return;
+    }
+
+    const updatedPoints = backupPoints.filter(b => b.id !== backupId);
+    saveBackupPoints(updatedPoints);
+
+    toast({
+      title: "Backup Deleted",
+      description: `"${backup.name}" has been removed`,
+    });
   };
 
   return (
@@ -1385,11 +1605,11 @@ export default function SettingsPage() {
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                      <FileText className="h-5 w-5" />
+                      <Database className="h-5 w-5" />
                       Backup & Restore
                     </CardTitle>
                     <CardDescription>
-                      Manage database backups and restore operations
+                      Create backup points and restore your database to previous states
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-6">
@@ -1430,46 +1650,136 @@ export default function SettingsPage() {
                       </div>
                     </div>
 
-                    {/* Backup Section */}
+                    {/* Create Backup Point */}
                     <div className="border-t pt-6">
-                      <h3 className="text-sm font-semibold mb-4">💾 Backup Database</h3>
-                      <div className="bg-muted/50 p-4 rounded-lg space-y-3">
-                        <p className="text-sm">Create a complete backup of your ERP database</p>
-                        <div className="text-sm space-y-1">
-                          <p className="font-medium">Includes:</p>
-                          <ul className="list-disc list-inside text-muted-foreground space-y-1">
-                            <li>All customers and suppliers</li>
-                            <li>Products and inventory</li>
+                      <h3 className="text-sm font-semibold mb-4">💾 Create Backup Point</h3>
+                      <div className="bg-muted/50 p-4 rounded-lg space-y-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="backupName">Backup Name *</Label>
+                          <Input
+                            id="backupName"
+                            value={newBackupName}
+                            onChange={(e) => setNewBackupName(e.target.value)}
+                            placeholder="e.g., Before Major Update, Working Version"
+                            disabled={backupInProgress}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="backupDescription">Description (Optional)</Label>
+                          <Textarea
+                            id="backupDescription"
+                            value={newBackupDescription}
+                            onChange={(e) => setNewBackupDescription(e.target.value)}
+                            placeholder="What changes are you about to make?"
+                            rows={2}
+                            disabled={backupInProgress}
+                          />
+                        </div>
+                        <div className="text-sm space-y-1 text-muted-foreground">
+                          <p className="font-medium">This backup will include:</p>
+                          <ul className="list-disc list-inside space-y-1">
+                            <li>All customers, suppliers, and products</li>
                             <li>Sales and purchase invoices</li>
-                            <li>Expenses and accounting data</li>
-                            <li>Quotations and subscriptions</li>
+                            <li>Expenses, quotations, and subscriptions</li>
+                            <li>Chart of accounts and journal entries</li>
                             <li>Business locations and settings</li>
-                            <li>Fixed assets and bank reconciliations</li>
-                            <li>User settings (localStorage data)</li>
+                            <li>All database tables and configurations</li>
                           </ul>
                         </div>
                         <Button 
-                          onClick={handleBackupDatabase} 
-                          disabled={backupInProgress}
+                          onClick={handleCreateBackupPoint} 
+                          disabled={backupInProgress || !newBackupName.trim()}
                           className="w-full"
                         >
                           {backupInProgress ? (
                             <>
                               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              Creating Backup...
+                              Creating Backup Point...
                             </>
                           ) : (
                             <>
-                              📥 Download Backup
+                              <Database className="mr-2 h-4 w-4" />
+                              Create Backup Point
                             </>
                           )}
                         </Button>
                       </div>
                     </div>
 
-                    {/* Restore Section */}
+                    {/* Saved Backup Points */}
                     <div className="border-t pt-6">
-                      <h3 className="text-sm font-semibold mb-4">📤 Restore Database</h3>
+                      <h3 className="text-sm font-semibold mb-4">📋 Saved Backup Points ({backupPoints.length})</h3>
+                      {backupPoints.length === 0 ? (
+                        <div className="bg-muted/30 p-8 rounded-lg text-center">
+                          <Database className="h-12 w-12 mx-auto mb-3 text-muted-foreground" />
+                          <p className="text-sm text-muted-foreground">No backup points created yet</p>
+                          <p className="text-xs text-muted-foreground mt-1">Create your first backup point above</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {backupPoints.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).map((backup) => (
+                            <Card key={backup.id} className="p-4">
+                              <div className="flex items-start justify-between gap-4">
+                                <div className="flex-1 space-y-1">
+                                  <div className="flex items-center gap-2">
+                                    <h4 className="font-semibold">{backup.name}</h4>
+                                    <span className="text-xs bg-muted px-2 py-0.5 rounded">
+                                      {(backup.size / 1024).toFixed(0)} KB
+                                    </span>
+                                  </div>
+                                  {backup.description && (
+                                    <p className="text-sm text-muted-foreground">{backup.description}</p>
+                                  )}
+                                  <p className="text-xs text-muted-foreground">
+                                    Created: {new Date(backup.timestamp).toLocaleString()}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    Tables: {Object.keys(backup.data.tables).length} | 
+                                    Total Records: {Object.values(backup.data.tables).reduce((sum: number, table: any) => sum + (Array.isArray(table) ? table.length : 0), 0)}
+                                  </p>
+                                </div>
+                                <div className="flex gap-2">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleRestoreBackupPoint(backup)}
+                                    disabled={restoreInProgress}
+                                  >
+                                    {restoreInProgress ? (
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                      <>
+                                        <Upload className="h-4 w-4 mr-1" />
+                                        Restore
+                                      </>
+                                    )}
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleDownloadBackupPoint(backup)}
+                                  >
+                                    <Download className="h-4 w-4 mr-1" />
+                                    Download
+                                  </Button>
+                                  <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    onClick={() => handleDeleteBackupPoint(backup.id)}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </div>
+                            </Card>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Import External Backup */}
+                    <div className="border-t pt-6">
+                      <h3 className="text-sm font-semibold mb-4">📤 Import External Backup</h3>
                       <div className="bg-destructive/10 border border-destructive/20 p-4 rounded-lg space-y-3">
                         <div className="flex items-start gap-2">
                           <AlertTriangle className="h-5 w-5 text-destructive mt-0.5" />
@@ -1479,7 +1789,7 @@ export default function SettingsPage() {
                           </div>
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="restoreFile">Upload Backup File</Label>
+                          <Label htmlFor="restoreFile">Upload Backup File (.json)</Label>
                           <Input
                             id="restoreFile"
                             type="file"
@@ -1488,7 +1798,7 @@ export default function SettingsPage() {
                             disabled={restoreInProgress}
                           />
                           <p className="text-xs text-muted-foreground">
-                            Supported format: .json backup files
+                            Restore from previously downloaded backup file
                           </p>
                         </div>
                       </div>
