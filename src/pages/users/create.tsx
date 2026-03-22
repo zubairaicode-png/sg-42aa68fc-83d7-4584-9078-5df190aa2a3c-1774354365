@@ -14,7 +14,7 @@ import { locationService } from "@/services/locationService";
 import { userService } from "@/services/userService";
 import { ArrowLeft, Save } from "lucide-react";
 import Link from "next/link";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/integrations/supabase/client";
 
 interface LocationAssignment {
   locationId: string;
