@@ -45,10 +45,20 @@ export default function RegisterCompanyPage() {
 
   useEffect(() => {
     // Check if new company registration is allowed
+    // Default to true (allow registration) if setting is not found
     const savedSystemSettings = localStorage.getItem("systemSettings");
     if (savedSystemSettings) {
-      const settings = JSON.parse(savedSystemSettings);
-      setRegistrationAllowed(settings.allowNewCompanyRegistration !== false);
+      try {
+        const settings = JSON.parse(savedSystemSettings);
+        // Only disable if explicitly set to false
+        setRegistrationAllowed(settings.allowNewCompanyRegistration !== false);
+      } catch (error) {
+        // If parsing fails, allow registration by default
+        setRegistrationAllowed(true);
+      }
+    } else {
+      // If no settings found, allow registration by default
+      setRegistrationAllowed(true);
     }
   }, []);
 
