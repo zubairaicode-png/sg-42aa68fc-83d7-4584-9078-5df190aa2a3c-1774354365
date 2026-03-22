@@ -357,9 +357,7 @@ export default function PurchasesPage() {
           onOpenChange={setPaymentDialogOpen}
           invoice={selectedInvoice}
           type="purchase"
-          onPaymentRecorded={() => {
-            // Payment will be handled through the parent component
-          }}
+          onPaymentRecorded={handleRecordPayment}
         />
       </DashboardLayout>
     </>

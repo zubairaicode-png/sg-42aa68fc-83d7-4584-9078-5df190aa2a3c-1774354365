@@ -12,7 +12,7 @@ interface PaymentDialogProps {
   onOpenChange: (open: boolean) => void;
   invoice: any;
   type: "sales" | "purchase";
-  onPaymentRecorded: () => void;
+  onPaymentRecorded: (invoice: any, amount: number, method: string, notes: string) => void;
 }
 
 export function PaymentDialog({ open, onOpenChange, invoice, type, onPaymentRecorded }: PaymentDialogProps) {
@@ -38,8 +38,7 @@ export function PaymentDialog({ open, onOpenChange, invoice, type, onPaymentReco
 
     setLoading(true);
     try {
-      // This will be handled by the parent component
-      onPaymentRecorded();
+      await onPaymentRecorded(invoice, amount, paymentMethod, paymentNotes);
       onOpenChange(false);
       resetForm();
     } catch (error) {

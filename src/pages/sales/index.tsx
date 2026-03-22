@@ -332,12 +332,7 @@ export default function SalesPage() {
           onOpenChange={setPaymentDialogOpen}
           invoice={selectedInvoice}
           type="sales"
-          onPaymentRecorded={() => {
-            if (selectedInvoice) {
-              // This will be called from the dialog, but we need to pass the payment details
-              // We'll handle this differently
-            }
-          }}
+          onPaymentRecorded={handleRecordPayment}
         />
       </DashboardLayout>
     </>
