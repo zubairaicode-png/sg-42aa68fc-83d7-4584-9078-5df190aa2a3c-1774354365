@@ -84,7 +84,7 @@ export default function EditSalesInvoicePage() {
           customer_vat: data.customer_vat || "",
           invoice_date: data.invoice_date || new Date().toISOString().split('T')[0],
           due_date: data.due_date || new Date().toISOString().split('T')[0],
-          payment_status: data.payment_status || "unpaid",
+          payment_status: (data.payment_status as "paid" | "unpaid" | "pending" | "overdue") || "unpaid",
           notes: data.notes || "",
         });
 
@@ -263,7 +263,7 @@ export default function EditSalesInvoicePage() {
           notes: formData.notes,
           updated_at: new Date().toISOString(),
         })
-        .eq("id", id);
+        .eq("id", id as string);
 
       if (invoiceError) throw invoiceError;
 
@@ -271,19 +271,20 @@ export default function EditSalesInvoicePage() {
       const { error: deleteError } = await supabase
         .from("sales_invoice_items")
         .delete()
-        .eq("invoice_id", id);
+        .eq("invoice_id", id as string);
 
       if (deleteError) throw deleteError;
 
       // Insert new items
       const itemsToInsert = items.map(item => ({
-        invoice_id: id,
+        invoice_id: id as string,
         product_code: item.product_code,
         product_name: item.product_name,
         quantity: item.quantity,
         unit_price: item.unit_price,
         discount_amount: item.discount_amount,
         tax_rate: item.tax_rate,
+        tax_amount: (item.quantity * item.unit_price - item.discount_amount) * (item.tax_rate / 100),
         line_total: item.line_total,
       }));
 
