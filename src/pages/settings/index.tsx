@@ -45,7 +45,8 @@ export default function SettingsPage() {
     logo: "",
     baseCurrency: "SAR",
     currencySymbol: "SAR",
-    currencyPosition: "before"
+    currencyPosition: "before",
+    currencySymbolSvg: ""
   });
 
   // Tax Settings State
@@ -488,6 +489,78 @@ export default function SettingsPage() {
                     {/* Currency Settings */}
                     <div className="space-y-4">
                       <h3 className="text-sm font-semibold">Currency & Formatting (العملة والتنسيق)</h3>
+                      
+                      {/* Currency Symbol Upload */}
+                      <div className="space-y-4 p-4 border rounded-lg bg-muted/30">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <Label className="text-sm font-semibold">Currency Symbol (SVG)</Label>
+                            <p className="text-xs text-muted-foreground mt-1">Upload a custom SVG symbol for your currency</p>
+                          </div>
+                          {companyInfo.logo && (
+                            <div className="h-12 w-12 border rounded flex items-center justify-center bg-background">
+                              <img 
+                                src={companyInfo.logo} 
+                                alt="Currency Symbol" 
+                                className="h-8 w-8 object-contain"
+                              />
+                            </div>
+                          )}
+                        </div>
+                        
+                        <div className="flex gap-2">
+                          <div className="flex-1">
+                            <Input
+                              id="currencySymbolUpload"
+                              type="file"
+                              accept=".svg,image/svg+xml"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  if (!file.name.endsWith('.svg')) {
+                                    toast({
+                                      title: "Invalid File",
+                                      description: "Please upload an SVG file only",
+                                      variant: "destructive",
+                                    });
+                                    return;
+                                  }
+                                  const reader = new FileReader();
+                                  reader.onloadend = () => {
+                                    setCompanyInfo({ ...companyInfo, currencySymbolSvg: reader.result as string });
+                                    toast({
+                                      title: "Symbol Uploaded",
+                                      description: "Currency symbol updated successfully",
+                                    });
+                                  };
+                                  reader.readAsDataURL(file);
+                                }
+                              }}
+                            />
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => {
+                              setCompanyInfo({ ...companyInfo, currencySymbolSvg: "" });
+                              toast({
+                                title: "Reset to Default",
+                                description: "Currency symbol reset to Saudi Riyal (ر.س)",
+                              });
+                            }}
+                          >
+                            Reset to Default
+                          </Button>
+                        </div>
+                        
+                        <div className="text-xs text-muted-foreground space-y-1">
+                          <p>• Upload an SVG file for your custom currency symbol</p>
+                          <p>• Default: Saudi Riyal symbol (﷼)</p>
+                          <p>• Recommended size: Square aspect ratio (1:1)</p>
+                          <p>• The symbol will appear throughout the system (invoices, reports, dashboard)</p>
+                        </div>
+                      </div>
+
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="space-y-2">
                           <Label htmlFor="baseCurrency">Base Currency Code *</Label>
