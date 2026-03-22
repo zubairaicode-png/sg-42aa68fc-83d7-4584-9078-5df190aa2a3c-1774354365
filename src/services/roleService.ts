@@ -53,8 +53,14 @@ export const roleService = {
     console.log("Creating new role with data:", roleData);
 
     // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
     console.log("Current user:", user);
+    console.log("Auth error:", authError);
+
+    if (!user) {
+      console.error("No authenticated user found");
+      throw new Error("You must be logged in to create roles");
+    }
 
     const insertData: UserRoleInsert = {
       role_name: roleData.name,
@@ -63,10 +69,11 @@ export const roleService = {
       permissions: roleData.permissions || {},
       is_system_role: false,
       is_active: true,
-      created_by: user?.id || null,
+      created_by: user.id,
     };
 
     console.log("Insert data prepared:", insertData);
+    console.log("Using user ID:", user.id);
 
     const { data, error } = await supabase
       .from("user_roles")
@@ -78,6 +85,8 @@ export const roleService = {
 
     if (error) {
       console.error("Error creating role:", error);
+      console.error("Error code:", error.code);
+      console.error("Error message:", error.message);
       throw error;
     }
 
