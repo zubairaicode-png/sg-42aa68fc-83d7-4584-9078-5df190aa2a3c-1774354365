@@ -361,7 +361,8 @@ export default function SubscriptionsPage() {
         description: `Invoice ${invoice.invoice_number} created successfully!`,
       });
 
-      await loadData();
+      // Redirect to invoice view page for PDF generation
+      router.push(`/sales/invoice/${invoice.id}`);
     } catch (error) {
       console.error("Error generating invoice:", error);
       toast({

@@ -110,6 +110,12 @@ export default function SettingsPage() {
     isDefault: false,
   });
 
+  // Backup & Restore State
+  const [backupProgress, setBackupProgress] = useState(0);
+  const [restoreProgress, setRestoreProgress] = useState(0);
+  const [backupInProgress, setBackupInProgress] = useState(false);
+  const [restoreInProgress, setRestoreInProgress] = useState(false);
+
   // Layout designer state
   const [layoutFields, setLayoutFields] = useState<LayoutField[]>([]);
 
@@ -381,6 +387,184 @@ export default function SettingsPage() {
     }
   };
 
+  const handleBackupDatabase = async () => {
+    try {
+      setBackupInProgress(true);
+      setBackupProgress(0);
+
+      // Get all tables data
+      const tables = [
+        'customers', 'suppliers', 'products', 'sales_invoices', 'sales_invoice_items',
+        'purchase_invoices', 'purchase_invoice_items', 'expenses', 'quotations', 'quotation_items',
+        'subscription_plans', 'customer_subscriptions', 'subscription_servers',
+        'business_locations', 'fixed_assets', 'bank_reconciliations'
+      ];
+
+      const backupData: any = {
+        version: '1.0',
+        timestamp: new Date().toISOString(),
+        tables: {}
+      };
+
+      for (let i = 0; i < tables.length; i++) {
+        const table = tables[i];
+        setBackupProgress(Math.round(((i + 1) / tables.length) * 100));
+
+        try {
+          const { data, error } = await supabase
+            .from(table)
+            .select('*');
+
+          if (error) {
+            console.warn(`Warning: Could not backup table ${table}:`, error);
+            backupData.tables[table] = [];
+          } else {
+            backupData.tables[table] = data || [];
+          }
+        } catch (err) {
+          console.warn(`Warning: Could not backup table ${table}:`, err);
+          backupData.tables[table] = [];
+        }
+      }
+
+      // Add localStorage data
+      backupData.localStorage = {
+        companyInfo: localStorage.getItem('companyInfo'),
+        taxSettings: localStorage.getItem('taxSettings'),
+        invoiceDesign: localStorage.getItem('invoiceDesign'),
+        accountingYear: localStorage.getItem('accountingYear')
+      };
+
+      // Download backup file
+      const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `erp-backup-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast({
+        title: "Backup Complete",
+        description: `Database backup downloaded successfully. ${Object.keys(backupData.tables).length} tables exported.`,
+      });
+    } catch (error: any) {
+      console.error("Error creating backup:", error);
+      toast({
+        title: "Backup Failed",
+        description: error.message || "Failed to create database backup",
+        variant: "destructive",
+      });
+    } finally {
+      setBackupInProgress(false);
+      setBackupProgress(0);
+    }
+  };
+
+  const handleRestoreDatabase = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!confirm("⚠️ WARNING: This will REPLACE all existing data with the backup data. This action cannot be undone. Are you sure you want to continue?")) {
+      event.target.value = '';
+      return;
+    }
+
+    try {
+      setRestoreInProgress(true);
+      setRestoreProgress(0);
+
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const backupData = JSON.parse(e.target?.result as string);
+
+          if (!backupData.version || !backupData.tables) {
+            throw new Error("Invalid backup file format");
+          }
+
+          const tables = Object.keys(backupData.tables);
+          let successCount = 0;
+          let failCount = 0;
+
+          for (let i = 0; i < tables.length; i++) {
+            const table = tables[i];
+            const data = backupData.tables[table];
+            setRestoreProgress(Math.round(((i + 1) / tables.length) * 100));
+
+            if (!data || data.length === 0) continue;
+
+            try {
+              // Delete existing data
+              await supabase.from(table).delete().neq('id', '00000000-0000-0000-0000-000000000000');
+
+              // Insert backup data in batches
+              const batchSize = 100;
+              for (let j = 0; j < data.length; j += batchSize) {
+                const batch = data.slice(j, j + batchSize);
+                const { error } = await supabase.from(table).insert(batch);
+                
+                if (error) {
+                  console.warn(`Warning restoring ${table}:`, error);
+                  failCount++;
+                } else {
+                  successCount++;
+                }
+              }
+            } catch (err) {
+              console.warn(`Error restoring table ${table}:`, err);
+              failCount++;
+            }
+          }
+
+          // Restore localStorage data
+          if (backupData.localStorage) {
+            Object.keys(backupData.localStorage).forEach(key => {
+              if (backupData.localStorage[key]) {
+                localStorage.setItem(key, backupData.localStorage[key]);
+              }
+            });
+          }
+
+          toast({
+            title: "Restore Complete",
+            description: `Database restored successfully. ${successCount} tables imported, ${failCount} had warnings.`,
+          });
+
+          // Reload page data
+          setTimeout(() => {
+            window.location.reload();
+          }, 2000);
+        } catch (error: any) {
+          console.error("Error parsing backup file:", error);
+          toast({
+            title: "Restore Failed",
+            description: error.message || "Invalid backup file or restore failed",
+            variant: "destructive",
+          });
+        } finally {
+          setRestoreInProgress(false);
+          setRestoreProgress(0);
+          event.target.value = '';
+        }
+      };
+
+      reader.readAsText(file);
+    } catch (error: any) {
+      console.error("Error restoring backup:", error);
+      toast({
+        title: "Restore Failed",
+        description: error.message || "Failed to restore database backup",
+        variant: "destructive",
+      });
+      setRestoreInProgress(false);
+      setRestoreProgress(0);
+      event.target.value = '';
+    }
+  };
+
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -515,6 +699,7 @@ export default function SettingsPage() {
                 <TabsTrigger value="invoice">Invoice Design</TabsTrigger>
                 <TabsTrigger value="accounting-year">Accounting Year</TabsTrigger>
                 <TabsTrigger value="locations">Business Locations</TabsTrigger>
+                <TabsTrigger value="backup">Backup & Restore</TabsTrigger>
               </TabsList>
 
               <TabsContent value="company">
@@ -1435,6 +1620,174 @@ export default function SettingsPage() {
                           </Button>
                         </div>
                       </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="backup">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <FileText className="h-5 w-5" />
+                      Backup & Restore
+                    </CardTitle>
+                    <CardDescription>
+                      Manage database backups and restore operations
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Backup Progress</Label>
+                        <div className="flex justify-between text-sm">
+                          <span>Progress:</span>
+                          <span>{backupProgress}%</span>
+                        </div>
+                        <div className="w-full bg-muted rounded-full h-2">
+                          <div 
+                            className="bg-primary h-2 rounded-full transition-all duration-300" 
+                            style={{ width: `${backupProgress}%` }}
+                          />
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {backupInProgress ? "Creating backup..." : "Ready to backup"}
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Restore Progress</Label>
+                        <div className="flex justify-between text-sm">
+                          <span>Progress:</span>
+                          <span>{restoreProgress}%</span>
+                        </div>
+                        <div className="w-full bg-muted rounded-full h-2">
+                          <div 
+                            className="bg-primary h-2 rounded-full transition-all duration-300" 
+                            style={{ width: `${restoreProgress}%` }}
+                          />
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {restoreInProgress ? "Restoring backup..." : "Ready to restore"}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <h3 className="text-sm font-semibold">Backup Options</h3>
+                      
+                      <div className="flex items-center justify-between p-4 border rounded-lg">
+                        <div className="space-y-1">
+                          <Label htmlFor="lockPreviousPeriods" className="font-medium">
+                            Lock Previous Periods
+                          </Label>
+                          <p className="text-sm text-muted-foreground">
+                            Prevent posting to closed accounting periods
+                          </p>
+                        </div>
+                        <Switch
+                          id="lockPreviousPeriods"
+                          checked={accountingYear.lockPreviousPeriods}
+                          onCheckedChange={(checked) => 
+                            setAccountingYear({ ...accountingYear, lockPreviousPeriods: checked })
+                          }
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between p-4 border rounded-lg">
+                        <div className="space-y-1">
+                          <Label htmlFor="allowPostingToPreviousYear" className="font-medium">
+                            Allow Posting to Previous Year
+                          </Label>
+                          <p className="text-sm text-muted-foreground">
+                            Allow transactions to be posted to the previous fiscal year
+                          </p>
+                        </div>
+                        <Switch
+                          id="allowPostingToPreviousYear"
+                          checked={accountingYear.allowPostingToPreviousYear}
+                          onCheckedChange={(checked) => 
+                            setAccountingYear({ ...accountingYear, allowPostingToPreviousYear: checked })
+                          }
+                        />
+                      </div>
+                    </div>
+
+                    {/* Common Fiscal Year Examples */}
+                    <div className="border-t pt-6">
+                      <h3 className="text-sm font-semibold mb-4">Common Fiscal Year Configurations</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="bg-muted p-3 rounded space-y-1">
+                          <h4 className="font-medium text-sm">Calendar Year (Saudi Arabia Standard)</h4>
+                          <p className="text-xs text-muted-foreground">Start: 01-01 | End: 12-31</p>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setAccountingYear({
+                              ...accountingYear,
+                              fiscalYearStart: "01-01",
+                              fiscalYearEnd: "12-31"
+                            })}
+                          >
+                            Apply
+                          </Button>
+                        </div>
+
+                        <div className="bg-muted p-3 rounded space-y-1">
+                          <h4 className="font-medium text-sm">Hijri Calendar Year</h4>
+                          <p className="text-xs text-muted-foreground">Start: 01-01 (Muharram) | End: 12-29/30 (Dhul Hijjah)</p>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setAccountingYear({
+                              ...accountingYear,
+                              fiscalYearStart: "01-01",
+                              fiscalYearEnd: "12-29"
+                            })}
+                          >
+                            Apply
+                          </Button>
+                        </div>
+
+                        <div className="bg-muted p-3 rounded space-y-1">
+                          <h4 className="font-medium text-sm">July Start (Common Alternative)</h4>
+                          <p className="text-xs text-muted-foreground">Start: 07-01 | End: 06-30</p>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setAccountingYear({
+                              ...accountingYear,
+                              fiscalYearStart: "07-01",
+                              fiscalYearEnd: "06-30"
+                            })}
+                          >
+                            Apply
+                          </Button>
+                        </div>
+
+                        <div className="bg-muted p-3 rounded space-y-1">
+                          <h4 className="font-medium text-sm">April Start (UK Standard)</h4>
+                          <p className="text-xs text-muted-foreground">Start: 04-01 | End: 03-31</p>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setAccountingYear({
+                              ...accountingYear,
+                              fiscalYearStart: "04-01",
+                              fiscalYearEnd: "03-31"
+                            })}
+                          >
+                            Apply
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end">
+                      <Button onClick={handleSaveAccountingYear} disabled={loading}>
+                        <Save className="mr-2 h-4 w-4" />
+                        {loading ? "Saving..." : "Save Accounting Year Settings"}
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>
