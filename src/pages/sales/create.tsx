@@ -8,12 +8,12 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
-import { Plus, Trash2, Save, ArrowLeft, UserPlus, Search } from "lucide-react";
+import { Plus, Trash2, Save, ArrowLeft, UserPlus } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { SAUDI_VAT_RATE } from "@/lib/constants";
+import { SAUDI_VAT_RATE, formatSAR, SAR_SYMBOL } from "@/lib/constants";
 import { productService } from "@/services/productService";
-import type { InvoiceItem, Product } from "@/types";
+import type { InvoiceItem } from "@/types";
 import type { Database } from "@/integrations/supabase/types";
 
 interface InvoiceFormData {
@@ -171,7 +171,6 @@ export default function CreateSalesInvoicePage() {
       unitPrice: product.selling_price,
     };
     
-    // Calculate totals
     const item = newItems[index];
     const subtotal = item.quantity * item.unitPrice;
     const discountAmount = (subtotal * item.discount) / 100;
@@ -186,7 +185,7 @@ export default function CreateSalesInvoicePage() {
 
   const getFilteredProducts = () => {
     if (!productSearchQuery.trim()) {
-      return products; // Show all products when search is empty
+      return products;
     }
     
     const query = productSearchQuery.toLowerCase().trim();
@@ -535,8 +534,8 @@ export default function CreateSalesInvoicePage() {
                           <Label>Product/Service *</Label>
                           <div className="relative">
                             <Input
+                              value={selectedItemIndex === index ? productSearchQuery : (item.productName || "")}
                               placeholder={item.productName || "Type to search products..."}
-                              value={selectedItemIndex === index ? productSearchQuery : item.productName}
                               onChange={(e) => {
                                 setProductSearchQuery(e.target.value);
                                 setSelectedItemIndex(index);
@@ -545,16 +544,21 @@ export default function CreateSalesInvoicePage() {
                                 setSelectedItemIndex(index);
                                 setProductSearchQuery("");
                               }}
+                              onBlur={() => {
+                                setTimeout(() => setSelectedItemIndex(null), 200);
+                              }}
                             />
                             
                             {selectedItemIndex === index && (
                               <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-lg max-h-60 overflow-y-auto">
                                 {getFilteredProducts().length > 0 ? (
                                   getFilteredProducts().map((product) => (
-                                    <div
+                                    <button
                                       key={product.id}
-                                      className="px-4 py-2 hover:bg-accent cursor-pointer text-sm border-b last:border-b-0"
-                                      onClick={() => {
+                                      type="button"
+                                      className="w-full px-4 py-2 hover:bg-accent text-left text-sm border-b last:border-b-0"
+                                      onMouseDown={(e) => {
+                                        e.preventDefault();
                                         selectProduct(index, product);
                                       }}
                                     >
@@ -563,19 +567,19 @@ export default function CreateSalesInvoicePage() {
                                         Code: {product.product_code} | Stock: {product.stock_quantity}
                                         {product.serial_number && ` | S/N: ${product.serial_number}`}
                                       </div>
-                                    </div>
+                                    </button>
                                   ))
                                 ) : productSearchQuery ? (
                                   <div className="px-4 py-3 text-sm text-muted-foreground">
-                                    No products found for "{productSearchQuery}"
+                                    No products found for &quot;{productSearchQuery}&quot;
                                   </div>
                                 ) : (
                                   <div className="px-4 py-3 text-sm text-muted-foreground">
                                     <div className="font-medium mb-2">💡 Search Tips:</div>
                                     <ul className="space-y-1 text-xs">
-                                      <li>• Type product name (e.g., "HP Laptop")</li>
-                                      <li>• Type product code (e.g., "PRN-001")</li>
-                                      <li>• Type serial number (e.g., "SN-HP-001")</li>
+                                      <li>• Type product name (e.g., &quot;HP Laptop&quot;)</li>
+                                      <li>• Type product code (e.g., &quot;PRN-001&quot;)</li>
+                                      <li>• Type serial number (e.g., &quot;SN-HP-001&quot;)</li>
                                       <li>• Type description keywords</li>
                                     </ul>
                                   </div>
@@ -633,7 +637,7 @@ export default function CreateSalesInvoicePage() {
                       <div className="space-y-2">
                         <Label>VAT Amount</Label>
                         <Input
-                          value={`SAR ${item.taxAmount.toFixed(2)}`}
+                          value={`${SAR_SYMBOL} ${item.taxAmount.toFixed(2)}`}
                           disabled
                           className="bg-muted font-medium"
                         />
@@ -642,7 +646,7 @@ export default function CreateSalesInvoicePage() {
                       <div className="space-y-2">
                         <Label>Total</Label>
                         <Input
-                          value={`SAR ${item.total.toFixed(2)}`}
+                          value={`${SAR_SYMBOL} ${item.total.toFixed(2)}`}
                           disabled
                           className="bg-muted font-semibold"
                         />
@@ -652,15 +656,15 @@ export default function CreateSalesInvoicePage() {
                     <div className="grid gap-4 md:grid-cols-3 text-sm">
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Subtotal:</span>
-                        <span className="font-medium">SAR {(item.quantity * item.unitPrice).toFixed(2)}</span>
+                        <span className="font-medium">{SAR_SYMBOL} {(item.quantity * item.unitPrice).toFixed(2)}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Tax ({item.taxRate}%):</span>
-                        <span className="font-medium">SAR {item.taxAmount.toFixed(2)}</span>
+                        <span className="font-medium">{SAR_SYMBOL} {item.taxAmount.toFixed(2)}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Discount:</span>
-                        <span className="font-medium">SAR {((item.quantity * item.unitPrice * item.discount) / 100).toFixed(2)}</span>
+                        <span className="font-medium">{SAR_SYMBOL} {((item.quantity * item.unitPrice * item.discount) / 100).toFixed(2)}</span>
                       </div>
                     </div>
                   </div>
@@ -671,19 +675,19 @@ export default function CreateSalesInvoicePage() {
                 <div className="max-w-md ml-auto space-y-3">
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Subtotal:</span>
-                    <span className="font-medium">SAR {totals.subtotal.toFixed(2)}</span>
+                    <span className="font-medium">{SAR_SYMBOL} {totals.subtotal.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Discount:</span>
-                    <span className="font-medium text-destructive">-SAR {totals.discountAmount.toFixed(2)}</span>
+                    <span className="font-medium text-destructive">-{SAR_SYMBOL} {totals.discountAmount.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Tax (VAT {SAUDI_VAT_RATE}%):</span>
-                    <span className="font-medium">SAR {totals.taxAmount.toFixed(2)}</span>
+                    <span className="font-medium">{SAR_SYMBOL} {totals.taxAmount.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between text-lg font-bold pt-3 border-t">
                     <span>Total Amount:</span>
-                    <span className="text-primary">SAR {totals.total.toFixed(2)}</span>
+                    <span className="text-primary">{formatSAR(totals.total)}</span>
                   </div>
                   <div className="flex justify-between text-sm pt-2">
                     <span className="text-muted-foreground">Payment Type:</span>

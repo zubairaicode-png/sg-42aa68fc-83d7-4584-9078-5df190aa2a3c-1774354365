@@ -10,6 +10,7 @@ import {
   Users
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatSAR } from "@/lib/constants";
 
 interface StatCardProps {
   title: string;
@@ -97,21 +98,21 @@ export function DashboardOverview() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <StatCard
           title="Total Sales (This Month)"
-          value={`SAR ${stats.totalSales.toLocaleString()}`}
+          value={formatSAR(stats.totalSales)}
           change={12.5}
           trend="up"
           icon={DollarSign}
         />
         <StatCard
           title="Total Purchases"
-          value={`SAR ${stats.totalPurchases.toLocaleString()}`}
+          value={formatSAR(stats.totalPurchases)}
           change={8.2}
           trend="up"
           icon={ShoppingCart}
         />
         <StatCard
           title="Net Profit"
-          value={`SAR ${stats.netProfit.toLocaleString()}`}
+          value={formatSAR(stats.netProfit)}
           change={15.3}
           trend="up"
           icon={TrendingUp}
@@ -150,7 +151,7 @@ export function DashboardOverview() {
                     <div className="text-xs text-muted-foreground mt-1">{invoice.date}</div>
                   </div>
                   <div className="text-right">
-                    <div className="font-semibold">SAR {invoice.amount.toLocaleString()}</div>
+                    <div className="font-semibold">ر.س {invoice.amount.toLocaleString()}</div>
                     <span className={cn(
                       "inline-block px-2 py-1 rounded text-xs font-medium mt-1",
                       getStatusColor(invoice.status)

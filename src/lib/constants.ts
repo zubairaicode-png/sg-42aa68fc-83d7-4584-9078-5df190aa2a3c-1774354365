@@ -71,3 +71,34 @@ export const ACCOUNTS = [
   { code: "5300", name: "Rent Expense", type: "expense" },
   { code: "5400", name: "Utilities Expense", type: "expense" },
 ] as const;
+
+// Saudi Riyal currency formatting
+export const SAR_SYMBOL = "ر.س"; // Arabic abbreviation for Saudi Riyal
+export const SAR_SYMBOL_EN = "SAR"; // English abbreviation
+
+/**
+ * Format number as Saudi Riyal currency
+ * @param amount - The amount to format
+ * @param useArabic - Use Arabic symbol (ر.س) or English (SAR)
+ * @returns Formatted currency string
+ */
+export function formatSAR(amount: number, useArabic: boolean = true): string {
+  const symbol = useArabic ? SAR_SYMBOL : SAR_SYMBOL_EN;
+  const formatted = amount.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  return `${symbol} ${formatted}`;
+}
+
+/**
+ * Format number as currency without symbol (for reports/tables)
+ * @param amount - The amount to format
+ * @returns Formatted number string
+ */
+export function formatAmount(amount: number): string {
+  return amount.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
