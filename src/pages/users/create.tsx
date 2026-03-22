@@ -128,65 +128,48 @@ export default function CreateUserPage() {
     try {
       setLoading(true);
 
-      // Create user using direct Supabase signup (no API endpoint needed)
-      const { data: authData, error: signUpError } = await supabase.auth.signUp({
+      console.log("=== Starting User Creation ===");
+      console.log("Form data:", {
         email: formData.email,
-        password: formData.password,
-        options: {
-          data: {
-            full_name: formData.fullName,
-          },
-        },
-      });
-
-      console.log("Supabase signUp response:", { authData, signUpError });
-
-      if (signUpError) {
-        console.error("SignUp error details:", {
-          message: signUpError.message,
-          status: signUpError.status,
-          name: signUpError.name,
-        });
-        throw signUpError;
-      }
-      if (!authData.user) throw new Error("Failed to create user");
-
-      const userId = authData.user.id;
-      console.log("User created successfully with ID:", userId);
-
-      // Create profile record
-      console.log("Creating profile record with data:", {
-        id: userId,
-        email: formData.email,
-        full_name: formData.fullName,
+        fullName: formData.fullName,
         role: formData.role,
+        hasPassword: !!formData.password,
       });
 
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .insert({
-          id: userId,
+      // Use API endpoint instead of direct signup
+      console.log("Calling /api/admin/create-user...");
+      const response = await fetch("/api/admin/create-user", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
           email: formData.email,
-          full_name: formData.fullName,
+          password: formData.password,
+          fullName: formData.fullName,
           role: formData.role,
-        });
+        }),
+      });
 
-      if (profileError) {
-        console.error("Profile creation error:", profileError);
-        throw profileError;
+      const result = await response.json();
+      console.log("API response:", result);
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || "Failed to create user");
       }
 
-      console.log("Profile created successfully");
+      const userId = result.userId;
+      console.log("User created successfully with ID:", userId);
 
       // Assign locations
       const locationIds = selectedLocations.map((sl) => sl.locationId);
       const primaryLocationId = selectedLocations.find((sl) => sl.isPrimary)?.locationId || locationIds[0];
 
-      console.log("Assigning locations:", { userId, locationIds, primaryLocationId });
+      console.log("Step 3: Assigning locations...", { userId, locationIds, primaryLocationId });
 
       await userService.assignLocations(userId, locationIds, primaryLocationId);
 
-      console.log("Locations assigned successfully");
+      console.log("✅ User created successfully");
 
       toast({
         title: "Success",
