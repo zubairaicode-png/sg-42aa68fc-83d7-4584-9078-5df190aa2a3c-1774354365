@@ -8,10 +8,28 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, TrendingUp, Users, DollarSign, Activity } from "lucide-react";
+import { 
+  Plus, 
+  TrendingUp, 
+  Users, 
+  DollarSign, 
+  Activity, 
+  FileText,
+  Zap,
+  Eye,
+  Calendar,
+} from "lucide-react";
 import { subscriptionService } from "@/services/subscriptionService";
 import { useToast } from "@/hooks/use-toast";
 import type { SubscriptionPlan, CustomerSubscription } from "@/types/subscription";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export default function SubscriptionsPage() {
   const router = useRouter();
@@ -20,6 +38,11 @@ export default function SubscriptionsPage() {
   const [subscriptions, setSubscriptions] = useState<any[]>([]);
   const [metrics, setMetrics] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [generatingInvoice, setGeneratingInvoice] = useState<string | null>(null);
+  const [batchGenerating, setBatchGenerating] = useState(false);
+  const [invoiceHistory, setInvoiceHistory] = useState<any[]>([]);
+  const [showInvoiceHistory, setShowInvoiceHistory] = useState(false);
+  const [selectedSubscription, setSelectedSubscription] = useState<any>(null);
 
   useEffect(() => {
     loadData();
@@ -46,6 +69,86 @@ export default function SubscriptionsPage() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGenerateInvoice = async (subscriptionId: string) => {
+    try {
+      setGeneratingInvoice(subscriptionId);
+      const invoice = await subscriptionService.generateInvoiceForSubscription(subscriptionId);
+      
+      toast({
+        title: "Invoice Generated",
+        description: `Invoice ${invoice.invoice_number} created successfully!`,
+      });
+
+      // Reload data to show updated next billing date
+      await loadData();
+    } catch (error) {
+      console.error("Error generating invoice:", error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to generate invoice",
+        variant: "destructive",
+      });
+    } finally {
+      setGeneratingInvoice(null);
+    }
+  };
+
+  const handleBatchGenerate = async () => {
+    try {
+      setBatchGenerating(true);
+      const results = await subscriptionService.generateInvoicesForDueSubscriptions();
+
+      const successCount = results.success.length;
+      const failedCount = results.failed.length;
+
+      if (successCount > 0) {
+        toast({
+          title: "Batch Generation Complete",
+          description: `Successfully generated ${successCount} invoice(s). ${failedCount > 0 ? `${failedCount} failed.` : ""}`,
+        });
+      } else if (failedCount > 0) {
+        toast({
+          title: "Batch Generation Failed",
+          description: `Failed to generate ${failedCount} invoice(s).`,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "No Invoices Due",
+          description: "No subscriptions are due for billing today.",
+        });
+      }
+
+      // Reload data
+      await loadData();
+    } catch (error) {
+      console.error("Error in batch generation:", error);
+      toast({
+        title: "Error",
+        description: "Failed to generate invoices",
+        variant: "destructive",
+      });
+    } finally {
+      setBatchGenerating(false);
+    }
+  };
+
+  const handleViewInvoices = async (subscription: any) => {
+    try {
+      setSelectedSubscription(subscription);
+      const invoices = await subscriptionService.getSubscriptionInvoices(subscription.id);
+      setInvoiceHistory(invoices);
+      setShowInvoiceHistory(true);
+    } catch (error) {
+      console.error("Error loading invoice history:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load invoice history",
+        variant: "destructive",
+      });
     }
   };
 
@@ -79,6 +182,22 @@ export default function SubscriptionsPage() {
     );
   };
 
+  const isDueBilling = (nextBillingDate: string | null) => {
+    if (!nextBillingDate) return false;
+    const today = new Date();
+    const billing = new Date(nextBillingDate);
+    return billing <= today;
+  };
+
+  const getDueSubscriptionsCount = () => {
+    return subscriptions.filter(
+      (sub) =>
+        (sub.status === "active" || sub.status === "trial") &&
+        sub.auto_renew &&
+        isDueBilling(sub.next_billing_date)
+    ).length;
+  };
+
   return (
     <>
       <SEO
@@ -95,6 +214,16 @@ export default function SubscriptionsPage() {
                 <p className="text-muted-foreground">
                   Manage subscription plans, customer subscriptions, and recurring billing
                 </p>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleBatchGenerate}
+                  disabled={batchGenerating || getDueSubscriptionsCount() === 0}
+                  variant="outline"
+                >
+                  <Zap className="mr-2 h-4 w-4" />
+                  {batchGenerating ? "Generating..." : `Generate Due Invoices (${getDueSubscriptionsCount()})`}
+                </Button>
               </div>
             </div>
 
@@ -282,43 +411,76 @@ export default function SubscriptionsPage() {
                             </TableCell>
                           </TableRow>
                         ) : (
-                          subscriptions.map((sub) => (
-                            <TableRow key={sub.id}>
-                              <TableCell>
-                                <div>
-                                  <p className="font-medium">{sub.customer?.name}</p>
-                                  <p className="text-sm text-muted-foreground">
-                                    {sub.customer?.email}
-                                  </p>
-                                </div>
-                              </TableCell>
-                              <TableCell>{sub.plan?.name}</TableCell>
-                              <TableCell>{getStatusBadge(sub.status)}</TableCell>
-                              <TableCell>{getBillingCycleBadge(sub.plan?.billing_cycle)}</TableCell>
-                              <TableCell>
-                                SAR {sub.price.toLocaleString("en-SA", { minimumFractionDigits: 2 })}
-                              </TableCell>
-                              <TableCell>
-                                {sub.next_billing_date
-                                  ? new Date(sub.next_billing_date).toLocaleDateString()
-                                  : "—"}
-                              </TableCell>
-                              <TableCell>
-                                <Badge variant={sub.auto_renew ? "default" : "outline"}>
-                                  {sub.auto_renew ? "Yes" : "No"}
-                                </Badge>
-                              </TableCell>
-                              <TableCell className="text-right">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => router.push(`/subscriptions/${sub.id}`)}
-                                >
-                                  View
-                                </Button>
-                              </TableCell>
-                            </TableRow>
-                          ))
+                          subscriptions.map((sub) => {
+                            const isDue = isDueBilling(sub.next_billing_date);
+                            return (
+                              <TableRow key={sub.id}>
+                                <TableCell>
+                                  <div>
+                                    <p className="font-medium">{sub.customer?.name}</p>
+                                    <p className="text-sm text-muted-foreground">
+                                      {sub.customer?.email}
+                                    </p>
+                                  </div>
+                                </TableCell>
+                                <TableCell>{sub.plan?.name}</TableCell>
+                                <TableCell>{getStatusBadge(sub.status)}</TableCell>
+                                <TableCell>{getBillingCycleBadge(sub.plan?.billing_cycle)}</TableCell>
+                                <TableCell>
+                                  SAR {sub.price.toLocaleString("en-SA", { minimumFractionDigits: 2 })}
+                                </TableCell>
+                                <TableCell>
+                                  <div className="flex items-center gap-2">
+                                    {sub.next_billing_date ? (
+                                      <>
+                                        {new Date(sub.next_billing_date).toLocaleDateString()}
+                                        {isDue && sub.auto_renew && (
+                                          <Badge variant="destructive" className="text-xs">
+                                            Due
+                                          </Badge>
+                                        )}
+                                      </>
+                                    ) : (
+                                      "—"
+                                    )}
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  <Badge variant={sub.auto_renew ? "default" : "outline"}>
+                                    {sub.auto_renew ? "Yes" : "No"}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <div className="flex justify-end gap-2">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => handleViewInvoices(sub)}
+                                    >
+                                      <Eye className="h-4 w-4" />
+                                    </Button>
+                                    {(sub.status === "active" || sub.status === "trial") && (
+                                      <Button
+                                        variant="default"
+                                        size="sm"
+                                        onClick={() => handleGenerateInvoice(sub.id)}
+                                        disabled={generatingInvoice === sub.id}
+                                      >
+                                        {generatingInvoice === sub.id ? (
+                                          "Generating..."
+                                        ) : (
+                                          <>
+                                            <FileText className="h-4 w-4 mr-1" />
+                                            Invoice
+                                          </>
+                                        )}
+                                      </Button>
+                                    )}
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })
                         )}
                       </TableBody>
                     </Table>
@@ -329,6 +491,69 @@ export default function SubscriptionsPage() {
           </div>
         </DashboardLayout>
       </AuthGuard>
+
+      {/* Invoice History Dialog */}
+      <Dialog open={showInvoiceHistory} onOpenChange={setShowInvoiceHistory}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Invoice History</DialogTitle>
+            <DialogDescription>
+              {selectedSubscription?.customer?.name} - {selectedSubscription?.plan?.name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-4">
+            {invoiceHistory.length === 0 ? (
+              <p className="text-center text-muted-foreground py-8">
+                No invoices generated yet for this subscription
+              </p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Invoice #</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Due Date</TableHead>
+                    <TableHead>Amount</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {invoiceHistory.map((invoice) => (
+                    <TableRow key={invoice.id}>
+                      <TableCell className="font-medium">{invoice.invoice_number}</TableCell>
+                      <TableCell>{new Date(invoice.date).toLocaleDateString()}</TableCell>
+                      <TableCell>{new Date(invoice.due_date).toLocaleDateString()}</TableCell>
+                      <TableCell>
+                        SAR {invoice.total.toLocaleString("en-SA", { minimumFractionDigits: 2 })}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={invoice.payment_status === "paid" ? "default" : "outline"}>
+                          {invoice.payment_status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => router.push(`/sales/invoice/${invoice.id}`)}
+                        >
+                          View
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowInvoiceHistory(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

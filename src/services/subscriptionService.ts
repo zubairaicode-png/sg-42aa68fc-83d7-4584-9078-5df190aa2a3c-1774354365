@@ -236,4 +236,167 @@ export const subscriptionService = {
       churn_rate: churnRate,
     };
   },
+
+  // ============ INVOICE GENERATION ============
+
+  async generateInvoiceForSubscription(subscriptionId: string) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("Not authenticated");
+
+    // Get subscription with customer and plan details
+    const subscription = await this.getSubscriptionById(subscriptionId);
+    if (!subscription) throw new Error("Subscription not found");
+
+    if (subscription.status !== "active" && subscription.status !== "trial") {
+      throw new Error("Cannot generate invoice for inactive subscription");
+    }
+
+    // Calculate invoice details based on plan
+    const plan = subscription.plan;
+    if (!plan) throw new Error("Subscription plan not found");
+
+    const today = new Date();
+    const invoiceNumber = `INV-${today.getFullYear()}-${String(Math.floor(Math.random() * 100000)).padStart(5, "0")}`;
+
+    // Create invoice items from subscription plan
+    const items = [
+      {
+        product_id: null, // No product for subscription invoices
+        description: `${plan.name} - ${plan.billing_cycle.charAt(0).toUpperCase() + plan.billing_cycle.slice(1)} Subscription`,
+        quantity: 1,
+        unit_price: subscription.price,
+        discount_percent: subscription.discount_percent || 0,
+        vat_percent: 15, // Saudi VAT
+      }
+    ];
+
+    // Calculate totals
+    const subtotal = subscription.price;
+    const discountAmount = (subtotal * (subscription.discount_percent || 0)) / 100;
+    const taxableAmount = subtotal - discountAmount;
+    const vatAmount = (taxableAmount * 15) / 100;
+    const totalAmount = taxableAmount + vatAmount;
+
+    // Calculate due date based on billing cycle
+    const dueDate = new Date(today);
+    dueDate.setDate(dueDate.getDate() + 30); // 30 days payment term
+
+    // Calculate next billing date
+    const nextBillingDate = new Date(subscription.next_billing_date || today);
+    if (plan.billing_cycle === "monthly") {
+      nextBillingDate.setMonth(nextBillingDate.getMonth() + 1);
+    } else if (plan.billing_cycle === "quarterly") {
+      nextBillingDate.setMonth(nextBillingDate.getMonth() + 3);
+    } else if (plan.billing_cycle === "annual") {
+      nextBillingDate.setFullYear(nextBillingDate.getFullYear() + 1);
+    }
+
+    // Create invoice
+    const { data: invoice, error: invoiceError } = await supabase
+      .from("sales_invoices")
+      .insert([
+        {
+          invoice_number: invoiceNumber,
+          customer_id: subscription.customer_id,
+          subscription_id: subscriptionId,
+          date: today.toISOString().split("T")[0],
+          due_date: dueDate.toISOString().split("T")[0],
+          items: items,
+          subtotal: subtotal,
+          discount: discountAmount,
+          vat: vatAmount,
+          total: totalAmount,
+          payment_status: "pending",
+          payment_method: null,
+          notes: `Auto-generated invoice for ${plan.name} subscription`,
+          created_by: user.id,
+        } as any,
+      ])
+      .select()
+      .single();
+
+    if (invoiceError) {
+      console.error("Error creating invoice:", invoiceError);
+      throw invoiceError;
+    }
+
+    // Update subscription with last invoice info and next billing date
+    const { error: updateError } = await supabase
+      .from("customer_subscriptions")
+      .update({
+        last_invoice_date: today.toISOString().split("T")[0],
+        last_invoice_id: invoice.id,
+        next_billing_date: nextBillingDate.toISOString().split("T")[0],
+      } as any)
+      .eq("id", subscriptionId);
+
+    if (updateError) {
+      console.error("Error updating subscription:", updateError);
+      throw updateError;
+    }
+
+    return invoice;
+  },
+
+  async generateInvoicesForDueSubscriptions() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("Not authenticated");
+
+    // Get all active/trial subscriptions with billing date today or earlier
+    const today = new Date().toISOString().split("T")[0];
+    
+    const { data: dueSubscriptions, error } = await supabase
+      .from("customer_subscriptions")
+      .select(`
+        *,
+        customer:customers(id, name, email),
+        plan:subscription_plans(*)
+      `)
+      .in("status", ["active", "trial"])
+      .lte("next_billing_date", today)
+      .eq("auto_renew", true);
+
+    if (error) {
+      console.error("Error fetching due subscriptions:", error);
+      throw error;
+    }
+
+    const results = {
+      success: [] as any[],
+      failed: [] as any[],
+    };
+
+    for (const subscription of dueSubscriptions || []) {
+      try {
+        const invoice = await this.generateInvoiceForSubscription(subscription.id);
+        results.success.push({
+          subscription,
+          invoice,
+        });
+      } catch (err) {
+        console.error(`Failed to generate invoice for subscription ${subscription.id}:`, err);
+        results.failed.push({
+          subscription,
+          error: err instanceof Error ? err.message : "Unknown error",
+        });
+      }
+    }
+
+    return results;
+  },
+
+  async getSubscriptionInvoices(subscriptionId: string) {
+    const { data, error } = await supabase
+      .from("sales_invoices")
+      .select("*")
+      .eq("subscription_id", subscriptionId)
+      .order("date", { ascending: false });
+
+    if (error) {
+      console.error("Error fetching subscription invoices:", error);
+      throw error;
+    }
+
+    return data || [];
+  },
 };

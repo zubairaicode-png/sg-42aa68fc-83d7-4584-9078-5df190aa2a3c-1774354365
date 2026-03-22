@@ -204,6 +204,8 @@ export type Database = {
           discount_percent: number | null
           end_date: string | null
           id: string
+          last_invoice_date: string | null
+          last_invoice_id: string | null
           next_billing_date: string | null
           notes: string | null
           plan_id: string
@@ -220,6 +222,8 @@ export type Database = {
           discount_percent?: number | null
           end_date?: string | null
           id?: string
+          last_invoice_date?: string | null
+          last_invoice_id?: string | null
           next_billing_date?: string | null
           notes?: string | null
           plan_id: string
@@ -236,6 +240,8 @@ export type Database = {
           discount_percent?: number | null
           end_date?: string | null
           id?: string
+          last_invoice_date?: string | null
+          last_invoice_id?: string | null
           next_billing_date?: string | null
           notes?: string | null
           plan_id?: string
@@ -251,6 +257,13 @@ export type Database = {
             columns: ["customer_id"]
             isOneToOne: false
             referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_subscriptions_last_invoice_id_fkey"
+            columns: ["last_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "sales_invoices"
             referencedColumns: ["id"]
           },
           {
@@ -1031,6 +1044,7 @@ export type Database = {
           paid_amount: number | null
           payment_method: string | null
           payment_status: string | null
+          subscription_id: string | null
           subtotal: number
           tax_amount: number
           total_amount: number
@@ -1056,6 +1070,7 @@ export type Database = {
           paid_amount?: number | null
           payment_method?: string | null
           payment_status?: string | null
+          subscription_id?: string | null
           subtotal: number
           tax_amount: number
           total_amount: number
@@ -1081,6 +1096,7 @@ export type Database = {
           paid_amount?: number | null
           payment_method?: string | null
           payment_status?: string | null
+          subscription_id?: string | null
           subtotal?: number
           tax_amount?: number
           total_amount?: number
@@ -1097,6 +1113,13 @@ export type Database = {
             columns: ["customer_id"]
             isOneToOne: false
             referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_invoices_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "customer_subscriptions"
             referencedColumns: ["id"]
           },
         ]
