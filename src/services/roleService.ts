@@ -1,143 +1,95 @@
-import { supabase } from "@/integrations/supabase/client";
-import type { Database } from "@/integrations/supabase/types";
-
-type UserRole = Database["public"]["Tables"]["user_roles"]["Row"];
-type UserRoleInsert = Database["public"]["Tables"]["user_roles"]["Insert"];
-type UserRoleUpdate = Database["public"]["Tables"]["user_roles"]["Update"];
-
-// Helper function to generate role_code from role_name
-const generateRoleCode = (roleName: string): string => {
-  return roleName
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_|_$/g, '');
-};
-
 export const roleService = {
-  async getAll(): Promise<UserRole[]> {
-    console.log("Fetching all roles from user_roles table...");
-    const { data, error } = await supabase
-      .from("user_roles")
-      .select("*")
-      .order("created_at", { ascending: false });
+  async getAll() {
+    try {
+      const response = await fetch("/api/roles");
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to fetch roles");
+      }
 
-    console.log("Roles query result:", { data, error });
-
-    if (error) {
+      const data = await response.json();
+      return data;
+    } catch (error: any) {
       console.error("Error fetching roles:", error);
       throw error;
     }
-
-    return data || [];
   },
 
-  async getById(id: string): Promise<UserRole | null> {
-    console.log("Fetching role by id:", id);
-    const { data, error } = await supabase
-      .from("user_roles")
-      .select("*")
-      .eq("id", id)
-      .single();
+  async create(roleData: { name: string; description?: string; permissions?: Record<string, boolean> }) {
+    try {
+      console.log("Creating role with data:", roleData);
 
-    console.log("Role by id result:", { data, error });
+      const response = await fetch("/api/roles/create", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(roleData),
+      });
 
-    if (error) {
-      console.error("Error fetching role:", error);
-      throw error;
-    }
+      if (!response.ok) {
+        const error = await response.json();
+        console.error("API error:", error);
+        throw new Error(error.error || "Failed to create role");
+      }
 
-    return data;
-  },
-
-  async create(roleData: { name: string; description?: string; permissions?: Record<string, boolean> }): Promise<UserRole> {
-    console.log("Creating new role with data:", roleData);
-
-    // Get current user
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    console.log("Current user:", user);
-    console.log("Auth error:", authError);
-
-    if (!user) {
-      console.error("No authenticated user found");
-      throw new Error("You must be logged in to create roles");
-    }
-
-    const insertData: UserRoleInsert = {
-      role_name: roleData.name,
-      role_code: generateRoleCode(roleData.name),
-      description: roleData.description || null,
-      permissions: roleData.permissions || {},
-      is_system_role: false,
-      is_active: true,
-      created_by: user.id,
-    };
-
-    console.log("Insert data prepared:", insertData);
-    console.log("Using user ID:", user.id);
-
-    const { data, error } = await supabase
-      .from("user_roles")
-      .insert(insertData)
-      .select()
-      .single();
-
-    console.log("Insert result:", { data, error });
-
-    if (error) {
+      const data = await response.json();
+      console.log("Role created successfully:", data);
+      return data;
+    } catch (error: any) {
       console.error("Error creating role:", error);
-      console.error("Error code:", error.code);
-      console.error("Error message:", error.message);
       throw error;
     }
-
-    return data;
   },
 
-  async update(id: string, roleData: { name?: string; description?: string; permissions?: Record<string, boolean> }): Promise<UserRole> {
-    console.log("Updating role:", id, "with data:", roleData);
+  async update(id: string, roleData: { name?: string; description?: string; permissions?: Record<string, boolean> }) {
+    try {
+      console.log("Updating role:", id, roleData);
 
-    const updateData: UserRoleUpdate = {
-      ...(roleData.name && { 
-        role_name: roleData.name,
-        role_code: generateRoleCode(roleData.name)
-      }),
-      ...(roleData.description !== undefined && { description: roleData.description }),
-      ...(roleData.permissions && { permissions: roleData.permissions }),
-      updated_at: new Date().toISOString(),
-    };
+      const response = await fetch(`/api/roles/${id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(roleData),
+      });
 
-    console.log("Update data prepared:", updateData);
+      if (!response.ok) {
+        const error = await response.json();
+        console.error("API error:", error);
+        throw new Error(error.error || "Failed to update role");
+      }
 
-    const { data, error } = await supabase
-      .from("user_roles")
-      .update(updateData)
-      .eq("id", id)
-      .select()
-      .single();
-
-    console.log("Update result:", { data, error });
-
-    if (error) {
+      const data = await response.json();
+      console.log("Role updated successfully:", data);
+      return data;
+    } catch (error: any) {
       console.error("Error updating role:", error);
       throw error;
     }
-
-    return data;
   },
 
-  async delete(id: string): Promise<void> {
-    console.log("Deleting role:", id);
+  async delete(id: string) {
+    try {
+      console.log("Deleting role:", id);
 
-    const { error } = await supabase
-      .from("user_roles")
-      .delete()
-      .eq("id", id);
+      const response = await fetch(`/api/roles/${id}`, {
+        method: "DELETE",
+      });
 
-    console.log("Delete result:", { error });
+      if (!response.ok) {
+        const error = await response.json();
+        console.error("API error:", error);
+        throw new Error(error.error || "Failed to delete role");
+      }
 
-    if (error) {
+      const data = await response.json();
+      console.log("Role deleted successfully:", data);
+      return data;
+    } catch (error: any) {
       console.error("Error deleting role:", error);
       throw error;
     }
-  }
+  },
 };
