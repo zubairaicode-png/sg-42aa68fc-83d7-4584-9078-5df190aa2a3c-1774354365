@@ -252,8 +252,14 @@ export default function CreatePurchaseInvoicePage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    console.log("=== PURCHASE INVOICE SAVE STARTED ===");
+    console.log("Form Data:", formData);
+    console.log("Suppliers Array:", suppliers);
+    console.log("Selected Supplier ID:", formData.supplierId);
+    
     // Validation
     if (!formData.supplierId) {
+      console.log("ERROR: No supplier selected");
       toast({
         title: "Validation Error",
         description: "Please select a supplier",
@@ -263,6 +269,7 @@ export default function CreatePurchaseInvoicePage() {
     }
 
     if (!formData.date || !formData.dueDate) {
+      console.log("ERROR: Missing dates");
       toast({
         title: "Validation Error",
         description: "Please fill in invoice date and due date",
@@ -272,6 +279,7 @@ export default function CreatePurchaseInvoicePage() {
     }
 
     if (formData.items.length === 0) {
+      console.log("ERROR: No items");
       toast({
         title: "Validation Error",
         description: "Please add at least one item",
@@ -283,7 +291,10 @@ export default function CreatePurchaseInvoicePage() {
     // Validate all items
     for (let i = 0; i < formData.items.length; i++) {
       const item = formData.items[i];
+      console.log(`Validating item ${i + 1}:`, item);
+      
       if (!item.productName.trim()) {
+        console.log(`ERROR: Item ${i + 1} has no product name`);
         toast({
           title: "Validation Error",
           description: `Please enter product name for item ${i + 1}`,
@@ -292,6 +303,7 @@ export default function CreatePurchaseInvoicePage() {
         return;
       }
       if (item.quantity <= 0) {
+        console.log(`ERROR: Item ${i + 1} has invalid quantity`);
         toast({
           title: "Validation Error",
           description: `Please enter valid quantity for item ${i + 1}`,
@@ -300,6 +312,7 @@ export default function CreatePurchaseInvoicePage() {
         return;
       }
       if (item.unitPrice <= 0) {
+        console.log(`ERROR: Item ${i + 1} has invalid unit price`);
         toast({
           title: "Validation Error",
           description: `Please enter valid unit price for item ${i + 1}`,
@@ -309,21 +322,28 @@ export default function CreatePurchaseInvoicePage() {
       }
     }
 
+    console.log("All validations passed!");
+
     try {
       setLoading(true);
 
       // Get supplier info from loaded suppliers
       const supplier = suppliers.find(s => s.id === formData.supplierId);
+      console.log("Supplier found:", supplier);
       
       if (!supplier) {
+        console.log("ERROR: Supplier not found in suppliers array");
         throw new Error("Supplier not found");
       }
 
       const supplierName = supplier.name;
       const supplierVat = supplier.vat_number || "";
+      console.log("Supplier Name:", supplierName);
+      console.log("Supplier VAT:", supplierVat);
 
       // Generate invoice number (in production, this should come from backend)
       const invoiceNumber = `PINV-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 100000)).padStart(5, '0')}`;
+      console.log("Generated Invoice Number:", invoiceNumber);
 
       // Prepare purchase invoice data
       const purchaseData = {
@@ -356,16 +376,22 @@ export default function CreatePurchaseInvoicePage() {
       console.log("Purchase invoice data to save:", { purchaseData, itemsData });
 
       // Save to database using Supabase
-      await purchaseService.createInvoice(purchaseData, itemsData);
+      console.log("Calling purchaseService.createInvoice...");
+      const result = await purchaseService.createInvoice(purchaseData, itemsData);
+      console.log("Purchase invoice created successfully:", result);
 
       toast({
         title: "Success",
         description: "Purchase invoice created successfully",
       });
 
+      console.log("Redirecting to /purchases");
       router.push("/purchases");
     } catch (error: any) {
-      console.error("Error saving purchase invoice:", error);
+      console.error("=== ERROR SAVING PURCHASE INVOICE ===");
+      console.error("Error object:", error);
+      console.error("Error message:", error.message);
+      console.error("Error stack:", error.stack);
       toast({
         title: "Error",
         description: error.message || "Failed to save purchase invoice",
@@ -373,6 +399,7 @@ export default function CreatePurchaseInvoicePage() {
       });
     } finally {
       setLoading(false);
+      console.log("=== PURCHASE INVOICE SAVE ENDED ===");
     }
   };
 
