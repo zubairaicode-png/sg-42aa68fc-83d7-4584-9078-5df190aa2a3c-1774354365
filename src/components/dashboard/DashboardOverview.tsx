@@ -96,9 +96,9 @@ interface RecentInvoice {
 interface LowStockProduct {
   id: string;
   name: string;
-  sku: string;
-  quantity: number;
-  min_stock_level: number;
+  product_code: string;
+  stock_quantity: number;
+  reorder_level: number;
 }
 
 export function DashboardOverview() {
@@ -122,115 +122,103 @@ export function DashboardOverview() {
     try {
       setLoading(true);
 
-      // Get current month dates
       const now = new Date();
-      const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-      const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+      const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+      const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString();
+      const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0).toISOString();
 
-      // Load sales data for current month
-      const { data: currentSales, error: salesError } = await supabase
+      // Type cast queries to avoid deep type instantiation errors
+      const currentSalesReq = supabase
         .from("sales_invoices")
         .select("total_amount")
-        .gte("invoice_date", currentMonthStart.toISOString())
-        .eq("status", "paid");
+        .gte("invoice_date", currentMonthStart)
+        .eq("payment_status", "paid") as any;
+
+      const lastMonthSalesReq = supabase
+        .from("sales_invoices")
+        .select("total_amount")
+        .gte("invoice_date", lastMonthStart)
+        .lte("invoice_date", lastMonthEnd)
+        .eq("payment_status", "paid") as any;
+
+      const currentPurchasesReq = supabase
+        .from("purchase_invoices")
+        .select("total_amount")
+        .gte("invoice_date", currentMonthStart)
+        .eq("payment_status", "paid") as any;
+
+      const lastMonthPurchasesReq = supabase
+        .from("purchase_invoices")
+        .select("total_amount")
+        .gte("invoice_date", lastMonthStart)
+        .lte("invoice_date", lastMonthEnd)
+        .eq("payment_status", "paid") as any;
+
+      const [
+        { data: currentSales, error: salesError },
+        { data: lastMonthSales },
+        { data: currentPurchases, error: purchasesError },
+        { data: lastMonthPurchases }
+      ] = await Promise.all([
+        currentSalesReq,
+        lastMonthSalesReq,
+        currentPurchasesReq,
+        lastMonthPurchasesReq
+      ]);
 
       if (salesError) throw salesError;
-
-      // Load sales data for last month (for comparison)
-      const { data: lastMonthSales } = await supabase
-        .from("sales_invoices")
-        .select("total_amount")
-        .gte("invoice_date", lastMonthStart.toISOString())
-        .lte("invoice_date", lastMonthEnd.toISOString())
-        .eq("status", "paid");
-
-      // Load purchases data for current month
-      const { data: currentPurchases, error: purchasesError } = await supabase
-        .from("purchase_invoices")
-        .select("total_amount")
-        .gte("invoice_date", currentMonthStart.toISOString())
-        .eq("status", "paid");
-
       if (purchasesError) throw purchasesError;
 
-      // Load purchases data for last month
-      const { data: lastMonthPurchases } = await supabase
-        .from("purchase_invoices")
-        .select("total_amount")
-        .gte("invoice_date", lastMonthStart.toISOString())
-        .lte("invoice_date", lastMonthEnd.toISOString())
-        .eq("status", "paid");
-
-      // Calculate totals
-      const totalSales = currentSales?.reduce((sum, inv) => sum + parseFloat(inv.total_amount as any), 0) || 0;
-      const totalPurchases = currentPurchases?.reduce((sum, inv) => sum + parseFloat(inv.total_amount as any), 0) || 0;
-      const lastMonthSalesTotal = lastMonthSales?.reduce((sum, inv) => sum + parseFloat(inv.total_amount as any), 0) || 0;
-      const lastMonthPurchasesTotal = lastMonthPurchases?.reduce((sum, inv) => sum + parseFloat(inv.total_amount as any), 0) || 0;
+      const totalSales = currentSales?.reduce((sum: number, inv: any) => sum + parseFloat(inv.total_amount || 0), 0) || 0;
+      const totalPurchases = currentPurchases?.reduce((sum: number, inv: any) => sum + parseFloat(inv.total_amount || 0), 0) || 0;
+      const lastMonthSalesTotal = lastMonthSales?.reduce((sum: number, inv: any) => sum + parseFloat(inv.total_amount || 0), 0) || 0;
+      const lastMonthPurchasesTotal = lastMonthPurchases?.reduce((sum: number, inv: any) => sum + parseFloat(inv.total_amount || 0), 0) || 0;
 
       const netProfit = totalSales - totalPurchases;
       const lastMonthProfit = lastMonthSalesTotal - lastMonthPurchasesTotal;
 
-      // Calculate percentage changes
-      const salesChange = lastMonthSalesTotal > 0 
-        ? ((totalSales - lastMonthSalesTotal) / lastMonthSalesTotal) * 100 
-        : 0;
-      const purchasesChange = lastMonthPurchasesTotal > 0 
-        ? ((totalPurchases - lastMonthPurchasesTotal) / lastMonthPurchasesTotal) * 100 
-        : 0;
-      const profitChange = lastMonthProfit > 0 
-        ? ((netProfit - lastMonthProfit) / lastMonthProfit) * 100 
-        : 0;
+      const salesChange = lastMonthSalesTotal > 0 ? ((totalSales - lastMonthSalesTotal) / lastMonthSalesTotal) * 100 : 0;
+      const purchasesChange = lastMonthPurchasesTotal > 0 ? ((totalPurchases - lastMonthPurchasesTotal) / lastMonthPurchasesTotal) * 100 : 0;
+      const profitChange = lastMonthProfit > 0 ? ((netProfit - lastMonthProfit) / lastMonthProfit) * 100 : 0;
 
-      // Load low stock products
-      const { data: lowStock, error: lowStockError } = await supabase
+      const { data: lowStockData, error: lowStockError } = await (supabase
         .from("products")
-        .select("id, name, sku, quantity, min_stock_level")
-        .lt("quantity", supabase.rpc("COALESCE", { column: "min_stock_level", default_value: 10 }))
-        .order("quantity", { ascending: true })
-        .limit(4);
+        .select("id, name, product_code, stock_quantity, reorder_level")
+        .order("stock_quantity", { ascending: true })
+        .limit(10) as any);
 
       if (lowStockError) console.error("Low stock error:", lowStockError);
+      
+      const lowStock = (lowStockData || []).filter((p: any) => p.stock_quantity <= (p.reorder_level || 5)).slice(0, 4);
 
-      // Load pending invoices count
-      const { count: pendingCount, error: pendingError } = await supabase
+      const { count: pendingCount, error: pendingError } = await (supabase
         .from("sales_invoices")
         .select("*", { count: "exact", head: true })
-        .in("payment_status", ["pending", "partial"]);
+        .in("payment_status", ["unpaid", "partial"]) as any);
 
-      if (pendingError) throw pendingError;
+      if (pendingError) console.error(pendingError);
 
-      // Load active customers count
-      const { count: customersCount, error: customersError } = await supabase
+      const { count: customersCount, error: customersError } = await (supabase
         .from("customers")
         .select("*", { count: "exact", head: true })
-        .eq("status", "active");
+        .eq("status", "active") as any);
 
-      if (customersError) throw customersError;
+      if (customersError) console.error(customersError);
 
-      // Load recent invoices
-      const { data: invoices, error: invoicesError } = await supabase
+      const { data: invoices, error: invoicesError } = await (supabase
         .from("sales_invoices")
-        .select(`
-          id,
-          invoice_number,
-          total_amount,
-          payment_status,
-          invoice_date,
-          customers (name)
-        `)
+        .select("id, invoice_number, total_amount, payment_status, invoice_date, customer_name")
         .order("invoice_date", { ascending: false })
-        .limit(4);
+        .limit(4) as any);
 
-      if (invoicesError) throw invoicesError;
+      if (invoicesError) console.error(invoicesError);
 
-      // Format recent invoices
-      const formattedInvoices = invoices?.map(inv => ({
+      const formattedInvoices = invoices?.map((inv: any) => ({
         id: inv.id,
         invoice_number: inv.invoice_number,
-        customer_name: (inv.customers as any)?.name || "Unknown",
-        total_amount: parseFloat(inv.total_amount as any),
-        payment_status: inv.payment_status || "pending",
+        customer_name: inv.customer_name || "Unknown",
+        total_amount: parseFloat(inv.total_amount || 0),
+        payment_status: inv.payment_status || "unpaid",
         invoice_date: inv.invoice_date,
       })) || [];
 
@@ -238,7 +226,7 @@ export function DashboardOverview() {
         totalSales,
         totalPurchases,
         netProfit,
-        lowStockItems: lowStock?.length || 0,
+        lowStockItems: lowStock.length,
         pendingInvoices: pendingCount || 0,
         activeCustomers: customersCount || 0,
         salesChange: Math.round(salesChange * 10) / 10,
@@ -247,7 +235,7 @@ export function DashboardOverview() {
       });
 
       setRecentInvoices(formattedInvoices);
-      setLowStockProducts(lowStock || []);
+      setLowStockProducts(lowStock);
 
     } catch (error: any) {
       console.error("Error loading dashboard data:", error);
@@ -259,7 +247,7 @@ export function DashboardOverview() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "paid": return "text-success bg-success/10";
-      case "pending": return "text-warning bg-warning/10";
+      case "unpaid": return "text-warning bg-warning/10";
       case "partial": return "text-blue-600 bg-blue-50";
       case "overdue": return "text-destructive bg-destructive/10";
       default: return "text-muted-foreground bg-muted";
@@ -394,12 +382,12 @@ export function DashboardOverview() {
                   <div key={product.id} className="flex items-center justify-between border-b border-border pb-3 last:border-0 last:pb-0">
                     <div>
                       <div className="font-medium">{product.name}</div>
-                      <div className="text-sm text-muted-foreground">SKU: {product.sku}</div>
+                      <div className="text-sm text-muted-foreground">Code: {product.product_code}</div>
                     </div>
                     <div className="text-right">
                       <div className="text-sm">
-                        <span className="font-semibold text-destructive">{product.quantity}</span>
-                        <span className="text-muted-foreground"> / {product.min_stock_level || 10}</span>
+                        <span className="font-semibold text-destructive">{product.stock_quantity}</span>
+                        <span className="text-muted-foreground"> / {product.reorder_level || 0}</span>
                       </div>
                       <div className="text-xs text-muted-foreground">units</div>
                     </div>
