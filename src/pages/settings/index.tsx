@@ -115,7 +115,41 @@ export default function SettingsPage() {
 
   useEffect(() => {
     loadSettings();
+    loadBusinessLocations();
   }, []);
+
+  const loadBusinessLocations = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("business_locations")
+        .select("*")
+        .order("location_name", { ascending: true });
+
+      if (error) throw error;
+
+      if (data && data.length > 0) {
+        // Map database fields to component state format
+        const mappedLocations = data.map(loc => ({
+          id: loc.id,
+          name: loc.location_name || "",
+          name_ar: loc.location_name_ar || "",
+          buildingNumber: loc.building_number || "",
+          streetName: loc.street_name || "",
+          district: loc.district || "",
+          additionalNumber: loc.additional_number || "",
+          postalCode: loc.postal_code || "",
+          city: loc.city || "",
+          country: loc.country || "Saudi Arabia",
+          phone: loc.phone || "",
+          email: loc.email || "",
+          isDefault: loc.is_default || false,
+        }));
+        setBusinessLocations(mappedLocations);
+      }
+    } catch (error: any) {
+      console.error("Error loading business locations:", error);
+    }
+  };
 
   const loadSettings = () => {
     // Load company info
@@ -140,12 +174,6 @@ export default function SettingsPage() {
     const savedAccountingYear = localStorage.getItem("accountingYear");
     if (savedAccountingYear) {
       setAccountingYear(JSON.parse(savedAccountingYear));
-    }
-
-    // Load business locations
-    const savedLocations = localStorage.getItem("businessLocations");
-    if (savedLocations) {
-      setBusinessLocations(JSON.parse(savedLocations));
     }
   };
 
@@ -201,7 +229,7 @@ export default function SettingsPage() {
     }, 1000);
   };
 
-  const handleAddLocation = () => {
+  const handleAddLocation = async () => {
     if (!newLocation.name || !newLocation.city) {
       toast({
         title: "Error",
@@ -211,54 +239,110 @@ export default function SettingsPage() {
       return;
     }
 
-    const locationToAdd = {
-      ...newLocation,
-      id: Date.now().toString(),
-      isDefault: businessLocations.length === 0,
-    };
+    try {
+      setLoading(true);
 
-    const updatedLocations = [...businessLocations, locationToAdd];
-    setBusinessLocations(updatedLocations);
-    localStorage.setItem("businessLocations", JSON.stringify(updatedLocations));
-    
-    // Reset form
-    setNewLocation({
-      name: "",
-      name_ar: "",
-      buildingNumber: "",
-      streetName: "",
-      district: "",
-      additionalNumber: "",
-      postalCode: "",
-      city: "",
-      country: "Saudi Arabia",
-      phone: "",
-      email: "",
-      isDefault: false,
-    });
+      // Check if this is the first location
+      const isFirstLocation = businessLocations.length === 0;
 
-    toast({
-      title: "Location Added",
-      description: "Business location has been added successfully",
-    });
+      const { data, error } = await supabase
+        .from("business_locations")
+        .insert({
+          location_name: newLocation.name,
+          location_name_ar: newLocation.name_ar,
+          building_number: newLocation.buildingNumber,
+          street_name: newLocation.streetName,
+          district: newLocation.district,
+          additional_number: newLocation.additionalNumber,
+          postal_code: newLocation.postalCode,
+          city: newLocation.city,
+          country: newLocation.country,
+          phone: newLocation.phone,
+          email: newLocation.email,
+          is_default: isFirstLocation,
+          status: "active",
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Reload locations from database
+      await loadBusinessLocations();
+
+      // Reset form
+      setNewLocation({
+        name: "",
+        name_ar: "",
+        buildingNumber: "",
+        streetName: "",
+        district: "",
+        additionalNumber: "",
+        postalCode: "",
+        city: "",
+        country: "Saudi Arabia",
+        phone: "",
+        email: "",
+        isDefault: false,
+      });
+
+      toast({
+        title: "Location Added",
+        description: "Business location has been added successfully",
+      });
+    } catch (error: any) {
+      console.error("Error adding location:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to add business location",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleSetDefaultLocation = (locationId: string) => {
-    const updatedLocations = businessLocations.map(loc => ({
-      ...loc,
-      isDefault: loc.id === locationId,
-    }));
-    setBusinessLocations(updatedLocations);
-    localStorage.setItem("businessLocations", JSON.stringify(updatedLocations));
-    
-    toast({
-      title: "Default Location Updated",
-      description: "Default business location has been changed",
-    });
+  const handleSetDefaultLocation = async (locationId: string) => {
+    try {
+      setLoading(true);
+
+      // First, set all locations to non-default
+      await supabase
+        .from("business_locations")
+        .update({ is_default: false })
+        .neq("id", "00000000-0000-0000-0000-000000000000");
+
+      // Then set the selected location as default
+      const { error } = await supabase
+        .from("business_locations")
+        .update({ is_default: true })
+        .eq("id", locationId);
+
+      if (error) throw error;
+
+      // Reload locations
+      await loadBusinessLocations();
+
+      toast({
+        title: "Default Location Updated",
+        description: "Default business location has been changed",
+      });
+    } catch (error: any) {
+      console.error("Error setting default location:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update default location",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleDeleteLocation = (locationId: string) => {
-    if (businessLocations.find(l => l.id === locationId)?.isDefault) {
+  const handleDeleteLocation = async (locationId: string) => {
+    const locationToDelete = businessLocations.find(l => l.id === locationId);
+    
+    if (locationToDelete?.isDefault) {
       toast({
         title: "Error",
         description: "Cannot delete default location. Set another location as default first.",
@@ -267,14 +351,33 @@ export default function SettingsPage() {
       return;
     }
 
-    const updatedLocations = businessLocations.filter(loc => loc.id !== locationId);
-    setBusinessLocations(updatedLocations);
-    localStorage.setItem("businessLocations", JSON.stringify(updatedLocations));
-    
-    toast({
-      title: "Location Deleted",
-      description: "Business location has been removed",
-    });
+    try {
+      setLoading(true);
+
+      const { error } = await supabase
+        .from("business_locations")
+        .delete()
+        .eq("id", locationId);
+
+      if (error) throw error;
+
+      // Reload locations
+      await loadBusinessLocations();
+
+      toast({
+        title: "Location Deleted",
+        description: "Business location has been removed",
+      });
+    } catch (error: any) {
+      console.error("Error deleting location:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete business location",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
