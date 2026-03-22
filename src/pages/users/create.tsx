@@ -139,30 +139,53 @@ export default function CreateUserPage() {
 
     try {
       setLoading(true);
+      console.log("Starting user creation process...", { email: formData.email });
 
-      // Create user account
-      const { data: authData, error: signUpError } = await authService.signUp(
-        formData.email,
-        formData.password,
-        formData.fullName
-      );
+      // Create user via Supabase Admin API
+      const { data: authData, error: createError } = await supabase.auth.admin.createUser({
+        email: formData.email,
+        password: formData.password,
+        email_confirm: true,
+        user_metadata: {
+          full_name: formData.fullName,
+        }
+      });
 
-      if (signUpError) throw signUpError;
+      console.log("User creation result:", { authData, createError });
+
+      if (createError) {
+        console.error("Error creating user:", createError);
+        throw createError;
+      }
 
       if (!authData.user) {
         throw new Error("User creation failed - no user returned");
       }
 
-      // Update user role
-      await userService.update(authData.user.id, {
-        role: formData.role,
-      });
+      console.log("User created successfully:", authData.user.id);
+
+      // Update user profile with role
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .update({ role: formData.role })
+        .eq("id", authData.user.id);
+
+      if (profileError) {
+        console.error("Error updating profile:", profileError);
+        throw profileError;
+      }
+
+      console.log("Profile updated with role:", formData.role);
 
       // Assign locations
       const locationIds = selectedLocations.map((sl) => sl.locationId);
       const primaryLocationId = selectedLocations.find((sl) => sl.isPrimary)?.locationId || locationIds[0];
 
+      console.log("Assigning locations:", { locationIds, primaryLocationId });
+
       await userService.assignLocations(authData.user.id, locationIds, primaryLocationId);
+
+      console.log("Locations assigned successfully");
 
       toast({
         title: "Success",
@@ -174,7 +197,7 @@ export default function CreateUserPage() {
       console.error("Error creating user:", error);
       toast({
         title: "Error",
-        description: error.message || "Failed to create user",
+        description: error.message || "Failed to create user. Please check console for details.",
         variant: "destructive",
       });
     } finally {
