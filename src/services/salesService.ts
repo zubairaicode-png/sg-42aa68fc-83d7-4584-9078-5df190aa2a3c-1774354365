@@ -4,17 +4,28 @@ import type { Database } from "@/integrations/supabase/types";
 export const salesService = {
   // Get all sales invoices
   async getAllInvoices() {
-    const { data, error } = await supabase
-      .from("sales_invoices")
-      .select(`
-        *,
-        customer:customers(name, name_ar),
-        items:sales_invoice_items(*)
-      `)
-      .order("created_at", { ascending: false });
+    try {
+      console.log("Fetching all sales invoices...");
+      
+      const { data, error } = await supabase
+        .from("sales_invoices")
+        .select(`
+          *,
+          items:sales_invoice_items(*)
+        `)
+        .order("created_at", { ascending: false });
 
-    if (error) throw error;
-    return data;
+      if (error) {
+        console.error("Error fetching sales invoices:", error);
+        throw error;
+      }
+
+      console.log("Sales invoices loaded:", data);
+      return data || [];
+    } catch (error: any) {
+      console.error("Error in getAllInvoices:", error);
+      throw error;
+    }
   },
 
   // Create new sales invoice with items

@@ -9,13 +9,11 @@ import { cn } from "@/lib/utils";
 import { Invoice, InvoiceStatus } from "@/types";
 import Link from "next/link";
 import { salesService } from "@/services/salesService";
-import { customerService } from "@/services/customerService";
 import { useToast } from "@/hooks/use-toast";
 
 export default function SalesPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [salesInvoices, setSalesInvoices] = useState<any[]>([]);
-  const [customers, setCustomers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
@@ -26,12 +24,10 @@ export default function SalesPage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [invoicesData, customersData] = await Promise.all([
-        salesService.getAllInvoices(),
-        customerService.getAll()
-      ]);
+      console.log("Loading sales data...");
+      const invoicesData = await salesService.getAllInvoices();
+      console.log("Sales invoices loaded:", invoicesData);
       setSalesInvoices(invoicesData);
-      setCustomers(customersData);
     } catch (error) {
       console.error("Error loading data:", error);
       toast({
@@ -44,26 +40,42 @@ export default function SalesPage() {
     }
   };
 
-  const getCustomerName = (customerId: string) => {
-    const customer = customers.find(c => c.id === customerId);
-    return customer?.name || "Unknown Customer";
+  const getCustomerName = (invoice: any) => {
+    // Use customer_name directly from the invoice record
+    return invoice.customer_name || "Unknown Customer";
   };
 
   const getStatusColor = (status: InvoiceStatus) => {
     switch (status) {
       case "paid": return "text-success bg-success/10";
-      case "pending": return "text-warning bg-warning/10";
+      case "pending": 
+      case "unpaid": return "text-warning bg-warning/10";
       case "overdue": return "text-destructive bg-destructive/10";
       case "draft": return "text-muted-foreground bg-muted";
       case "cancelled": return "text-muted-foreground bg-muted/50";
+      default: return "text-warning bg-warning/10";
     }
   };
 
+  const formatStatus = (status: string) => {
+    return status.charAt(0).toUpperCase() + status.slice(1);
+  };
+
+  const filteredInvoices = salesInvoices.filter((invoice) => {
+    if (!searchQuery.trim()) return true;
+    const query = searchQuery.toLowerCase();
+    return (
+      invoice.invoice_number?.toLowerCase().includes(query) ||
+      invoice.customer_name?.toLowerCase().includes(query) ||
+      invoice.payment_status?.toLowerCase().includes(query)
+    );
+  });
+
   const stats = {
-    totalSales: salesInvoices.reduce((sum, inv) => sum + inv.total, 0),
-    paidAmount: salesInvoices.reduce((sum, inv) => sum + inv.paid, 0),
-    pendingAmount: salesInvoices.filter(inv => inv.status === "pending").reduce((sum, inv) => sum + inv.balance, 0),
-    overdueAmount: salesInvoices.filter(inv => inv.status === "overdue").reduce((sum, inv) => sum + inv.balance, 0),
+    totalSales: filteredInvoices.reduce((sum, inv) => sum + (parseFloat(inv.total_amount) || 0), 0),
+    paidAmount: filteredInvoices.filter(inv => inv.payment_status === "paid").reduce((sum, inv) => sum + (parseFloat(inv.total_amount) || 0), 0),
+    pendingAmount: filteredInvoices.filter(inv => inv.payment_status === "pending" || inv.payment_status === "unpaid").reduce((sum, inv) => sum + (parseFloat(inv.total_amount) || 0), 0),
+    overdueAmount: filteredInvoices.filter(inv => inv.payment_status === "overdue").reduce((sum, inv) => sum + (parseFloat(inv.total_amount) || 0), 0),
   };
 
   return (
@@ -174,40 +186,57 @@ export default function SalesPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {salesInvoices.map((invoice) => (
-                        <tr key={invoice.id} className="border-t hover:bg-table-row-hover transition-colors">
-                          <td className="p-4 font-medium">{invoice.invoice_number}</td>
-                          <td className="p-4">{getCustomerName(invoice.customer_id)}</td>
-                          <td className="p-4 text-sm">{invoice.invoice_date}</td>
-                          <td className="p-4 text-sm">{invoice.due_date}</td>
-                          <td className="p-4 text-right font-semibold">SAR {(invoice.total_amount || 0).toLocaleString()}</td>
-                          <td className="p-4 text-right">SAR {(invoice.paid_amount || 0).toLocaleString()}</td>
-                          <td className="p-4 text-right font-medium">SAR {((invoice.total_amount || 0) - (invoice.paid_amount || 0)).toLocaleString()}</td>
-                          <td className="p-4 text-center">
-                            <span className={cn(
-                              "inline-block px-3 py-1 rounded-full text-xs font-medium",
-                              getStatusColor(invoice.payment_status || "pending")
-                            )}>
-                              {invoice.payment_status || "pending"}
-                            </span>
-                          </td>
-                          <td className="p-4">
+                      {loading ? (
+                        <tr>
+                          <td colSpan={9} className="p-8 text-center">
                             <div className="flex items-center justify-center gap-2">
-                              <Link href={`/sales/invoice/${invoice.id}`}>
-                                <Button variant="ghost" size="icon" className="h-8 w-8">
-                                  <Eye className="h-4 w-4" />
-                                </Button>
-                              </Link>
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive">
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
+                              <div className="h-5 w-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                              <span className="text-muted-foreground">Loading sales invoices...</span>
                             </div>
                           </td>
                         </tr>
-                      ))}
+                      ) : filteredInvoices.length === 0 ? (
+                        <tr>
+                          <td colSpan={9} className="p-8 text-center text-muted-foreground">
+                            {searchQuery ? "No sales invoices found matching your search" : "No sales invoices yet"}
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredInvoices.map((invoice) => (
+                          <tr key={invoice.id} className="border-t hover:bg-table-row-hover transition-colors">
+                            <td className="p-4 font-medium">{invoice.invoice_number}</td>
+                            <td className="p-4">{getCustomerName(invoice)}</td>
+                            <td className="p-4 text-sm">{new Date(invoice.invoice_date).toLocaleDateString()}</td>
+                            <td className="p-4 text-sm">{new Date(invoice.due_date).toLocaleDateString()}</td>
+                            <td className="p-4 text-right font-semibold">SAR {parseFloat(invoice.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                            <td className="p-4 text-right">SAR {parseFloat(invoice.paid_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                            <td className="p-4 text-right font-medium">SAR {(parseFloat(invoice.total_amount || 0) - parseFloat(invoice.paid_amount || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                            <td className="p-4 text-center">
+                              <span className={cn(
+                                "inline-block px-3 py-1 rounded-full text-xs font-medium",
+                                getStatusColor(invoice.payment_status || "unpaid")
+                              )}>
+                                {formatStatus(invoice.payment_status || "unpaid")}
+                              </span>
+                            </td>
+                            <td className="p-4">
+                              <div className="flex items-center justify-center gap-2">
+                                <Link href={`/sales/invoice/${invoice.id}`}>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
+                                </Link>
+                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive">
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>
