@@ -14,7 +14,7 @@ export function AuthGuard({ children }: AuthGuardProps) {
     const checkAuth = async () => {
       try {
         const response = await fetch("/api/auth/me");
-        const publicPaths = ["/auth/login", "/auth/signup", "/auth/forgot-password", "/auth/reset-password"];
+        const publicPaths = ["/auth/login", "/auth/signup", "/auth/forgot-password", "/auth/reset-password", "/auth/register-company"];
         const isPublicPath = publicPaths.includes(router.pathname);
 
         if (response.ok) {
@@ -30,7 +30,7 @@ export function AuthGuard({ children }: AuthGuardProps) {
         }
       } catch (error) {
         console.error("Auth check error:", error);
-        const publicPaths = ["/auth/login", "/auth/signup", "/auth/forgot-password", "/auth/reset-password"];
+        const publicPaths = ["/auth/login", "/auth/signup", "/auth/forgot-password", "/auth/reset-password", "/auth/register-company"];
         const isPublicPath = publicPaths.includes(router.pathname);
         
         setAuthenticated(false);
