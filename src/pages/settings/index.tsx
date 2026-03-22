@@ -1566,141 +1566,242 @@ export default function SettingsPage() {
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <Database className="h-5 w-5" />
-                      Backup & Restore
+                      Database Backup & Restore
                     </CardTitle>
                     <CardDescription>
                       Create backup points and restore your database to previous states
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label>Backup Progress</Label>
-                        <div className="flex justify-between text-sm">
-                          <span>Progress:</span>
-                          <span>{backupProgress}%</span>
-                        </div>
-                        <div className="w-full bg-muted rounded-full h-2">
-                          <div 
-                            className="bg-primary h-2 rounded-full transition-all duration-300" 
-                            style={{ width: `${backupProgress}%` }}
-                          />
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          {backupInProgress ? "Creating backup..." : "Ready to backup"}
-                        </p>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Restore Progress</Label>
-                        <div className="flex justify-between text-sm">
-                          <span>Progress:</span>
-                          <span>{restoreProgress}%</span>
-                        </div>
-                        <div className="w-full bg-muted rounded-full h-2">
-                          <div 
-                            className="bg-primary h-2 rounded-full transition-all duration-300" 
-                            style={{ width: `${restoreProgress}%` }}
-                          />
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          {restoreInProgress ? "Restoring backup..." : "Ready to restore"}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="border-t pt-6">
-                      <h3 className="text-sm font-semibold mb-4">💾 Create Backup Point</h3>
-                      <div className="bg-muted/50 p-4 rounded-lg space-y-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="backupName">Backup Name *</Label>
-                          <Input
-                            id="backupName"
-                            value={newBackupName}
-                            onChange={(e) => setNewBackupName(e.target.value)}
-                            placeholder="e.g., Before Major Update, Working Version"
-                            disabled={backupInProgress}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="backupDescription">Description (Optional)</Label>
-                          <Textarea
-                            id="backupDescription"
-                            value={newBackupDescription}
-                            onChange={(e) => setNewBackupDescription(e.target.value)}
-                            placeholder="What changes are you about to make?"
-                            rows={2}
-                            disabled={backupInProgress}
-                          />
-                        </div>
-                        <div className="text-sm space-y-1 text-muted-foreground">
-                          <p className="font-medium">This backup will include:</p>
-                          <ul className="list-disc list-inside space-y-1">
-                            <li>All customers, suppliers, and products</li>
-                            <li>Sales and purchase invoices</li>
-                            <li>Expenses, quotations, and subscriptions</li>
-                            <li>Chart of accounts and journal entries</li>
-                            <li>Business locations and settings</li>
-                            <li>All database tables and configurations</li>
-                          </ul>
-                        </div>
-                        <Button 
-                          onClick={handleCreateBackupPoint} 
-                          disabled={backupInProgress || !newBackupName.trim()}
-                          className="w-full"
-                        >
-                          {backupInProgress ? (
-                            <>
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              Creating Backup Point...
-                            </>
-                          ) : (
-                            <>
-                              <Database className="mr-2 h-4 w-4" />
-                              Create Backup Point
-                            </>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <Card className="bg-primary/5 border-primary/20">
+                        <CardHeader>
+                          <CardTitle className="text-lg flex items-center gap-2">
+                            <Download className="h-5 w-5" />
+                            Create Database Backup
+                          </CardTitle>
+                          <CardDescription>
+                            Download a complete backup of your database
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          {backupInProgress && (
+                            <div className="space-y-2">
+                              <div className="flex justify-between text-sm">
+                                <span>Creating backup...</span>
+                                <span>{backupProgress}%</span>
+                              </div>
+                              <div className="w-full bg-muted rounded-full h-2">
+                                <div 
+                                  className="bg-primary h-2 rounded-full transition-all duration-300" 
+                                  style={{ width: `${backupProgress}%` }}
+                                />
+                              </div>
+                            </div>
                           )}
-                        </Button>
-                      </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="backupName">Backup Name *</Label>
+                            <Input
+                              id="backupName"
+                              value={newBackupName}
+                              onChange={(e) => setNewBackupName(e.target.value)}
+                              placeholder="e.g., Before Major Update, Monthly Backup"
+                              disabled={backupInProgress}
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="backupDescription">Description (Optional)</Label>
+                            <Textarea
+                              id="backupDescription"
+                              value={newBackupDescription}
+                              onChange={(e) => setNewBackupDescription(e.target.value)}
+                              placeholder="What changes are you about to make?"
+                              rows={3}
+                              disabled={backupInProgress}
+                            />
+                          </div>
+
+                          <div className="bg-muted/50 p-3 rounded-lg text-xs space-y-1">
+                            <p className="font-medium">📦 Backup will include:</p>
+                            <ul className="list-disc list-inside space-y-0.5 text-muted-foreground">
+                              <li>All database tables (customers, products, invoices, etc.)</li>
+                              <li>Settings and configurations</li>
+                              <li>User data and permissions</li>
+                              <li>Compressed as .sql.gz for faster download</li>
+                            </ul>
+                          </div>
+
+                          <Button 
+                            onClick={handleCreateBackupPoint} 
+                            disabled={backupInProgress || !newBackupName.trim()}
+                            className="w-full"
+                            size="lg"
+                          >
+                            {backupInProgress ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Creating Backup ({backupProgress}%)
+                              </>
+                            ) : (
+                              <>
+                                <Download className="mr-2 h-4 w-4" />
+                                Create & Download Backup
+                              </>
+                            )}
+                          </Button>
+                        </CardContent>
+                      </Card>
+
+                      <Card className="bg-destructive/5 border-destructive/20">
+                        <CardHeader>
+                          <CardTitle className="text-lg flex items-center gap-2">
+                            <Upload className="h-5 w-5" />
+                            Restore Database
+                          </CardTitle>
+                          <CardDescription>
+                            Upload and restore from a backup file
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          {restoreInProgress && (
+                            <div className="space-y-2">
+                              <div className="flex justify-between text-sm">
+                                <span>Restoring database...</span>
+                                <span>{restoreProgress}%</span>
+                              </div>
+                              <div className="w-full bg-muted rounded-full h-2">
+                                <div 
+                                  className="bg-destructive h-2 rounded-full transition-all duration-300" 
+                                  style={{ width: `${restoreProgress}%` }}
+                                />
+                              </div>
+                            </div>
+                          )}
+
+                          <div className="bg-destructive/10 border border-destructive/20 p-4 rounded-lg space-y-2">
+                            <div className="flex items-start gap-2">
+                              <AlertTriangle className="h-5 w-5 text-destructive mt-0.5 flex-shrink-0" />
+                              <div className="space-y-1">
+                                <p className="text-sm font-medium text-destructive">⚠️ WARNING: Data Replacement</p>
+                                <ul className="text-xs text-muted-foreground space-y-1">
+                                  <li>• All current data will be REPLACED</li>
+                                  <li>• This action cannot be undone</li>
+                                  <li>• Create a backup before restoring</li>
+                                  <li>• Application will reload after restore</li>
+                                </ul>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="restoreFile">Upload Backup File</Label>
+                            <Input
+                              id="restoreFile"
+                              type="file"
+                              accept=".json,.sql,.gz"
+                              onChange={handleRestoreDatabase}
+                              disabled={restoreInProgress}
+                              className="cursor-pointer"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              Accepts: .json (backup point), .sql, or .sql.gz files
+                            </p>
+                          </div>
+
+                          <div className="bg-muted/50 p-3 rounded-lg text-xs space-y-1">
+                            <p className="font-medium">✅ Restore process:</p>
+                            <ol className="list-decimal list-inside space-y-0.5 text-muted-foreground">
+                              <li>Upload your backup file</li>
+                              <li>Confirm the restore action</li>
+                              <li>Wait for completion (1-3 minutes)</li>
+                              <li>Application will automatically reload</li>
+                            </ol>
+                          </div>
+                        </CardContent>
+                      </Card>
                     </div>
 
                     <div className="border-t pt-6">
-                      <h3 className="text-sm font-semibold mb-4">📋 Saved Backup Points ({backupPoints.length})</h3>
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-sm font-semibold">💾 Saved Backup Points ({backupPoints.length})</h3>
+                        {backupPoints.length > 0 && (
+                          <p className="text-xs text-muted-foreground">
+                            Total size: {(backupPoints.reduce((sum, b) => sum + b.size, 0) / 1024 / 1024).toFixed(2)} MB
+                          </p>
+                        )}
+                      </div>
+
                       {backupPoints.length === 0 ? (
-                        <div className="bg-muted/30 p-8 rounded-lg text-center">
-                          <Database className="h-12 w-12 mx-auto mb-3 text-muted-foreground" />
-                          <p className="text-sm text-muted-foreground">No backup points created yet</p>
-                          <p className="text-xs text-muted-foreground mt-1">Create your first backup point above</p>
+                        <div className="bg-muted/30 p-12 rounded-lg text-center">
+                          <Database className="h-16 w-16 mx-auto mb-4 text-muted-foreground/50" />
+                          <p className="text-base font-medium mb-2">No backup points created yet</p>
+                          <p className="text-sm text-muted-foreground mb-4">
+                            Create your first backup to protect your data
+                          </p>
+                          <Button variant="outline" onClick={() => setNewBackupName("Backup " + new Date().toLocaleDateString())}>
+                            <Download className="mr-2 h-4 w-4" />
+                            Create First Backup
+                          </Button>
                         </div>
                       ) : (
                         <div className="space-y-3">
-                          {backupPoints.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).map((backup) => (
-                            <Card key={backup.id} className="p-4">
+                          {backupPoints.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).map((backup, index) => (
+                            <Card key={backup.id} className={cn(
+                              "p-4 transition-all hover:shadow-md",
+                              index === 0 && "border-primary/50 bg-primary/5"
+                            )}>
                               <div className="flex items-start justify-between gap-4">
-                                <div className="flex-1 space-y-1">
-                                  <div className="flex items-center gap-2">
-                                    <h4 className="font-semibold">{backup.name}</h4>
-                                    <span className="text-xs bg-muted px-2 py-0.5 rounded">
+                                <div className="flex-1 space-y-2">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <h4 className="font-semibold text-base">{backup.name}</h4>
+                                    {index === 0 && (
+                                      <span className="text-xs bg-primary text-primary-foreground px-2 py-0.5 rounded font-medium">
+                                        Latest
+                                      </span>
+                                    )}
+                                    <span className="text-xs bg-muted px-2 py-0.5 rounded font-mono">
                                       {(backup.size / 1024).toFixed(0)} KB
                                     </span>
                                   </div>
+                                  
                                   {backup.description && (
                                     <p className="text-sm text-muted-foreground">{backup.description}</p>
                                   )}
-                                  <p className="text-xs text-muted-foreground">
-                                    Created: {new Date(backup.timestamp).toLocaleString()}
-                                  </p>
-                                  <p className="text-xs text-muted-foreground">
-                                    Tables: {Object.keys(backup.data.tables).length} | 
-                                    Total Records: {String(Object.values(backup.data.tables).reduce((sum: number, table: any) => sum + (Array.isArray(table) ? table.length : 0), 0))}
-                                  </p>
+                                  
+                                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                                    <span className="flex items-center gap-1">
+                                      📅 {new Date(backup.timestamp).toLocaleDateString()}
+                                    </span>
+                                    <span className="flex items-center gap-1">
+                                      🕐 {new Date(backup.timestamp).toLocaleTimeString()}
+                                    </span>
+                                    <span className="flex items-center gap-1">
+                                      📊 {Object.keys(backup.data.tables).length} tables
+                                    </span>
+                                    <span className="flex items-center gap-1">
+                                      📝 {String(Object.values(backup.data.tables).reduce((sum: number, table: any) => sum + (Array.isArray(table) ? table.length : 0), 0))} records
+                                    </span>
+                                  </div>
                                 </div>
-                                <div className="flex gap-2">
+
+                                <div className="flex flex-col gap-2">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleDownloadBackupPoint(backup)}
+                                    className="whitespace-nowrap"
+                                  >
+                                    <Download className="h-4 w-4 mr-1" />
+                                    Download
+                                  </Button>
                                   <Button
                                     variant="outline"
                                     size="sm"
                                     onClick={() => handleRestoreBackupPoint(backup)}
                                     disabled={restoreInProgress}
+                                    className="whitespace-nowrap"
                                   >
                                     {restoreInProgress ? (
                                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -1710,14 +1811,6 @@ export default function SettingsPage() {
                                         Restore
                                       </>
                                     )}
-                                  </Button>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => handleDownloadBackupPoint(backup)}
-                                  >
-                                    <Download className="h-4 w-4 mr-1" />
-                                    Download
                                   </Button>
                                   <Button
                                     variant="destructive"
@@ -1735,28 +1828,19 @@ export default function SettingsPage() {
                     </div>
 
                     <div className="border-t pt-6">
-                      <h3 className="text-sm font-semibold mb-4">📤 Import External Backup</h3>
-                      <div className="bg-destructive/10 border border-destructive/20 p-4 rounded-lg space-y-3">
-                        <div className="flex items-start gap-2">
-                          <AlertTriangle className="h-5 w-5 text-destructive mt-0.5" />
-                          <div className="space-y-1">
-                            <p className="text-sm font-medium text-destructive">⚠️ WARNING: Restore will REPLACE all existing data</p>
-                            <p className="text-sm text-muted-foreground">This action cannot be undone. Make sure you have a current backup before restoring.</p>
-                          </div>
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="restoreFile">Upload Backup File (.json)</Label>
-                          <Input
-                            id="restoreFile"
-                            type="file"
-                            accept=".json"
-                            onChange={handleRestoreDatabase}
-                            disabled={restoreInProgress}
-                          />
-                          <p className="text-xs text-muted-foreground">
-                            Restore from previously downloaded backup file
-                          </p>
-                        </div>
+                      <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 p-4 rounded-lg">
+                        <h4 className="text-sm font-semibold mb-2 flex items-center gap-2">
+                          <Database className="h-4 w-4" />
+                          💡 Backup Best Practices
+                        </h4>
+                        <ul className="text-sm space-y-1 text-muted-foreground">
+                          <li>✅ Create backups before major updates or changes</li>
+                          <li>✅ Store backup files in a secure location (cloud storage, external drive)</li>
+                          <li>✅ Test restore functionality periodically</li>
+                          <li>✅ Keep multiple backup points from different dates</li>
+                          <li>✅ Create weekly/monthly backups for long-term retention</li>
+                          <li>⚠️ Backup files contain sensitive data - protect them carefully</li>
+                        </ul>
                       </div>
                     </div>
                   </CardContent>
