@@ -51,15 +51,16 @@ export default function RegisterCompanyPage() {
       try {
         const settings = JSON.parse(savedSystemSettings);
         // Only disable if explicitly set to false
-        setRegistrationAllowed(settings.allowNewCompanyRegistration !== false);
+        if (settings.allowNewCompanyRegistration === false) {
+          setRegistrationAllowed(false);
+        }
       } catch (error) {
+        console.error("Error parsing system settings:", error);
         // If parsing fails, allow registration by default
         setRegistrationAllowed(true);
       }
-    } else {
-      // If no settings found, allow registration by default
-      setRegistrationAllowed(true);
     }
+    // If no settings found, registrationAllowed stays true (default state)
   }, []);
 
   const validateStep1 = () => {
